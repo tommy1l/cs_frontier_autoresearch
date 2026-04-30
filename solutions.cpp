@@ -207,21 +207,57 @@ int main()
         return {true, placements};
     };
 
-    for (int S = Smin;; S++)
+    auto startTime = chrono::steady_clock::now();
+    auto elapsed_ms = [&]() -> long long {
+        return chrono::duration_cast<chrono::milliseconds>(
+            chrono::steady_clock::now() - startTime).count();
+    };
+
+    int bestS = -1;
+    vector<Placement> bestPlacements;
+
+    // Phase 1: find initial solution with sorted order
+    for (int S = Smin; bestS < 0 && S <= Smin + 500; S++)
     {
         auto [ok, placements] = tryPack(S);
         if (ok)
         {
-            cout << S << " " << S << "\n";
-            for (int i = 0; i < n; i++)
-            {
-                auto &pl = placements[i];
-                cout << pl.X << " " << pl.Y << " " << pl.R << " " << pl.F << "\n";
-            }
-            return 0;
+            bestS = S;
+            bestPlacements = placements;
         }
-        if (S > Smin + 1000)
-            break; // safety; shouldn't trigger
+    }
+
+    if (bestS >= 0)
+    {
+        // Phase 2: try smaller S with random piece orderings within time budget
+        mt19937 rng(42);
+        int targetS = bestS - 1;
+        int attemptsAtTarget = 0;
+
+        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
+        {
+            shuffle(order.begin(), order.end(), rng);
+            auto [ok, placements] = tryPack(targetS);
+            if (ok)
+            {
+                bestS = targetS;
+                bestPlacements = placements;
+                targetS--;
+                attemptsAtTarget = 0;
+            }
+            else
+            {
+                attemptsAtTarget++;
+            }
+        }
+
+        cout << bestS << " " << bestS << "\n";
+        for (int i = 0; i < n; i++)
+        {
+            auto &pl = bestPlacements[i];
+            cout << pl.X << " " << pl.Y << " " << pl.R << " " << pl.F << "\n";
+        }
+        return 0;
     }
 
     // Fallback: stack each piece in its first orientation, one per row
