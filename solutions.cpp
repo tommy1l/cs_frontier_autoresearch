@@ -176,7 +176,9 @@ int main()
                         }
                         if (ok)
                         {
-                            int score = (cy + p.H) * S + cx; // minimise piece-top
+                            // minimise max(piece-top, piece-right), then piece-top, then cx
+                            int extent = max(cy + p.H, cx + p.W);
+                            int score = extent * S * S + (cy + p.H) * S + cx;
                             if (score < bestScore)
                             {
                                 bestScore = score;
