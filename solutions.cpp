@@ -115,16 +115,11 @@ int main()
         }
     }
 
-    // Sort pieces: largest min-bounding-box area first (hardest to fit), then by cell count
+    // Sort pieces: largest cell count first
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
-    sort(order.begin(), order.end(), [&](int a, int b) {
-        int minBBA = INT_MAX, minBBB = INT_MAX;
-        for (auto &p : orientations[a]) minBBA = min(minBBA, p.W * p.H);
-        for (auto &p : orientations[b]) minBBB = min(minBBB, p.W * p.H);
-        if (minBBA != minBBB) return minBBA > minBBB;
-        return (int)raw[a].size() > (int)raw[b].size();
-    });
+    sort(order.begin(), order.end(), [&](int a, int b)
+         { return (int)raw[a].size() > (int)raw[b].size(); });
 
     int Smin = (int)ceil(sqrt((double)totalCells));
 
@@ -255,7 +250,7 @@ int main()
         mt19937 rng(42);
 
         // Phase 2a: try different orderings at bestS to find smaller actualS
-        for (int trial = 0; trial < 25 && elapsed_ms() < 4000; trial++)
+        for (int trial = 0; trial < 100 && elapsed_ms() < 7000; trial++)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(bestS);
@@ -273,7 +268,7 @@ int main()
         // Phase 2b: try smaller S values; accept only if actualS improves
         int targetS = bestS - 1;
         int attemptsAtTarget = 0;
-        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
+        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 5)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(targetS);
