@@ -236,7 +236,7 @@ int main()
         int targetS = bestS - 1;
         int attemptsAtTarget = 0;
 
-        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
+        while (targetS >= Smin && elapsed_ms() < 20000 && attemptsAtTarget < 200)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(targetS);
