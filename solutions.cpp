@@ -159,6 +159,8 @@ int main()
                         minCY = 0;
                     if (minCY + p.H > S)
                         continue;
+                    if (minCY * S + cx >= bestScore)
+                        continue; // can't beat current best
 
                     // Scan upward from minCY until valid
                     for (int cy = minCY; cy + p.H <= S; cy++)
