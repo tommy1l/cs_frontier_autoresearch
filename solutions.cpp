@@ -115,11 +115,16 @@ int main()
         }
     }
 
-    // Sort pieces: largest cell count first
+    // Sort pieces: largest min-bounding-box area first (hardest to fit), then by cell count
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
-    sort(order.begin(), order.end(), [&](int a, int b)
-         { return (int)raw[a].size() > (int)raw[b].size(); });
+    sort(order.begin(), order.end(), [&](int a, int b) {
+        int minBBA = INT_MAX, minBBB = INT_MAX;
+        for (auto &p : orientations[a]) minBBA = min(minBBA, p.W * p.H);
+        for (auto &p : orientations[b]) minBBB = min(minBBB, p.W * p.H);
+        if (minBBA != minBBB) return minBBA > minBBB;
+        return (int)raw[a].size() > (int)raw[b].size();
+    });
 
     int Smin = (int)ceil(sqrt((double)totalCells));
 
