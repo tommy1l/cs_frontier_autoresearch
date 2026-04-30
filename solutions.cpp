@@ -128,7 +128,7 @@ int main()
         int X, Y, R, F;
     };
 
-    auto tryPack = [&](int S) -> pair<bool, vector<Placement>>
+    auto tryPack = [&](int S, bool widthFirst = false) -> pair<bool, vector<Placement>>
     {
         vector<bool> grid((size_t)S * S, false);
         vector<int> skyline(S, 0); // skyline[x] = next free y in column x
@@ -159,12 +159,19 @@ int main()
                         minCY = 0;
                     if (minCY + p.H > S)
                         continue;
-                    if ((minCY + p.H) * S + cx >= bestScore)
+                    if (widthFirst)
+                    {
+                        if ((cx + p.W) * S >= bestScore)
+                            break; // cx only increases; all remaining worse
+                    }
+                    else if ((minCY + p.H) * S + cx >= bestScore)
                         continue; // can't beat current best
 
                     // Scan upward from minCY until valid
                     for (int cy = minCY; cy + p.H <= S; cy++)
                     {
+                        if (widthFirst && (cx + p.W) * S + cy >= bestScore)
+                            break;
                         bool ok = true;
                         for (auto [dx, dy] : p.cells)
                         {
@@ -176,7 +183,7 @@ int main()
                         }
                         if (ok)
                         {
-                            int score = (cy + p.H) * S + cx; // minimise piece-top
+                            int score = widthFirst ? (cx + p.W) * S + cy : (cy + p.H) * S + cx;
                             if (score < bestScore)
                             {
                                 bestScore = score;
@@ -247,14 +254,13 @@ int main()
         };
 
         int bestActualS = computeActualS(bestPlacements);
-        vector<int> sortedOrder(order); // save sorted order before Phase 2 shuffles it
         mt19937 rng(42);
 
         // Phase 2a: try different orderings at bestS to find smaller actualS
         for (int trial = 0; trial < 25 && elapsed_ms() < 4000; trial++)
         {
             shuffle(order.begin(), order.end(), rng);
-            auto [ok, placements] = tryPack(bestS);
+            auto [ok, placements] = tryPack(bestS, trial % 2 == 1);
             if (ok)
             {
                 int a = computeActualS(placements);
@@ -272,7 +278,7 @@ int main()
         while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
         {
             shuffle(order.begin(), order.end(), rng);
-            auto [ok, placements] = tryPack(targetS);
+            auto [ok, placements] = tryPack(targetS, attemptsAtTarget % 2 == 1);
             if (ok)
             {
                 int a = computeActualS(placements);
@@ -287,21 +293,6 @@ int main()
             else
             {
                 attemptsAtTarget++;
-            }
-        }
-
-        // Final: sorted order at bestActualS — fresh greedy on tighter square
-        order = sortedOrder;
-        {
-            auto [ok, placements] = tryPack(bestActualS);
-            if (ok)
-            {
-                int a = computeActualS(placements);
-                if (a < bestActualS)
-                {
-                    bestActualS = a;
-                    bestPlacements = placements;
-                }
             }
         }
 
