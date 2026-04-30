@@ -176,9 +176,7 @@ int main()
                         }
                         if (ok)
                         {
-                            // minimise max(piece-top, piece-right), then piece-top, then cx
-                            int extent = max(cy + p.H, cx + p.W);
-                            int score = extent * S * S + (cy + p.H) * S + cx;
+                            int score = (cy + p.H) * S + cx; // minimise piece-top
                             if (score < bestScore)
                             {
                                 bestScore = score;
@@ -249,6 +247,7 @@ int main()
         };
 
         int bestActualS = computeActualS(bestPlacements);
+        vector<int> sortedOrder(order); // save sorted order before Phase 2 shuffles it
         mt19937 rng(42);
 
         // Phase 2a: try different orderings at bestS to find smaller actualS
@@ -288,6 +287,21 @@ int main()
             else
             {
                 attemptsAtTarget++;
+            }
+        }
+
+        // Final: sorted order at bestActualS — fresh greedy on tighter square
+        order = sortedOrder;
+        {
+            auto [ok, placements] = tryPack(bestActualS);
+            if (ok)
+            {
+                int a = computeActualS(placements);
+                if (a < bestActualS)
+                {
+                    bestActualS = a;
+                    bestPlacements = placements;
+                }
             }
         }
 
