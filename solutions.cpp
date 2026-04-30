@@ -143,22 +143,11 @@ int main()
             int bestScore = INT_MAX; // cy*S + cx, lower = better
             int bestCX = -1, bestCY = -1, bestOI = -1;
 
-            int minSky = *min_element(skyline.begin(), skyline.end());
-
             for (int oi = 0; oi < numO; oi++)
             {
                 const Piece &p = orients[oi];
                 if (p.W > S || p.H > S)
                     continue;
-
-                // Skip orientation if even its best-case cy cannot beat bestScore
-                {
-                    int lb = 0;
-                    for (auto [dx, dy] : p.cells)
-                        lb = max(lb, minSky - dy);
-                    if (lb * S >= bestScore)
-                        continue;
-                }
 
                 for (int cx = 0; cx <= S - p.W; cx++)
                 {
@@ -170,7 +159,7 @@ int main()
                         minCY = 0;
                     if (minCY + p.H > S)
                         continue;
-                    if (minCY * S + cx >= bestScore)
+                    if ((minCY + p.H) * S + cx >= bestScore)
                         continue; // can't beat current best
 
                     // Scan upward from minCY until valid
@@ -187,7 +176,7 @@ int main()
                         }
                         if (ok)
                         {
-                            int score = cy * S + cx;
+                            int score = (cy + p.H) * S + cx; // minimise piece-top
                             if (score < bestScore)
                             {
                                 bestScore = score;
