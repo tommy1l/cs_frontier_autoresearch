@@ -231,19 +231,55 @@ int main()
 
     if (bestS >= 0)
     {
-        // Phase 2: try smaller S with random piece orderings within time budget
+        auto computeActualS = [&](const vector<Placement> &pls) -> int {
+            int maxX = 0, maxY = 0;
+            for (int i = 0; i < n; i++)
+            {
+                auto &pl = pls[i];
+                for (auto &[cx, cy] : raw[i])
+                {
+                    auto [tx, ty] = applyTransform(cx, cy, pl.R, pl.F);
+                    maxX = max(maxX, tx + pl.X + 1);
+                    maxY = max(maxY, ty + pl.Y + 1);
+                }
+            }
+            return max(maxX, maxY);
+        };
+
+        int bestActualS = computeActualS(bestPlacements);
         mt19937 rng(42);
+
+        // Phase 2a: try different orderings at bestS to find smaller actualS
+        for (int trial = 0; trial < 25 && elapsed_ms() < 4000; trial++)
+        {
+            shuffle(order.begin(), order.end(), rng);
+            auto [ok, placements] = tryPack(bestS);
+            if (ok)
+            {
+                int a = computeActualS(placements);
+                if (a < bestActualS)
+                {
+                    bestActualS = a;
+                    bestPlacements = placements;
+                }
+            }
+        }
+
+        // Phase 2b: try smaller S values; accept only if actualS improves
         int targetS = bestS - 1;
         int attemptsAtTarget = 0;
-
-        while (targetS >= Smin && elapsed_ms() < 20000 && attemptsAtTarget < 200)
+        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(targetS);
             if (ok)
             {
-                bestS = targetS;
-                bestPlacements = placements;
+                int a = computeActualS(placements);
+                if (a < bestActualS)
+                {
+                    bestActualS = a;
+                    bestPlacements = placements;
+                }
                 targetS--;
                 attemptsAtTarget = 0;
             }
@@ -253,21 +289,7 @@ int main()
             }
         }
 
-        // Shrink square to actual used bounding box
-        int maxUsedX = 0, maxUsedY = 0;
-        for (int i = 0; i < n; i++)
-        {
-            auto &pl = bestPlacements[i];
-            for (auto &[cx, cy] : raw[i])
-            {
-                auto [tx, ty] = applyTransform(cx, cy, pl.R, pl.F);
-                maxUsedX = max(maxUsedX, tx + pl.X + 1);
-                maxUsedY = max(maxUsedY, ty + pl.Y + 1);
-            }
-        }
-        int actualS = max(maxUsedX, maxUsedY);
-
-        cout << actualS << " " << actualS << "\n";
+        cout << bestActualS << " " << bestActualS << "\n";
         for (int i = 0; i < n; i++)
         {
             auto &pl = bestPlacements[i];
