@@ -250,7 +250,7 @@ int main()
         mt19937 rng(42);
 
         // Phase 2a: try different orderings at bestS to find smaller actualS
-        for (int trial = 0; trial < 100 && elapsed_ms() < 7000; trial++)
+        for (int trial = 0; trial < 25 && elapsed_ms() < 4000; trial++)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(bestS);
@@ -265,10 +265,10 @@ int main()
             }
         }
 
-        // Phase 2b: try smaller S values; accept only if actualS improves
-        int targetS = bestS - 1;
+        // Phase 2b: try smaller S values starting from bestActualS; accept only if actualS improves
+        int targetS = bestActualS;
         int attemptsAtTarget = 0;
-        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 5)
+        while (targetS >= Smin && elapsed_ms() < 8000 && attemptsAtTarget < 50)
         {
             shuffle(order.begin(), order.end(), rng);
             auto [ok, placements] = tryPack(targetS);
