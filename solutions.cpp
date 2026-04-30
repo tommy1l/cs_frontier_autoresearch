@@ -251,7 +251,21 @@ int main()
             }
         }
 
-        cout << bestS << " " << bestS << "\n";
+        // Shrink square to actual used bounding box
+        int maxUsedX = 0, maxUsedY = 0;
+        for (int i = 0; i < n; i++)
+        {
+            auto &pl = bestPlacements[i];
+            for (auto &[cx, cy] : raw[i])
+            {
+                auto [tx, ty] = applyTransform(cx, cy, pl.R, pl.F);
+                maxUsedX = max(maxUsedX, tx + pl.X + 1);
+                maxUsedY = max(maxUsedY, ty + pl.Y + 1);
+            }
+        }
+        int actualS = max(maxUsedX, maxUsedY);
+
+        cout << actualS << " " << actualS << "\n";
         for (int i = 0; i < n; i++)
         {
             auto &pl = bestPlacements[i];
