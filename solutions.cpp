@@ -260,14 +260,17 @@ int main()
         for (int trial = 0; trial < 25 && elapsed_ms() < 4000; trial++)
         {
             shuffle(order.begin(), order.end(), rng);
-            auto [ok, placements] = tryPack(bestS, trial % 2 == 1);
-            if (ok)
+            for (bool wf : {false, true})
             {
-                int a = computeActualS(placements);
-                if (a < bestActualS)
+                auto [ok, placements] = tryPack(bestS, wf);
+                if (ok)
                 {
-                    bestActualS = a;
-                    bestPlacements = placements;
+                    int a = computeActualS(placements);
+                    if (a < bestActualS)
+                    {
+                        bestActualS = a;
+                        bestPlacements = placements;
+                    }
                 }
             }
         }
