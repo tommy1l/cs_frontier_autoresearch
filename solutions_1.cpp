@@ -27,7 +27,7 @@ static steady_clock::time_point T0;
 static double elapsed() {
     return duration_cast<microseconds>(steady_clock::now() - T0).count() / 1e6;
 }
-static const double TIME_LIMIT = 0.85;
+static const double TIME_LIMIT = 0.90;
 
 static inline pair<ll,ll> usage(const vector<ll>& x) {
     ll mu = 0, lu = 0;
@@ -100,8 +100,8 @@ static void localSearch(vector<ll>& x) {
                 ll maxR = x[j];
                 if (maxK == 0 || maxR == 0) continue;
                 // Cap to keep search small
-                ll Klim = min<ll>(maxK, 32);
-                ll Rlim = min<ll>(maxR, 32);
+                ll Klim = min<ll>(maxK, 128);
+                ll Rlim = min<ll>(maxR, 128);
                 ll bestK = 0, bestR = 0, bestGain = 0;
                 for (ll r = 0; r <= Rlim; r++) {
                     // mass freed = r*ms_[j], vol freed = r*ls_[j]
