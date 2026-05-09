@@ -253,13 +253,6 @@ int main()
             return max(maxX, maxY);
         };
 
-        // Try widthFirst at bestS before Phase 2 to lower initial bestActualS
-        {
-            auto [ok2, pl2] = tryPack(bestS, true);
-            if (ok2 && computeActualS(pl2) < computeActualS(bestPlacements))
-                bestPlacements = pl2;
-        }
-
         int bestActualS = computeActualS(bestPlacements);
         mt19937 rng(42);
 
