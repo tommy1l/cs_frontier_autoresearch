@@ -71,7 +71,7 @@ int main() {
             }
             ops.push_back(v);
         }
-        const size_t CHUNK = 9000000;
+        const size_t CHUNK = 7000000;
         size_t pos = 0;
         vector<int> resp;
         resp.reserve(ops.size());
