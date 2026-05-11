@@ -19,7 +19,7 @@ static vector<int> do_query(const vector<int>& ops) {
     return resp;
 }
 
-static vector<int> find_nbrs(int v, const vector<int>& cands) {
+static inline vector<int> find_nbrs(int v, const vector<int>& cands) {
     vector<int> ops;
     ops.reserve(2 + 2 * cands.size());
     ops.push_back(v);
@@ -27,7 +27,8 @@ static vector<int> find_nbrs(int v, const vector<int>& cands) {
     ops.push_back(v);
     auto resp = do_query(ops);
     vector<int> nbrs;
-    int idx = 1;
+    nbrs.reserve(2);
+    size_t idx = 1;
     for (size_t i = 0; i < cands.size(); i++) {
         if (resp[idx] == 1) nbrs.push_back(cands[i]);
         idx += 2;
