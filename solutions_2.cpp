@@ -97,23 +97,19 @@ int main() {
 
     perm_global.assign(n + 1, 0);
 
-    // Phase 1: 3-value test. q = [va, vb, vc, vc, ..., vc].
-    // match=3 -> perm[1]=va AND perm[2]=vb (2 anchors free).
-    // match=0 -> perm[1]=vc XOR perm[2]=vc.
-    // match=2 -> (perm[1]=va XOR perm[2]=vb), with vc unknown.
-    // We resolve anchor cleanly only on match=3 fast-path; else linear pair test.
+    // Phase 1: pair-test starting from middle outward (alternating direction).
     int anchor = -1;
-    int perm2 = -1;
-    if (n >= 3) {
-        // try first triple test (va,vb,vc) = (1, 2, 3).
-        vector<int> q(n, 3);
-        q[0] = 1; q[1] = 2;
-        int a = query(q);
-        if (a == 3) { anchor = 1; perm2 = 2; }
-    }
-    if (anchor == -1) {
-        // Fallback to old pair test (skipping the (1,2) test since 3-value already implies info).
-        for (int va = 1; va + 1 <= n; va += 2) {
+    {
+        int mid_va = ((n / 2) % 2 == 1) ? (n / 2) : (n / 2 + 1);
+        if (mid_va < 1) mid_va = 1;
+        if (mid_va + 1 > n) mid_va = n - 1;
+        vector<int> order;
+        int up = mid_va, down = mid_va - 2;
+        while (up + 1 <= n || down >= 1) {
+            if (up + 1 <= n) { order.push_back(up); up += 2; }
+            if (down >= 1) { order.push_back(down); down -= 2; }
+        }
+        for (int va : order) {
             int vb = va + 1;
             vector<int> q(n, vb);
             q[0] = va;
@@ -125,12 +121,11 @@ int main() {
     }
     perm_global[1] = anchor;
     anchor_val = anchor;
-    if (perm2 != -1) perm_global[2] = perm2;
 
     vector<int> remaining;
-    for (int v = 1; v <= n; v++) if (v != anchor && v != perm2) remaining.push_back(v);
+    for (int v = 1; v <= n; v++) if (v != anchor) remaining.push_back(v);
     vector<int> unknown;
-    for (int p = 2; p <= n; p++) if (perm_global[p] == 0) unknown.push_back(p);
+    for (int p = 2; p <= n; p++) unknown.push_back(p);
 
     int i = 0;
     while (i < (int)remaining.size()) {
