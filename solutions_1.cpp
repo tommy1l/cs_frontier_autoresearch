@@ -332,12 +332,14 @@ int main() {
     }
     n = (int)names.size();
 
-    // Reorder all arrays by v/m desc.
+    // Reorder all arrays by v/(m+l) desc using normalized capacity weights.
     {
         vector<int> ord(n);
         iota(ord.begin(), ord.end(), 0);
         sort(ord.begin(), ord.end(), [&](int a, int b) {
-            return (long double)vs_[a] * ms_[b] > (long double)vs_[b] * ms_[a];
+            long double da = (long double)ms_[a] / (long double)Mcap + (long double)ls_[a] / (long double)Lcap;
+            long double db = (long double)ms_[b] / (long double)Mcap + (long double)ls_[b] / (long double)Lcap;
+            return (long double)vs_[a] * db > (long double)vs_[b] * da;
         });
         vector<string> nN(n); vector<ll> nQ(n), nV(n), nM(n), nL(n);
         for (int k = 0; k < n; k++) {
