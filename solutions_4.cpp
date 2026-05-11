@@ -148,28 +148,39 @@ static long long binary_search_value() {
     for (int i = 1; i <= n; i++) diag[i] = query_cell(i, i);
     long long lo = diag[1];
     long long hi = diag[n];
+    int i_lo = 1, i_hi = n;
     for (int i = 1; i <= n; i++) {
         long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
-        if (lt_max < k_target) lo = max(lo, diag[i]);
+        if (lt_max < k_target && diag[i] >= lo) {
+            lo = diag[i];
+            i_lo = i;
+        }
         long long le_min = (long long)i * i;
-        if (le_min >= k_target) { hi = min(hi, diag[i]); break; }
+        if (le_min >= k_target) {
+            if (diag[i] <= hi) { hi = diag[i]; i_hi = i; }
+            break;
+        }
     }
-    // Interpolation search: use (lo, c_lo) → (hi, c_hi) linear estimate.
-    // Falls back to bisection every 3rd round and when counts unknown.
-    long long c_lo = -1, c_hi = -1;
-    int rounds = 0;
+    // Initialize counts from analytical rank bounds:
+    //   diag[i] has lt-rank ≤ (i-1)(2n-i+1) and le-rank ≥ i*i.
+    // Use midpoint as estimate; clamp to maintain c_lo < k <= c_hi.
+    auto avg_rank = [&](int i) -> long long {
+        long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
+        long long le_min = (long long)i * i;
+        return (lt_max + le_min) / 2;
+    };
+    long long c_lo = avg_rank(i_lo);
+    long long c_hi = avg_rank(i_hi);
+    if (c_lo >= k_target) c_lo = k_target - 1;
+    if (c_hi < k_target) c_hi = k_target;
+
     while (lo < hi) {
         long long mid;
-        bool can_interp = (c_lo >= 0 && c_hi >= 0 && c_hi > c_lo
-                           && k_target > c_lo && k_target <= c_hi);
-        if (can_interp && (rounds % 3) != 2) {
+        if (c_hi > c_lo) {
             __int128 span = c_hi - c_lo;
             __int128 target = (long long)k_target - c_lo;
             __int128 offset = (__int128)(hi - lo) * target / span;
-            long long interp = lo + (long long)offset;
-            long long bis = lo + (hi - lo) / 2;
-            // Blend toward bisection by 1/4 for robustness on skewed data.
-            mid = (long long)(((__int128)interp * 3 + bis) / 4);
+            mid = lo + (long long)offset;
         } else {
             mid = lo + (hi - lo) / 2;
         }
@@ -178,7 +189,6 @@ static long long binary_search_value() {
         long long c = count_le(mid);
         if (c >= k_target) { hi = mid; c_hi = c; }
         else { lo = mid + 1; c_lo = c; }
-        rounds++;
     }
     return lo;
 }
@@ -201,18 +211,13 @@ int main() {
     long long from_start = k_target;
     long long from_end = nn - k_target + 1;
 
-    // Row-merge costs ~k + n queries. Binary-search (with interpolation) costs
-    // roughly ~12n queries on smooth matrices. Pick the cheaper.
-    long long bin_estimate = 12LL * n;
-    long long row_thresh = min((long long)48000 - n, bin_estimate);
-
     if (k_target <= n) {
         ans = young_from_topleft(k_target);
     } else if (from_end <= n) {
         ans = young_from_bottomright(from_end);
-    } else if (from_start <= row_thresh && from_start <= from_end) {
+    } else if (from_start <= 48000 - n) {
         ans = row_merge_from_start(k_target);
-    } else if (from_end <= row_thresh) {
+    } else if (from_end <= 48000 - n) {
         ans = row_merge_from_end(k_target);
     } else {
         ans = binary_search_value();
