@@ -1,83 +1,88 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Doubler chain: N-1 doubler insts + 1 HALT = N insts, gives 2^N - 1 steps.
-// Pre-push marker (c+1) (c in [0..N-2]) gives 2^N - 2^(c+1) + 1 steps,
-// costs 1 extra inst. Padding pair adds 2 steps per 2 insts.
-// Markers are 1..N (1-indexed to satisfy a,b >= 1).
+// Multi-setup: pre-push markers at distinct levels in {2..N-1}.
+// Doubler chain levels 1..N-1, HALT at end.
+// Total steps = 2^N + 2*ks - 1 - sum 2^l   (l = level pre-pushed)
+// + 2 * pairs from padding pairs.
+// Cost: N + ks + 2*pairs instructions.
 
 int main() {
     long long k;
     cin >> k;
-
     if (k == 1) {
         cout << "1\nHALT PUSH 1 GOTO 1\n";
         return 0;
     }
 
-    int bestN = -1, bestC = -2;
-    long long bestPairs = 0, bestInst = 1LL << 30;
+    long long bestCost = 1LL << 30;
+    int bestN = -1, bestKs = -1, bestPairs = -1;
+    long long bestM = 0;
 
-    for (int N = 2; N <= 31; N++) {
-        for (int c = -1; c <= N - 2; c++) {
-            long long base;
-            if (c == -1) base = (1LL << N) - 1;
-            else base = (1LL << N) - (1LL << (c + 1)) + 1;
-            if (base > k) continue;
-            long long padding = k - base;
-            if (padding % 2 != 0) continue;
-            long long pairs = padding / 2;
-            long long setupInst = (c == -1) ? 0 : 1;
-            long long inst = N + setupInst + 2 * pairs;
-            if (inst > 512) continue;
-            if (inst < bestInst) {
-                bestInst = inst;
+    int minN = 1;
+    while (((1LL << minN) - 1) < k) minN++;
+
+    for (int N = max(minN, 2); N <= 31; N++) {
+        if ((long long)N >= bestCost) break;
+        long long maxM = (1LL << N) - 4;
+        for (int pairs = 0; (long long)N + 2*pairs < bestCost; pairs++) {
+            long long baseM = (1LL << N) - 1 - k + 2LL*pairs;
+            if (baseM > maxM) break;
+            for (int ks = 0; ks < N; ks++) {
+                long long cost = (long long)N + ks + 2LL*pairs;
+                if (cost >= bestCost) break;
+                long long M = baseM + 2LL*ks;
+                if (M > maxM) break;
+                if (M < 0) continue;
+                if (M & 3) continue;
+                if (__builtin_popcountll(M) != ks) continue;
+                bestCost = cost;
                 bestN = N;
-                bestC = c;
+                bestKs = ks;
                 bestPairs = pairs;
+                bestM = M;
+                break;
             }
         }
     }
 
     if (bestN < 0) {
-        // Shouldn't happen for k <= 2^31-1, but emit a safe fallback.
         cout << "1\nHALT PUSH 1 GOTO 1\n";
         return 0;
     }
 
-    long long n = bestInst;
-    cout << n << "\n";
+    int N = bestN, ks = bestKs, pairs = bestPairs;
+    long long M = bestM;
+    vector<int> levels;
+    for (int b = 2; b < N; b++) {
+        if (M & (1LL << b)) levels.push_back(b);
+    }
+    sort(levels.rbegin(), levels.rend());
+
+    int total = N + ks + 2 * pairs;
+    cout << total << "\n";
     int idx = 1;
-    // Setup: pre-push marker (bestC+1) so doubler effectively skips lower levels.
-    if (bestC >= 0) {
-        // POP a never matched (stack empty here). PUSH (bestC+1), goto next.
-        // POP a marker: use bestN+1 (unused). GOTO target if matched: any valid index (use 1).
-        cout << "POP " << (bestN + 1) << " GOTO 1 PUSH " << (bestC + 1)
-             << " GOTO " << (idx + 1) << "\n";
+    int unused = N + 1;
+    for (int l : levels) {
+        cout << "POP " << unused << " GOTO 1 PUSH " << l << " GOTO " << (idx + 1) << "\n";
         idx++;
     }
-    // Doubler chain: instructions idx .. idx+bestN-2 (bestN-1 of them).
-    // Marker for level i is (i+1), so first marker = 1.
-    int doublerStart = idx;
-    for (int i = 0; i < bestN - 1; i++) {
-        int nextInst = idx + i + 1;
-        cout << "POP " << (i + 1) << " GOTO " << nextInst
-             << " PUSH " << (i + 1) << " GOTO " << doublerStart << "\n";
+    int dStart = idx;
+    for (int i = 0; i < N - 1; i++) {
+        int m = i + 1;
+        cout << "POP " << m << " GOTO " << (idx + 1)
+             << " PUSH " << m << " GOTO " << dStart << "\n";
+        idx++;
     }
-    idx += bestN - 1;
-    // Padding pairs: each pair pushes/pops a marker that doesn't collide with doubler markers.
-    // Use marker bestN+2 (unused). POP branches that aren't taken: GOTO 1 (always valid).
-    int padMarker = bestN + 2;
-    for (long long p = 0; p < bestPairs; p++) {
-        // Push padMarker (stack empty -> else branch).
-        cout << "POP " << (bestN + 3) << " GOTO 1 PUSH " << padMarker
+    int padMarker = N + 2;
+    int padUnused = N + 3;
+    for (int p = 0; p < pairs; p++) {
+        cout << "POP " << padUnused << " GOTO 1 PUSH " << padMarker
              << " GOTO " << (idx + 1) << "\n";
-        // Pop padMarker (always matches, else never taken).
         cout << "POP " << padMarker << " GOTO " << (idx + 2)
              << " PUSH 1 GOTO 1\n";
         idx += 2;
     }
-    // HALT
     cout << "HALT PUSH 1 GOTO 1\n";
     return 0;
 }
