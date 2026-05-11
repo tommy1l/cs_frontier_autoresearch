@@ -97,28 +97,17 @@ int main() {
 
     perm_global.assign(n + 1, 0);
 
-    // Phase 1: pair-test starting from middle outward (alternating direction).
+    // Phase 1: linear pair-test scan.
     int anchor = -1;
-    {
-        int mid_va = ((n / 2) % 2 == 1) ? (n / 2) : (n / 2 + 1);
-        if (mid_va < 1) mid_va = 1;
-        if (mid_va + 1 > n) mid_va = n - 1;
-        vector<int> order;
-        int up = mid_va, down = mid_va - 2;
-        while (up + 1 <= n || down >= 1) {
-            if (up + 1 <= n) { order.push_back(up); up += 2; }
-            if (down >= 1) { order.push_back(down); down -= 2; }
-        }
-        for (int va : order) {
-            int vb = va + 1;
-            vector<int> q(n, vb);
-            q[0] = va;
-            int a = query(q);
-            if (a == 2) { anchor = va; break; }
-            if (a == 0) { anchor = vb; break; }
-        }
-        if (anchor == -1) anchor = n;
+    for (int va = 1; va + 1 <= n; va += 2) {
+        int vb = va + 1;
+        vector<int> q(n, vb);
+        q[0] = va;
+        int a = query(q);
+        if (a == 2) { anchor = va; break; }
+        if (a == 0) { anchor = vb; break; }
     }
+    if (anchor == -1) anchor = n;
     perm_global[1] = anchor;
     anchor_val = anchor;
 
@@ -143,7 +132,7 @@ int main() {
         }
         int v2 = remaining[i + 1];
 
-        // Joint same-set bisection until separation.
+        // Joint same-set bisection until separation. Disambig tests v2 (was v1).
         vector<int> cand_common = unknown;
         vector<int> cand_v1, cand_v2;
         bool separated = false;
@@ -161,12 +150,12 @@ int main() {
             if (delta == 2) { cand_v1 = left; cand_v2 = right; separated = true; }
             else if (delta == 0) { cand_v1 = right; cand_v2 = left; separated = true; }
             else {
-                // delta == 1: same side; disambiguate.
+                // delta == 1: same side; disambig by testing v2's right.
                 vector<int> q2 = baseQ();
-                for (int p : left) q2[p - 1] = v1;
+                for (int p : right) q2[p - 1] = v2;
                 int a2 = query(q2);
-                if (a2 > known_count) cand_common = left;
-                else cand_common = right;
+                if (a2 > known_count) cand_common = right;
+                else cand_common = left;
             }
         }
 
