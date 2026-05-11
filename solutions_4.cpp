@@ -151,19 +151,15 @@ static long long binary_search_value() {
     int i_lo = 1, i_hi = n;
     for (int i = 1; i <= n; i++) {
         long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
-        if (lt_max < k_target && diag[i] >= lo) {
-            lo = diag[i];
-            i_lo = i;
-        }
+        if (lt_max < k_target && diag[i] >= lo) { lo = diag[i]; i_lo = i; }
         long long le_min = (long long)i * i;
         if (le_min >= k_target) {
             if (diag[i] <= hi) { hi = diag[i]; i_hi = i; }
             break;
         }
     }
-    // Initialize counts from analytical rank bounds:
-    //   diag[i] has lt-rank ≤ (i-1)(2n-i+1) and le-rank ≥ i*i.
-    // Use midpoint as estimate; clamp to maintain c_lo < k <= c_hi.
+    // Seed counts from analytical rank bounds so interpolation works from
+    // iteration 1; clamp so c_lo < k_target <= c_hi holds.
     auto avg_rank = [&](int i) -> long long {
         long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
         long long le_min = (long long)i * i;
@@ -174,13 +170,17 @@ static long long binary_search_value() {
     if (c_lo >= k_target) c_lo = k_target - 1;
     if (c_hi < k_target) c_hi = k_target;
 
+    int rounds = 0;
     while (lo < hi) {
         long long mid;
-        if (c_hi > c_lo) {
+        if ((rounds % 3) != 2 && c_hi > c_lo) {
             __int128 span = c_hi - c_lo;
             __int128 target = (long long)k_target - c_lo;
             __int128 offset = (__int128)(hi - lo) * target / span;
-            mid = lo + (long long)offset;
+            long long interp = lo + (long long)offset;
+            long long bis = lo + (hi - lo) / 2;
+            // Blend 3:1 toward interpolation, with bisection backbone.
+            mid = (long long)(((__int128)interp * 3 + bis) / 4);
         } else {
             mid = lo + (hi - lo) / 2;
         }
@@ -189,6 +189,7 @@ static long long binary_search_value() {
         long long c = count_le(mid);
         if (c >= k_target) { hi = mid; c_hi = c; }
         else { lo = mid + 1; c_lo = c; }
+        rounds++;
     }
     return lo;
 }
