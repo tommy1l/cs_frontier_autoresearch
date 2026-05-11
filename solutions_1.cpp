@@ -389,25 +389,6 @@ int main() {
     // Find root Lagrangian dual multipliers.
     findRootLambda();
 
-    // Reorder by reduced cost (v - lm*m - ll*l) desc for tighter B&B pruning.
-    {
-        vector<int> ord(n);
-        iota(ord.begin(), ord.end(), 0);
-        sort(ord.begin(), ord.end(), [&](int a, int b) {
-            double ra = (double)vs_[a] - lambda_m_root * (double)ms_[a] - lambda_l_root * (double)ls_[a];
-            double rb = (double)vs_[b] - lambda_m_root * (double)ms_[b] - lambda_l_root * (double)ls_[b];
-            if (ra != rb) return ra > rb;
-            return (long double)vs_[a] * ms_[b] > (long double)vs_[b] * ms_[a];
-        });
-        vector<string> nN(n); vector<ll> nQ(n), nV(n), nM(n), nL(n), nBx(n);
-        for (int k = 0; k < n; k++) {
-            int o = ord[k];
-            nN[k] = names[o]; nQ[k] = qs[o]; nV[k] = vs_[o]; nM[k] = ms_[o]; nL[k] = ls_[o];
-            nBx[k] = best_x[o];
-        }
-        names = nN; qs = nQ; vs_ = nV; ms_ = nM; ls_ = nL; best_x = nBx;
-    }
-
     // Branch and bound.
     cur_x.assign(n, 0);
     bnb(0, Mcap, Lcap, 0);
