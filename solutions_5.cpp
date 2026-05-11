@@ -35,19 +35,43 @@ int main() {
 
     vector<int> best_path;
 
-    // DAG branch: topo sort + longest-path DP.
+    // DAG branch: iterative DFS topo sort + longest-path DP.
     {
-        vector<int> indeg_copy = indeg;
         vector<int> topo;
         topo.reserve(n);
-        queue<int> q;
-        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) q.push(i);
-        while (!q.empty()) {
-            int u = q.front(); q.pop();
-            topo.push_back(u);
-            for (int v : adj[u]) {
-                if (--indeg_copy[v] == 0) q.push(v);
+        vector<int> state(n + 1, 0); // 0=unseen, 1=on-stack, 2=done
+        vector<int> stk_v, stk_i;
+        bool has_cycle = false;
+        for (int s = 1; s <= n && !has_cycle; s++) {
+            if (state[s]) continue;
+            stk_v.push_back(s);
+            stk_i.push_back(0);
+            state[s] = 1;
+            while (!stk_v.empty()) {
+                int u = stk_v.back();
+                int& i = stk_i.back();
+                if (i < (int)adj[u].size()) {
+                    int v = adj[u][i++];
+                    if (state[v] == 0) {
+                        state[v] = 1;
+                        stk_v.push_back(v);
+                        stk_i.push_back(0);
+                    } else if (state[v] == 1) {
+                        has_cycle = true;
+                        break;
+                    }
+                } else {
+                    state[u] = 2;
+                    topo.push_back(u);
+                    stk_v.pop_back();
+                    stk_i.pop_back();
+                }
             }
+        }
+        if (!has_cycle) {
+            reverse(topo.begin(), topo.end());
+        } else {
+            topo.clear();
         }
         if ((int)topo.size() == n) {
             vector<int> longest(n + 1, 1);
