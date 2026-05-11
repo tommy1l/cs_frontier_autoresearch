@@ -5,4 +5,12 @@ a7ce35d	66.667	66.667	keep	hybrid all-pairs+sequential BFS
 0d38a2e	66.667	66.667	keep	bump all-pairs threshold to 295M ops
 ef3919a	66.667	66.667	keep	deterministic trace pick smallest neighbor first
 bc27de8	66.667	66.667	keep	two-front BFS for medium n
+3571421	66.667	66.667	keep	documentation/comments
+635af0d	66.667	66.667	keep	chunk size 7M
+83dfb03	66.667	66.667	keep	adj insertion comment
+38be129	66.667	66.667	keep	reserve nbrs vector inline hint
+0ca0b9f	66.667	66.667	keep	buffer output query string
+281770d	66.667	66.667	keep	simpler first-fit trace
+5c8a3d4	66.667	66.667	keep	conservative threshold 270M
+75d03fa	66.667	66.667	keep	chunk size 8.5M
 
