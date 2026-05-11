@@ -170,37 +170,28 @@ static long long binary_search_value() {
     if (c_lo >= k_target) c_lo = k_target - 1;
     if (c_hi < k_target) c_hi = k_target;
 
-    // Track exact (v, count_le) points for Lagrange interpolation.
+    // Track exact (v, count_le) points for quadratic Lagrange interpolation.
     vector<pair<long long, long long>> pts;
-    auto lagrange = [&](int deg) -> long long {
-        // Use last `deg+1` points, sorted by v; interpolate at c = k_target.
-        int sz = (int)pts.size();
-        if (sz < deg + 1) return LLONG_MIN;
-        vector<pair<long long, long long>> pp(pts.end() - (deg + 1), pts.end());
-        sort(pp.begin(), pp.end());
-        for (int i = 1; i <= deg; i++) {
-            if (pp[i - 1].second >= pp[i].second) return LLONG_MIN;
-        }
-        if (k_target < pp[0].second || k_target > pp[deg].second) return LLONG_MIN;
-        long double kd = (long double)k_target;
-        long double vd = 0;
-        for (int i = 0; i <= deg; i++) {
-            long double num = 1, den = 1;
-            for (int j = 0; j <= deg; j++) {
-                if (j == i) continue;
-                num *= (kd - (long double)pp[j].second);
-                den *= (long double)(pp[i].second - pp[j].second);
-            }
-            vd += (long double)pp[i].first * (num / den);
-        }
-        if (vd < (long double)lo || vd >= (long double)hi) return LLONG_MIN;
-        return (long long)vd;
-    };
     int rounds = 0;
     while (lo < hi) {
         long long mid = LLONG_MIN;
-        if (mid == LLONG_MIN) mid = lagrange(3);  // cubic
-        if (mid == LLONG_MIN) mid = lagrange(2);  // quadratic
+        // Quadratic interp using last 3 exact points (sorted by v).
+        if (pts.size() >= 3) {
+            int sz = pts.size();
+            vector<pair<long long, long long>> p3 = {pts[sz-3], pts[sz-2], pts[sz-1]};
+            sort(p3.begin(), p3.end());
+            long long v0 = p3[0].first, c0 = p3[0].second;
+            long long v1 = p3[1].first, c1 = p3[1].second;
+            long long v2 = p3[2].first, c2 = p3[2].second;
+            if (c0 < c1 && c1 < c2 && k_target >= c0 && k_target <= c2) {
+                long double kd = (long double)k_target;
+                long double t0 = (kd - c1) * (kd - c2) / ((long double)(c0 - c1) * (c0 - c2));
+                long double t1 = (kd - c0) * (kd - c2) / ((long double)(c1 - c0) * (c1 - c2));
+                long double t2 = (kd - c0) * (kd - c1) / ((long double)(c2 - c0) * (c2 - c1));
+                long double vd = (long double)v0 * t0 + (long double)v1 * t1 + (long double)v2 * t2;
+                if (vd >= (long double)lo && vd < (long double)hi) mid = (long long)vd;
+            }
+        }
         if (mid == LLONG_MIN) {
             if ((rounds % 3) != 2 && c_hi > c_lo) {
                 __int128 span = c_hi - c_lo;
@@ -242,13 +233,18 @@ int main() {
     long long from_start = k_target;
     long long from_end = nn - k_target + 1;
 
+    // Row-merge costs ~k + n queries; the quadratic binary search needs
+    // roughly ~13n. Switch to binary search once row-merge is the costlier path.
+    long long bin_estimate = 13LL * n;
+    long long row_thresh = min((long long)48000 - n, bin_estimate);
+
     if (k_target <= n) {
         ans = young_from_topleft(k_target);
     } else if (from_end <= n) {
         ans = young_from_bottomright(from_end);
-    } else if (from_start <= 48000 - n) {
+    } else if (from_start <= row_thresh && from_start <= from_end) {
         ans = row_merge_from_start(k_target);
-    } else if (from_end <= 48000 - n) {
+    } else if (from_end <= row_thresh) {
         ans = row_merge_from_end(k_target);
     } else {
         ans = binary_search_value();
