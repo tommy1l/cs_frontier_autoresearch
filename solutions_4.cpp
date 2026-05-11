@@ -1,19 +1,21 @@
 /**
  * Problem 4: Matrix k-th smallest (interactive).
- * Matrix has saddle property (sorted rows + columns).
- * Strategy: heap (Young-tableau k-th) for k <= 50000, binary search on value
- * with cache for larger k.
+ * Strategy:
+ *   - small k (≤ n): Young-tableau heap from top-left.
+ *   - large k (≥ n*n - n): Young-tableau heap from bottom-right (find rank
+ *     n*n - k + 1 of the largest).
+ *   - medium k via row-merge from whichever side is closer.
+ *   - very far middle (no closer side): fall back to binary search on value.
  */
 #include <bits/stdc++.h>
 using namespace std;
 
 static int n;
 static long long k_target;
-static int query_count = 0;
 static unordered_map<long long, long long> cache;
 
 static long long key(int x, int y) {
-    return (long long)x * 4000LL + (long long)y;
+    return (long long)x * 4010LL + (long long)y;
 }
 
 static long long query_cell(int x, int y) {
@@ -24,12 +26,108 @@ static long long query_cell(int x, int y) {
     cout.flush();
     long long v; cin >> v;
     cache[kk] = v;
-    query_count++;
     return v;
 }
 
+static long long young_from_topleft(long long k) {
+    priority_queue<tuple<long long, int, int>,
+                   vector<tuple<long long, int, int>>,
+                   greater<>> heap;
+    unordered_set<long long> seen;
+    heap.push({query_cell(1, 1), 1, 1});
+    seen.insert(key(1, 1));
+    long long ans = 0;
+    for (long long i = 0; i < k; i++) {
+        auto [val, x, y] = heap.top();
+        heap.pop();
+        ans = val;
+        if (x + 1 <= n) {
+            long long kk = key(x + 1, y);
+            if (!seen.count(kk)) {
+                seen.insert(kk);
+                heap.push({query_cell(x + 1, y), x + 1, y});
+            }
+        }
+        if (y + 1 <= n) {
+            long long kk = key(x, y + 1);
+            if (!seen.count(kk)) {
+                seen.insert(kk);
+                heap.push({query_cell(x, y + 1), x, y + 1});
+            }
+        }
+    }
+    return ans;
+}
+
+static long long young_from_bottomright(long long k) {
+    // Pop k-th LARGEST from bottom-right.
+    priority_queue<tuple<long long, int, int>> heap; // max-heap
+    unordered_set<long long> seen;
+    heap.push({query_cell(n, n), n, n});
+    seen.insert(key(n, n));
+    long long ans = 0;
+    for (long long i = 0; i < k; i++) {
+        auto [val, x, y] = heap.top();
+        heap.pop();
+        ans = val;
+        if (x - 1 >= 1) {
+            long long kk = key(x - 1, y);
+            if (!seen.count(kk)) {
+                seen.insert(kk);
+                heap.push({query_cell(x - 1, y), x - 1, y});
+            }
+        }
+        if (y - 1 >= 1) {
+            long long kk = key(x, y - 1);
+            if (!seen.count(kk)) {
+                seen.insert(kk);
+                heap.push({query_cell(x, y - 1), x, y - 1});
+            }
+        }
+    }
+    return ans;
+}
+
+static long long row_merge_from_start(long long k) {
+    // Find k-th smallest. Init: first cell of each row.
+    priority_queue<tuple<long long, int, int>,
+                   vector<tuple<long long, int, int>>,
+                   greater<>> pq;
+    for (int r = 1; r <= n; r++) {
+        pq.push({query_cell(r, 1), r, 1});
+    }
+    long long ans = 0;
+    for (long long i = 0; i < k; i++) {
+        auto [val, r, c] = pq.top();
+        pq.pop();
+        ans = val;
+        if (c + 1 <= n) {
+            pq.push({query_cell(r, c + 1), r, c + 1});
+        }
+    }
+    return ans;
+}
+
+static long long row_merge_from_end(long long k) {
+    // Find k-th smallest from end: pop (n*n - k + 1)-th largest.
+    long long pops = (long long)n * n - k + 1;
+    priority_queue<tuple<long long, int, int>> pq; // max-heap
+    for (int r = 1; r <= n; r++) {
+        pq.push({query_cell(r, n), r, n});
+    }
+    long long ans = 0;
+    for (long long i = 0; i < pops; i++) {
+        auto [val, r, c] = pq.top();
+        pq.pop();
+        ans = val;
+        if (c - 1 >= 1) {
+            pq.push({query_cell(r, c - 1), r, c - 1});
+        }
+    }
+    return ans;
+}
+
 static long long count_le(long long v) {
-    // Count cells with a[i][j] <= v using saddle from (1, n).
     long long cnt = 0;
     int i = 1, j = n;
     while (i <= n && j >= 1) {
@@ -44,6 +142,18 @@ static long long count_le(long long v) {
     return cnt;
 }
 
+static long long binary_search_value() {
+    long long lo = query_cell(1, 1);
+    long long hi = query_cell(n, n);
+    while (lo < hi) {
+        long long mid = lo + (hi - lo) / 2;
+        long long c = count_le(mid);
+        if (c >= k_target) hi = mid;
+        else lo = mid + 1;
+    }
+    return lo;
+}
+
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -56,50 +166,25 @@ int main() {
         return 0;
     }
 
-    if (k_target <= 50000) {
-        // Heap-based Young tableau extraction.
-        priority_queue<tuple<long long, int, int>,
-                       vector<tuple<long long, int, int>>,
-                       greater<>> heap;
-        unordered_set<long long> seen;
-        long long v0 = query_cell(1, 1);
-        heap.push({v0, 1, 1});
-        seen.insert(key(1, 1));
-        long long ans = v0;
-        for (long long i = 0; i < k_target; i++) {
-            auto [val, x, y] = heap.top();
-            heap.pop();
-            ans = val;
-            if (x + 1 <= n) {
-                long long kk = key(x + 1, y);
-                if (!seen.count(kk)) {
-                    seen.insert(kk);
-                    heap.push({query_cell(x + 1, y), x + 1, y});
-                }
-            }
-            if (y + 1 <= n) {
-                long long kk = key(x, y + 1);
-                if (!seen.count(kk)) {
-                    seen.insert(kk);
-                    heap.push({query_cell(x, y + 1), x, y + 1});
-                }
-            }
-        }
-        cout << "DONE " << ans << '\n';
-        cout.flush();
-        return 0;
+    long long nn = (long long)n * n;
+    long long ans;
+
+    long long from_start = k_target;
+    long long from_end = nn - k_target + 1;
+
+    if (k_target <= n) {
+        ans = young_from_topleft(k_target);
+    } else if (from_end <= n) {
+        ans = young_from_bottomright(from_end);
+    } else if (from_start <= 48000 - n) {
+        ans = row_merge_from_start(k_target);
+    } else if (from_end <= 48000 - n) {
+        ans = row_merge_from_end(k_target);
+    } else {
+        ans = binary_search_value();
     }
 
-    // Binary search on value.
-    long long lo = query_cell(1, 1);
-    long long hi = query_cell(n, n);
-    while (lo < hi) {
-        long long mid = lo + (hi - lo) / 2;
-        long long c = count_le(mid);
-        if (c >= k_target) hi = mid;
-        else lo = mid + 1;
-    }
-    cout << "DONE " << lo << '\n';
+    cout << "DONE " << ans << '\n';
     cout.flush();
     return 0;
 }
