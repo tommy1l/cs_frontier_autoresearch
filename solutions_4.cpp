@@ -127,39 +127,17 @@ static long long row_merge_from_end(long long k) {
     return ans;
 }
 
-static vector<int> stair;
-static bool stair_inited = false;
-
 static long long count_le(long long v) {
     long long cnt = 0;
-    if (!stair_inited) {
-        // First call: regular staircase walk; record the boundary in stair[].
-        stair.assign(n + 2, 0);
-        int i = 1, j = n;
-        while (i <= n && j >= 1) {
-            long long val = query_cell(i, j);
-            if (val <= v) {
-                stair[i] = j;
-                cnt += j;
-                i++;
-            } else {
-                j--;
-            }
+    int i = 1, j = n;
+    while (i <= n && j >= 1) {
+        long long val = query_cell(i, j);
+        if (val <= v) {
+            cnt += j;
+            i++;
+        } else {
+            j--;
         }
-        for (; i <= n; i++) stair[i] = 0;
-        stair_inited = true;
-        return cnt;
-    }
-    // Subsequent calls: adjust the prior boundary row by row.
-    int max_col = n;
-    for (int r = 1; r <= n; r++) {
-        int col = stair[r];
-        if (col > max_col) col = max_col;
-        while (col >= 1 && query_cell(r, col) > v) col--;
-        while (col + 1 <= max_col && query_cell(r, col + 1) <= v) col++;
-        stair[r] = col;
-        cnt += col;
-        max_col = col;
     }
     return cnt;
 }
@@ -191,6 +169,16 @@ static long long binary_search_value() {
     long long c_hi = avg_rank(i_hi);
     if (c_lo >= k_target) c_lo = k_target - 1;
     if (c_hi < k_target) c_hi = k_target;
+
+    // Probe at diag[~sqrt(k)] for an exact count near the expected answer.
+    int i_probe = max(1, (int)floor(sqrt((double)k_target)));
+    if (i_probe > n) i_probe = n;
+    if (lo < hi && diag[i_probe] > lo && diag[i_probe] < hi) {
+        long long probe_v = diag[i_probe];
+        long long c = count_le(probe_v);
+        if (c < k_target) { lo = probe_v + 1; c_lo = c; }
+        else { hi = probe_v; c_hi = c; }
+    }
 
     int rounds = 0;
     while (lo < hi) {
