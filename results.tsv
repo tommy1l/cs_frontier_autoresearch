@@ -1,1 +1,16 @@
 commit	best_score	best_unbounded	status	description
+b45f59e	65.246	65.246	keep	add randomized restarts to try smaller S after initial greedy
+367d2f8	67.369	67.369	keep	shrink output square to actual used bounding box
+7e2b185	68.449	68.449	keep	prune columns where minCY*S+cx cannot beat current best
+9e4b6ae	67.781	67.781	discard	increase Phase2 attempts 50->200 and budget 8s->20s — tighter packing hurt actualS
+4f01575	68.562	68.562	keep	compare Phase2 solutions by actualS; explore orderings at bestS
+8cb8e75	67.375	67.375	discard	sort by min bounding-box area first — worse initial sort than cell count
+5bb09d9	67.663	67.663	discard	shift budget Phase2a 100 trials 7s, Phase2b 5 attempts — more Phase2a hurt score
+036af7f	68.562	68.562	discard	Phase2b start at bestActualS — equal score, no improvement
+f0128f5	68.562	68.562	discard	orientation-level pruning using min skyline — equal score, speedup only
+779a545	68.590	68.590	keep	score on piece-top (cy+H)*S+cx — directly targets minimising used height
+8766e76	36.146	36.146	discard	minimise max(top,right) as primary — wrong priority ordering
+b039e72	67.483	67.483	discard	sorted order at bestActualS final pass — hurt score
+dee1c44	69.409	69.409	keep	alternate height-first/width-first scoring in Phase 2
+784955b	68.291	68.291	discard	try both wf modes per shuffle in Phase2a — fewer shuffles hurt
+286ceac	69.409	69.409	discard	add widthFirst pass after Phase1 — equal score, no gain
