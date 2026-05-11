@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Iter 11: Simple (B, Lo, Hi) DAFSA, output ordered start=1, end=n (per example convention).
+// Iter 12: Build (B,Lo,Hi) DAFSA, then perform DAG minimization by node-signature.
 
 map<tuple<int,int,int>, int> mem;
 vector<vector<pair<int,int>>> edges;
@@ -61,30 +61,70 @@ int main() {
         edges[start].push_back({childR, 1});
     }
 
-    // Find end node (the one with 0 outgoing edges; should be build(0, 0, 0)).
-    int endNode = -1;
-    auto it = mem.find(make_tuple(0, 0, 0));
-    if (it != mem.end()) endNode = it->second;
-
     int n = (int)edges.size();
-    // Permute: start -> 0, end -> n-1, others fill in between.
-    vector<int> perm(n);
-    perm[start] = 0;
-    if (endNode >= 0) perm[endNode] = n - 1;
-    int idx = 1;
+
+    // Kahn topological sort.
+    vector<int> indeg(n, 0);
     for (int i = 0; i < n; i++) {
-        if (i == start) continue;
-        if (i == endNode) continue;
+        for (auto& e : edges[i]) indeg[e.first]++;
+    }
+    queue<int> q;
+    for (int i = 0; i < n; i++) if (indeg[i] == 0) q.push(i);
+    vector<int> topo;
+    while (!q.empty()) {
+        int u = q.front(); q.pop();
+        topo.push_back(u);
+        for (auto& e : edges[u]) {
+            if (--indeg[e.first] == 0) q.push(e.first);
+        }
+    }
+
+    // Process in reverse topological order (children-first) to compute signatures.
+    vector<int> canon(n, -1);
+    map<vector<pair<int,int>>, int> sigToId;
+    int nextCanon = 0;
+    for (int i = (int)topo.size() - 1; i >= 0; i--) {
+        int u = topo[i];
+        vector<pair<int,int>> sig;
+        for (auto& e : edges[u]) sig.push_back({e.second, canon[e.first]});
+        sort(sig.begin(), sig.end());
+        auto it = sigToId.find(sig);
+        if (it == sigToId.end()) {
+            canon[u] = nextCanon++;
+            sigToId[sig] = canon[u];
+        } else {
+            canon[u] = it->second;
+        }
+    }
+
+    int nc = nextCanon;
+    vector<vector<pair<int,int>>> cedges(nc);
+    vector<bool> seen(nc, false);
+    for (int u = 0; u < n; u++) {
+        int cid = canon[u];
+        if (seen[cid]) continue;
+        seen[cid] = true;
+        for (auto& e : edges[u]) {
+            cedges[cid].push_back({canon[e.first], e.second});
+        }
+    }
+
+    int cstart = canon[start];
+    vector<int> perm(nc);
+    perm[cstart] = 0;
+    int idx = 1;
+    for (int i = 0; i < nc; i++) {
+        if (i == cstart) continue;
         perm[i] = idx++;
     }
-    vector<vector<pair<int,int>>> out(n);
-    for (int i = 0; i < n; i++) {
-        for (auto& e : edges[i]) {
+    vector<vector<pair<int,int>>> out(nc);
+    for (int i = 0; i < nc; i++) {
+        for (auto& e : cedges[i]) {
             out[perm[i]].push_back({perm[e.first], e.second});
         }
     }
-    cout << n << "\n";
-    for (int i = 0; i < n; i++) {
+    cout << nc << "\n";
+    for (int i = 0; i < nc; i++) {
         cout << out[i].size();
         for (auto& e : out[i]) {
             cout << " " << (e.first + 1) << " " << e.second;
