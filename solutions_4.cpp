@@ -170,33 +170,44 @@ static long long binary_search_value() {
     if (c_lo >= k_target) c_lo = k_target - 1;
     if (c_hi < k_target) c_hi = k_target;
 
-    // Probe at diag[~sqrt(k)] for an exact count near the expected answer.
-    int i_probe = max(1, (int)floor(sqrt((double)k_target)));
-    if (i_probe > n) i_probe = n;
-    if (lo < hi && diag[i_probe] > lo && diag[i_probe] < hi) {
-        long long probe_v = diag[i_probe];
-        long long c = count_le(probe_v);
-        if (c < k_target) { lo = probe_v + 1; c_lo = c; }
-        else { hi = probe_v; c_hi = c; }
-    }
-
+    // Track exact (v, count_le) points for quadratic Lagrange interpolation.
+    vector<pair<long long, long long>> pts;
     int rounds = 0;
     while (lo < hi) {
-        long long mid;
-        if ((rounds % 3) != 2 && c_hi > c_lo) {
-            __int128 span = c_hi - c_lo;
-            __int128 target = (long long)k_target - c_lo;
-            __int128 offset = (__int128)(hi - lo) * target / span;
-            long long interp = lo + (long long)offset;
-            long long bis = lo + (hi - lo) / 2;
-            // Blend 3:1 toward interpolation, with bisection backbone.
-            mid = (long long)(((__int128)interp * 3 + bis) / 4);
-        } else {
-            mid = lo + (hi - lo) / 2;
+        long long mid = LLONG_MIN;
+        // Quadratic interp using last 3 exact points (sorted by v).
+        if (pts.size() >= 3) {
+            int sz = pts.size();
+            vector<pair<long long, long long>> p3 = {pts[sz-3], pts[sz-2], pts[sz-1]};
+            sort(p3.begin(), p3.end());
+            long long v0 = p3[0].first, c0 = p3[0].second;
+            long long v1 = p3[1].first, c1 = p3[1].second;
+            long long v2 = p3[2].first, c2 = p3[2].second;
+            if (c0 < c1 && c1 < c2 && k_target >= c0 && k_target <= c2) {
+                long double kd = (long double)k_target;
+                long double t0 = (kd - c1) * (kd - c2) / ((long double)(c0 - c1) * (c0 - c2));
+                long double t1 = (kd - c0) * (kd - c2) / ((long double)(c1 - c0) * (c1 - c2));
+                long double t2 = (kd - c0) * (kd - c1) / ((long double)(c2 - c0) * (c2 - c1));
+                long double vd = (long double)v0 * t0 + (long double)v1 * t1 + (long double)v2 * t2;
+                if (vd >= (long double)lo && vd < (long double)hi) mid = (long long)vd;
+            }
+        }
+        if (mid == LLONG_MIN) {
+            if ((rounds % 3) != 2 && c_hi > c_lo) {
+                __int128 span = c_hi - c_lo;
+                __int128 target = (long long)k_target - c_lo;
+                __int128 offset = (__int128)(hi - lo) * target / span;
+                long long interp = lo + (long long)offset;
+                long long bis = lo + (hi - lo) / 2;
+                mid = (long long)(((__int128)interp * 3 + bis) / 4);
+            } else {
+                mid = lo + (hi - lo) / 2;
+            }
         }
         if (mid < lo) mid = lo;
         if (mid >= hi) mid = hi - 1;
         long long c = count_le(mid);
+        pts.push_back({mid, c});
         if (c >= k_target) { hi = mid; c_hi = c; }
         else { lo = mid + 1; c_lo = c; }
         rounds++;
