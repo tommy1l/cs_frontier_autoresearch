@@ -151,11 +151,17 @@ int main() {
             else if (delta == 0) { cand_v1 = right; cand_v2 = left; separated = true; }
             else {
                 // delta == 1: same side; disambiguate.
-                vector<int> q2 = baseQ();
-                for (int p : left) q2[p - 1] = v1;
-                int a2 = query(q2);
-                if (a2 > known_count) cand_common = left;
-                else cand_common = right;
+                // If right has size 1 (sz==3 with ceil split), both v1,v2
+                // can't fit there, so they must be in left. Skip disambig.
+                if ((int)right.size() == 1) {
+                    cand_common = left;
+                } else {
+                    vector<int> q2 = baseQ();
+                    for (int p : left) q2[p - 1] = v1;
+                    int a2 = query(q2);
+                    if (a2 > known_count) cand_common = left;
+                    else cand_common = right;
+                }
             }
         }
 
