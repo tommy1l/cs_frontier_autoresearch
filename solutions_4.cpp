@@ -127,17 +127,39 @@ static long long row_merge_from_end(long long k) {
     return ans;
 }
 
+static vector<int> stair;
+static bool stair_inited = false;
+
 static long long count_le(long long v) {
     long long cnt = 0;
-    int i = 1, j = n;
-    while (i <= n && j >= 1) {
-        long long val = query_cell(i, j);
-        if (val <= v) {
-            cnt += j;
-            i++;
-        } else {
-            j--;
+    if (!stair_inited) {
+        // First call: regular staircase walk; record the boundary in stair[].
+        stair.assign(n + 2, 0);
+        int i = 1, j = n;
+        while (i <= n && j >= 1) {
+            long long val = query_cell(i, j);
+            if (val <= v) {
+                stair[i] = j;
+                cnt += j;
+                i++;
+            } else {
+                j--;
+            }
         }
+        for (; i <= n; i++) stair[i] = 0;
+        stair_inited = true;
+        return cnt;
+    }
+    // Subsequent calls: adjust the prior boundary row by row.
+    int max_col = n;
+    for (int r = 1; r <= n; r++) {
+        int col = stair[r];
+        if (col > max_col) col = max_col;
+        while (col >= 1 && query_cell(r, col) > v) col--;
+        while (col + 1 <= max_col && query_cell(r, col + 1) <= v) col++;
+        stair[r] = col;
+        cnt += col;
+        max_col = col;
     }
     return cnt;
 }
