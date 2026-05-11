@@ -233,18 +233,13 @@ int main() {
     long long from_start = k_target;
     long long from_end = nn - k_target + 1;
 
-    // Row-merge costs ~k + n queries; the quadratic binary search needs
-    // roughly ~13n. Switch to binary search once row-merge is the costlier path.
-    long long bin_estimate = 13LL * n;
-    long long row_thresh = min((long long)48000 - n, bin_estimate);
-
     if (k_target <= n) {
         ans = young_from_topleft(k_target);
     } else if (from_end <= n) {
         ans = young_from_bottomright(from_end);
-    } else if (from_start <= row_thresh && from_start <= from_end) {
+    } else if (from_start <= 48000 - n) {
         ans = row_merge_from_start(k_target);
-    } else if (from_end <= row_thresh) {
+    } else if (from_end <= 48000 - n) {
         ans = row_merge_from_end(k_target);
     } else {
         ans = binary_search_value();
