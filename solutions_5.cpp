@@ -35,17 +35,18 @@ int main() {
 
     vector<int> best_path;
 
-    // DAG branch: vector-queue Kahn topo + longest-path DP.
+    // DAG branch: topo sort + longest-path DP.
     {
         vector<int> indeg_copy = indeg;
         vector<int> topo;
         topo.reserve(n);
-        int head = 0;
-        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) topo.push_back(i);
-        while (head < (int)topo.size()) {
-            int u = topo[head++];
+        queue<int> q;
+        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) q.push(i);
+        while (!q.empty()) {
+            int u = q.front(); q.pop();
+            topo.push_back(u);
             for (int v : adj[u]) {
-                if (--indeg_copy[v] == 0) topo.push_back(v);
+                if (--indeg_copy[v] == 0) q.push(v);
             }
         }
         if ((int)topo.size() == n) {
