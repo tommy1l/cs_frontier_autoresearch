@@ -94,9 +94,11 @@ int main() {
         // Sequential BFS: find lamp 1's 2 neighbors, walk outward.
         // For n where allpairs is over budget but per-step BFS could fit
         // in total Q budget.
-        long long bfs_total = (long long)n * n / 2;
-        if (bfs_total > 290000000LL) {
-            // Even BFS over budget; fall back.
+        // Two-front BFS: walk forward and backward from lamp 1's neighbors.
+        // Light a frontier-pair query each step (2 lamps lit), test all
+        // unvisited; identify the two new frontier neighbors in one query.
+        long long est_total = (long long)n * n / 2;
+        if (est_total > 290000000LL) {
             cout << -1;
             for (int i = 1; i <= n; i++) cout << ' ' << i;
             cout << '\n';
@@ -117,31 +119,54 @@ int main() {
         add_edge(1, nbrs1[0]);
         add_edge(1, nbrs1[1]);
 
-        // BFS in forward direction only (the ring closes back).
         vector<bool> used(n + 1, false);
         used[1] = used[nbrs1[0]] = used[nbrs1[1]] = true;
-        int curr = nbrs1[0];
-        int prev = 1;
+        int fwd = nbrs1[0], back = nbrs1[1];
+        int fwd_prev = 1, back_prev = 1;
+
         while (true) {
-            // Find curr's other neighbor.
+            // Build remaining candidate list.
             vector<int> remain;
-            for (int k = 1; k <= n; k++) if (!used[k] && k != curr) remain.push_back(k);
+            for (int k = 1; k <= n; k++) if (!used[k]) remain.push_back(k);
             if (remain.empty()) break;
-            auto nbrs = find_nbrs(curr, remain);
-            int next_lamp = -1;
-            for (int u : nbrs) {
-                if (u != prev) { next_lamp = u; break; }
+            // Query: light fwd + back, test each candidate, extinguish.
+            vector<int> ops;
+            ops.push_back(fwd);
+            ops.push_back(back);
+            for (int k : remain) { ops.push_back(k); ops.push_back(k); }
+            ops.push_back(fwd);
+            ops.push_back(back);
+            auto resp = do_query(ops);
+            // Decode: response at index 2 + 2*i is adj(remain[i], {fwd, back}).
+            vector<int> positives;
+            for (size_t i = 0; i < remain.size(); i++) {
+                if (resp[2 + 2 * i] == 1) positives.push_back(remain[i]);
             }
-            // If next_lamp would close ring (== nbrs1[1] which is back side)
-            // then we're done.
-            if (next_lamp == nbrs1[1] || next_lamp == -1) {
-                if (next_lamp != -1) add_edge(curr, next_lamp);
-                break;
+            // Disambig: test each positive against fwd to know which side.
+            int new_fwd = -1, new_back = -1;
+            for (int p : positives) {
+                auto pf = find_nbrs(p, {fwd, back});
+                bool adj_fwd = false, adj_back = false;
+                for (int x : pf) {
+                    if (x == fwd) adj_fwd = true;
+                    if (x == back) adj_back = true;
+                }
+                if (adj_fwd && new_fwd == -1) new_fwd = p;
+                else if (adj_back && new_back == -1) new_back = p;
             }
-            add_edge(curr, next_lamp);
-            used[next_lamp] = true;
-            prev = curr;
-            curr = next_lamp;
+            if (new_fwd != -1) {
+                add_edge(fwd, new_fwd);
+                used[new_fwd] = true;
+                fwd_prev = fwd;
+                fwd = new_fwd;
+            }
+            if (new_back != -1 && new_back != new_fwd) {
+                add_edge(back, new_back);
+                used[new_back] = true;
+                back_prev = back;
+                back = new_back;
+            }
+            if (new_fwd == -1 && new_back == -1) break;
         }
     }
 
