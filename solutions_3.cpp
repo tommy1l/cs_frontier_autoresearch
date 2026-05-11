@@ -145,7 +145,8 @@ int main() {
         }
     }
 
-    // Trace ring from lamp 1.
+    // Trace ring from lamp 1; pick the smaller-labeled neighbor first to make
+    // output deterministic.
     vector<int> perm;
     perm.reserve(n);
     perm.push_back(1);
@@ -155,8 +156,12 @@ int main() {
     while ((int)perm.size() < n) {
         int curr = perm.back();
         int next = -1;
+        int best_label = INT_MAX;
         for (int u : adjL[curr]) {
-            if (u != prev && !used[u]) { next = u; break; }
+            if (u != prev && !used[u] && u < best_label) {
+                best_label = u;
+                next = u;
+            }
         }
         if (next == -1) {
             for (int k = 1; k <= n; k++) if (!used[k]) { next = k; break; }
