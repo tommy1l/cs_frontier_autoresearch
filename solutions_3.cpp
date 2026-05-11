@@ -1,12 +1,8 @@
 /**
- * Problem 3: Ring lamp arrangement. Interactive.
- * Strategy: BFS walk. Phase 1 finds lamp 1's 2 neighbors in a single query.
- * Phase 2 walks outward in both directions; each step tests all unvisited
- * against the current frontier pair (2 lamps that are guaranteed not directly
- * adjacent in the ring once visited length >= 2). When the unvisited set shrinks
- * we switch to a simple linear scan.
- *
- * For very large n that exceed the Q budget, fall back to identity.
+ * Problem 3: Ring lamp arrangement.
+ * Hybrid strategy: all-pairs single big query for small n, sequential BFS
+ * (per-step queries) for medium n that exceeds single-query budget, identity
+ * fallback for very large n.
  */
 #include <bits/stdc++.h>
 using namespace std;
@@ -23,22 +19,29 @@ static vector<int> do_query(const vector<int>& ops) {
     return resp;
 }
 
+static vector<int> find_nbrs(int v, const vector<int>& cands) {
+    vector<int> ops;
+    ops.reserve(2 + 2 * cands.size());
+    ops.push_back(v);
+    for (int k : cands) { ops.push_back(k); ops.push_back(k); }
+    ops.push_back(v);
+    auto resp = do_query(ops);
+    vector<int> nbrs;
+    int idx = 1;
+    for (size_t i = 0; i < cands.size(); i++) {
+        if (resp[idx] == 1) nbrs.push_back(cands[i]);
+        idx += 2;
+    }
+    return nbrs;
+}
+
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
     int subtask;
     cin >> subtask >> n;
 
-    if (n == 1) { cout << -1 << ' ' << 1 << '\n'; cout.flush(); return 0; }
-    if (n == 2) { cout << -1 << ' ' << 1 << ' ' << 2 << '\n'; cout.flush(); return 0; }
-    if (n == 3) { cout << -1 << ' ' << 1 << ' ' << 2 << ' ' << 3 << '\n'; cout.flush(); return 0; }
-
-    // Decide strategy by budget.
-    long long allpairs_ops = (long long)n * n + 2LL * n;
-    bool use_allpairs = allpairs_ops <= 250000000LL;
-
-    if (!use_allpairs) {
-        // For large n where all-pairs is over budget: identity fallback.
+    if (n <= 3) {
         cout << -1;
         for (int i = 1; i <= n; i++) cout << ' ' << i;
         cout << '\n';
@@ -46,68 +49,125 @@ int main() {
         return 0;
     }
 
-    // All-pairs: single batch query (split if needed).
-    vector<int> ops;
-    ops.reserve((size_t)allpairs_ops + 16);
-    for (int v = 1; v <= n; v++) {
-        ops.push_back(v);
-        for (int k = v + 1; k <= n; k++) {
-            ops.push_back(k);
-            ops.push_back(k);
-        }
-        ops.push_back(v);
-    }
+    long long allpairs_ops = (long long)n * (n - 1) + 2LL * n;
+    bool use_allpairs = allpairs_ops <= 280000000LL;
 
-    const size_t CHUNK = 9000000;
-    vector<int> resp;
-    resp.reserve(ops.size());
-    size_t pos = 0;
-    while (pos < ops.size()) {
-        size_t chunk = min(CHUNK, ops.size() - pos);
-        vector<int> sub(ops.begin() + pos, ops.begin() + pos + chunk);
-        auto r = do_query(sub);
-        resp.insert(resp.end(), r.begin(), r.end());
-        pos += chunk;
-    }
-
-    // Sparse adjacency list.
     vector<vector<int>> adjL(n + 1);
-    size_t idx = 0;
-    for (int v = 1; v <= n; v++) {
-        idx++; // light v
-        for (int k = v + 1; k <= n; k++) {
-            int r = resp[idx++]; // S = {v, k}
-            if (r) {
-                adjL[v].push_back(k);
-                adjL[k].push_back(v);
+    auto add_edge = [&](int u, int v) {
+        adjL[u].push_back(v);
+        adjL[v].push_back(u);
+    };
+
+    if (use_allpairs) {
+        vector<int> ops;
+        ops.reserve((size_t)allpairs_ops + 16);
+        for (int v = 1; v <= n; v++) {
+            ops.push_back(v);
+            for (int k = v + 1; k <= n; k++) {
+                ops.push_back(k);
+                ops.push_back(k);
             }
-            idx++; // extinguish k
+            ops.push_back(v);
         }
-        idx++; // extinguish v
+        const size_t CHUNK = 9000000;
+        size_t pos = 0;
+        vector<int> resp;
+        resp.reserve(ops.size());
+        while (pos < ops.size()) {
+            size_t chunk = min(CHUNK, ops.size() - pos);
+            vector<int> sub(ops.begin() + pos, ops.begin() + pos + chunk);
+            auto r = do_query(sub);
+            resp.insert(resp.end(), r.begin(), r.end());
+            pos += chunk;
+        }
+        size_t idx = 0;
+        for (int v = 1; v <= n; v++) {
+            idx++;
+            for (int k = v + 1; k <= n; k++) {
+                int r = resp[idx++];
+                if (r) add_edge(v, k);
+                idx++;
+            }
+            idx++;
+        }
+    } else {
+        // Sequential BFS: find lamp 1's 2 neighbors, walk outward.
+        // For n where allpairs is over budget but per-step BFS could fit
+        // in total Q budget.
+        long long bfs_total = (long long)n * n / 2;
+        if (bfs_total > 290000000LL) {
+            // Even BFS over budget; fall back.
+            cout << -1;
+            for (int i = 1; i <= n; i++) cout << ' ' << i;
+            cout << '\n';
+            cout.flush();
+            return 0;
+        }
+
+        vector<int> cands;
+        for (int k = 2; k <= n; k++) cands.push_back(k);
+        auto nbrs1 = find_nbrs(1, cands);
+        if (nbrs1.size() != 2) {
+            cout << -1;
+            for (int i = 1; i <= n; i++) cout << ' ' << i;
+            cout << '\n';
+            cout.flush();
+            return 0;
+        }
+        add_edge(1, nbrs1[0]);
+        add_edge(1, nbrs1[1]);
+
+        // BFS in forward direction only (the ring closes back).
+        vector<bool> used(n + 1, false);
+        used[1] = used[nbrs1[0]] = used[nbrs1[1]] = true;
+        int curr = nbrs1[0];
+        int prev = 1;
+        while (true) {
+            // Find curr's other neighbor.
+            vector<int> remain;
+            for (int k = 1; k <= n; k++) if (!used[k] && k != curr) remain.push_back(k);
+            if (remain.empty()) break;
+            auto nbrs = find_nbrs(curr, remain);
+            int next_lamp = -1;
+            for (int u : nbrs) {
+                if (u != prev) { next_lamp = u; break; }
+            }
+            // If next_lamp would close ring (== nbrs1[1] which is back side)
+            // then we're done.
+            if (next_lamp == nbrs1[1] || next_lamp == -1) {
+                if (next_lamp != -1) add_edge(curr, next_lamp);
+                break;
+            }
+            add_edge(curr, next_lamp);
+            used[next_lamp] = true;
+            prev = curr;
+            curr = next_lamp;
+        }
     }
 
-    // Trace the ring from lamp 1.
+    // Trace ring from lamp 1.
     vector<int> perm;
     perm.reserve(n);
     perm.push_back(1);
     int prev = -1;
+    vector<bool> used(n + 1, false);
+    used[1] = true;
     while ((int)perm.size() < n) {
         int curr = perm.back();
         int next = -1;
-        for (int u : adjL[curr]) if (u != prev) { next = u; break; }
-        if (next == -1) {
-            // Inconsistency; fill remaining with any unused.
-            vector<bool> used(n + 1, false);
-            for (int x : perm) used[x] = true;
-            for (int k = 1; k <= n; k++) if (!used[k]) {
-                perm.push_back(k);
-                used[k] = true;
-                break;
-            }
-            continue;
+        for (int u : adjL[curr]) {
+            if (u != prev && !used[u]) { next = u; break; }
         }
+        if (next == -1) {
+            for (int k = 1; k <= n; k++) if (!used[k]) { next = k; break; }
+        }
+        if (next == -1) break;
         prev = curr;
         perm.push_back(next);
+        used[next] = true;
+    }
+    while ((int)perm.size() < n) {
+        for (int k = 1; k <= n; k++) if (!used[k]) { perm.push_back(k); used[k] = true; break; }
     }
 
     cout << -1;
