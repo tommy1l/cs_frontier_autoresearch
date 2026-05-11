@@ -56,7 +56,7 @@ static void searchPairDisjoint(int v1, int v2,
                                 vector<int>& unknown) {
     while ((int)c1.size() > 1 && (int)c2.size() > 1) {
         int sz1 = (int)c1.size(), sz2 = (int)c2.size();
-        int h1 = sz1 / 2, h2 = sz2 / 2;
+        int h1 = (sz1 + 1) / 2, h2 = (sz2 + 1) / 2;
         vector<int> q = baseQ();
         for (int k = 0; k < h1; k++) q[c1[k] - 1] = v1;
         for (int k = 0; k < h2; k++) q[c2[k] - 1] = v2;
