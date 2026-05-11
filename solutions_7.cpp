@@ -1,30 +1,51 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Iter 12: Build (B,Lo,Hi) DAFSA, then perform DAG minimization by node-signature.
+// Iter 13: Multi-length Rep state with end-accept via direct edges + post-Hopcroft.
+// State = sorted list of (B, Lo, Hi), B >= 1. Two states equivalent iff same set.
 
-map<tuple<int,int,int>, int> mem;
+struct Rep {
+    vector<tuple<int,int,int>> v;
+    bool operator<(const Rep& o) const { return v < o.v; }
+};
+
+map<Rep, int> mem;
 vector<vector<pair<int,int>>> edges;
+int endNode;
 
-int build(int B, int Lo, int Hi) {
-    auto key = make_tuple(B, Lo, Hi);
-    auto it = mem.find(key);
+pair<Rep,bool> trans(const Rep& r, int b) {
+    Rep next;
+    bool end_accept = false;
+    for (auto& [B, Lo, Hi] : r.v) {
+        int half = 1 << (B - 1);
+        int loB, hiB;
+        if (b == 0) {
+            loB = Lo;
+            hiB = min(Hi, half - 1);
+        } else {
+            loB = max(Lo, half) - half;
+            hiB = Hi - half;
+        }
+        if (loB > hiB) continue;
+        if (B == 1) end_accept = true;
+        else next.v.push_back({B - 1, loB, hiB});
+    }
+    return {next, end_accept};
+}
+
+int build(const Rep& r) {
+    auto it = mem.find(r);
     if (it != mem.end()) return it->second;
     int sid = (int)edges.size();
-    mem[key] = sid;
+    mem[r] = sid;
     edges.push_back({});
-    if (B == 0) return sid;
-    int mid = 1 << (B - 1);
-    int Lo0 = Lo, Hi0 = min(Hi, mid - 1);
-    if (Lo0 <= Hi0) {
-        int child = build(B - 1, Lo0, Hi0);
-        edges[sid].push_back({child, 0});
-    }
-    if (Hi >= mid) {
-        int Lo1 = max(Lo, mid) - mid;
-        int Hi1 = Hi - mid;
-        int child = build(B - 1, Lo1, Hi1);
-        edges[sid].push_back({child, 1});
+    for (int b = 0; b < 2; b++) {
+        auto [nr, ea] = trans(r, b);
+        if (ea) edges[sid].push_back({endNode, b});
+        if (!nr.v.empty()) {
+            int child = build(nr);
+            edges[sid].push_back({child, b});
+        }
     }
     return sid;
 }
@@ -32,7 +53,6 @@ int build(int B, int Lo, int Hi) {
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
-
     int L, R;
     cin >> L >> R;
 
@@ -40,46 +60,43 @@ int main() {
     for (int x = L; x; x >>= 1) bL++;
     for (int x = R; x; x >>= 1) bR++;
 
-    int start = (int)edges.size();
+    endNode = 0;
     edges.push_back({});
 
-    if (bL == bR) {
-        int B = bL;
-        int mid = 1 << (B - 1);
-        int child = build(B - 1, L - mid, R - mid);
+    Rep init;
+    bool init_end = false;
+    for (int B = bL; B <= bR; B++) {
+        int half = 1 << (B - 1);
+        int lo = max(L, half) - half;
+        int hi = min(R, (1 << B) - 1) - half;
+        if (lo > hi) continue;
+        if (B == 1) init_end = true;
+        else init.v.push_back({B - 1, lo, hi});
+    }
+
+    int start = (int)edges.size();
+    edges.push_back({});
+    if (init_end) edges[start].push_back({endNode, 1});
+    if (!init.v.empty()) {
+        int child = build(init);
         edges[start].push_back({child, 1});
-    } else {
-        int midL = 1 << (bL - 1);
-        int childL = build(bL - 1, L - midL, midL - 1);
-        edges[start].push_back({childL, 1});
-        for (int B = bL + 1; B < bR; B++) {
-            int childM = build(B - 1, 0, (1 << (B-1)) - 1);
-            edges[start].push_back({childM, 1});
-        }
-        int midR = 1 << (bR - 1);
-        int childR = build(bR - 1, 0, R - midR);
-        edges[start].push_back({childR, 1});
     }
 
     int n = (int)edges.size();
 
-    // Kahn topological sort.
+    // Post-Hopcroft: topological sort, then bottom-up signature merge.
     vector<int> indeg(n, 0);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
         for (auto& e : edges[i]) indeg[e.first]++;
-    }
     queue<int> q;
     for (int i = 0; i < n; i++) if (indeg[i] == 0) q.push(i);
     vector<int> topo;
     while (!q.empty()) {
         int u = q.front(); q.pop();
         topo.push_back(u);
-        for (auto& e : edges[u]) {
-            if (--indeg[e.first] == 0) q.push(e.first);
-        }
+        for (auto& e : edges[u]) if (--indeg[e.first] == 0) q.push(e.first);
     }
 
-    // Process in reverse topological order (children-first) to compute signatures.
     vector<int> canon(n, -1);
     map<vector<pair<int,int>>, int> sigToId;
     int nextCanon = 0;
@@ -104,9 +121,7 @@ int main() {
         int cid = canon[u];
         if (seen[cid]) continue;
         seen[cid] = true;
-        for (auto& e : edges[u]) {
-            cedges[cid].push_back({canon[e.first], e.second});
-        }
+        for (auto& e : edges[u]) cedges[cid].push_back({canon[e.first], e.second});
     }
 
     int cstart = canon[start];
@@ -118,17 +133,14 @@ int main() {
         perm[i] = idx++;
     }
     vector<vector<pair<int,int>>> out(nc);
-    for (int i = 0; i < nc; i++) {
-        for (auto& e : cedges[i]) {
+    for (int i = 0; i < nc; i++)
+        for (auto& e : cedges[i])
             out[perm[i]].push_back({perm[e.first], e.second});
-        }
-    }
+
     cout << nc << "\n";
     for (int i = 0; i < nc; i++) {
         cout << out[i].size();
-        for (auto& e : out[i]) {
-            cout << " " << (e.first + 1) << " " << e.second;
-        }
+        for (auto& e : out[i]) cout << " " << (e.first + 1) << " " << e.second;
         cout << "\n";
     }
     return 0;
