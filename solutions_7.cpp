@@ -1,12 +1,60 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Iter 6: bottom-up DAFSA construction.
+// Iter 7: minimum nodes via min-DFA with combined-length states.
+// State = a function f: {strings} -> bool. Two states equivalent iff same function.
+// We use representation: each state is set of (length, value-range) tuples.
+//
+// Top-level state: accepts any binary rep of [L,R].
+//   Lengths bL..bR; at each length B, value range is [max(L, 2^(B-1)), min(R, 2^B - 1)].
+// After first bit "1": new state with each tuple shifted (B -> B-1, range -> range - 2^(B-1)).
+// Etc.
+
+struct Rep {
+    // (length, Lo, Hi) tuples sorted by length
+    vector<tuple<int,int,int>> v;
+    bool operator<(const Rep& o) const { return v < o.v; }
+    bool operator==(const Rep& o) const { return v == o.v; }
+};
+
+map<Rep, int> mem;
+vector<vector<pair<int,int>>> edges;
+
+int build(const Rep& r) {
+    auto it = mem.find(r);
+    if (it != mem.end()) return it->second;
+    int sid = (int)edges.size();
+    mem[r] = sid;
+    edges.push_back({});
+    // Compute transitions for bit 0 and bit 1.
+    for (int b = 0; b < 2; b++) {
+        Rep next;
+        for (auto& [B, Lo, Hi] : r.v) {
+            if (B == 0) continue; // length-0 cannot have outgoing bit
+            int half = 1 << (B - 1);
+            int loB, hiB;
+            if (b == 0) {
+                loB = Lo;
+                hiB = min(Hi, half - 1);
+            } else {
+                loB = max(Lo, half) - half;
+                hiB = Hi - half;
+            }
+            if (loB <= hiB && loB >= 0 && hiB <= half - 1) {
+                next.v.push_back({B - 1, loB, hiB});
+            }
+        }
+        if (!next.v.empty()) {
+            int child = build(next);
+            edges[sid].push_back({child, b});
+        }
+    }
+    return sid;
+}
 
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
-
     int L, R;
     cin >> L >> R;
 
@@ -14,90 +62,40 @@ int main() {
     for (int x = L; x; x >>= 1) bL++;
     for (int x = R; x; x >>= 1) bR++;
 
-    vector<set<pair<int,int>>> intervals(bR + 1);
-
-    if (bL == bR) {
-        int B = bL;
-        int mid = 1 << (B - 1);
-        intervals[B - 1].insert({L - mid, R - mid});
-    } else {
-        int midL = 1 << (bL - 1);
-        intervals[bL - 1].insert({L - midL, midL - 1});
-        for (int B = bL + 1; B < bR; B++) {
-            intervals[B - 1].insert({0, (1 << (B-1)) - 1});
-        }
-        int midR = 1 << (bR - 1);
-        intervals[bR - 1].insert({0, R - midR});
+    // After first bit "1": for each length B in [bL, bR]:
+    //   value range at length B is [max(L, 2^(B-1)), min(R, 2^B - 1)].
+    //   After consuming the leading "1", remaining (B-1) bits have value
+    //   in [max(L, 2^(B-1)) - 2^(B-1), min(R, 2^B-1) - 2^(B-1)]
+    //                = [max(L - 2^(B-1), 0), min(R - 2^(B-1), 2^(B-1) - 1)].
+    Rep afterOne;
+    for (int B = bL; B <= bR; B++) {
+        int half = 1 << (B - 1);
+        int lo = max(L, half) - half;
+        int hi = min(R, (1 << B) - 1) - half;
+        if (lo <= hi) afterOne.v.push_back({B - 1, lo, hi});
     }
+    int child = build(afterOne);
 
-    for (int B = bR - 1; B >= 1; B--) {
-        for (auto& [Lo, Hi] : intervals[B]) {
-            int mid = 1 << (B - 1);
-            int Lo0 = Lo, Hi0 = min(Hi, mid - 1);
-            if (Lo0 <= Hi0) intervals[B - 1].insert({Lo0, Hi0});
-            if (Hi >= mid) {
-                int Lo1 = max(Lo, mid) - mid;
-                int Hi1 = Hi - mid;
-                intervals[B - 1].insert({Lo1, Hi1});
-            }
-        }
-    }
+    int start = (int)edges.size();
+    edges.push_back({});
+    edges[start].push_back({child, 1});
 
-    map<tuple<int,int,int>, int> id;
-    int nextId = 1;
-    for (int B = 0; B <= bR - 1; B++) {
-        for (auto& [Lo, Hi] : intervals[B]) {
-            id[{B, Lo, Hi}] = nextId++;
-        }
-    }
-    int total = nextId;
-
-    vector<vector<pair<int,int>>> edges(total);
-
-    auto getId = [&](int B, int Lo, int Hi) {
-        return id[{B, Lo, Hi}];
-    };
-
-    if (bL == bR) {
-        int B = bL;
-        int mid = 1 << (B - 1);
-        int child = getId(B - 1, L - mid, R - mid);
-        edges[0].push_back({child, 1});
-    } else {
-        int midL = 1 << (bL - 1);
-        int childL = getId(bL - 1, L - midL, midL - 1);
-        edges[0].push_back({childL, 1});
-        for (int B = bL + 1; B < bR; B++) {
-            int childM = getId(B - 1, 0, (1 << (B-1)) - 1);
-            edges[0].push_back({childM, 1});
-        }
-        int midR = 1 << (bR - 1);
-        int childR = getId(bR - 1, 0, R - midR);
-        edges[0].push_back({childR, 1});
-    }
-
-    for (int B = bR - 1; B >= 1; B--) {
-        for (auto& [Lo, Hi] : intervals[B]) {
-            int sid = getId(B, Lo, Hi);
-            int mid = 1 << (B - 1);
-            int Lo0 = Lo, Hi0 = min(Hi, mid - 1);
-            if (Lo0 <= Hi0) {
-                int child = getId(B - 1, Lo0, Hi0);
-                edges[sid].push_back({child, 0});
-            }
-            if (Hi >= mid) {
-                int Lo1 = max(Lo, mid) - mid;
-                int Hi1 = Hi - mid;
-                int child = getId(B - 1, Lo1, Hi1);
-                edges[sid].push_back({child, 1});
-            }
-        }
-    }
-
-    cout << total << "\n";
-    for (int i = 0; i < total; i++) {
-        cout << edges[i].size();
+    // Renumber so start = 0.
+    int n = (int)edges.size();
+    vector<int> perm(n);
+    perm[start] = 0;
+    int idx = 1;
+    for (int i = 0; i < n; i++) if (i != start) perm[i] = idx++;
+    vector<vector<pair<int,int>>> out(n);
+    for (int i = 0; i < n; i++) {
         for (auto& e : edges[i]) {
+            out[perm[i]].push_back({perm[e.first], e.second});
+        }
+    }
+    cout << n << "\n";
+    for (int i = 0; i < n; i++) {
+        cout << out[i].size();
+        for (auto& e : out[i]) {
             cout << " " << (e.first + 1) << " " << e.second;
         }
         cout << "\n";
