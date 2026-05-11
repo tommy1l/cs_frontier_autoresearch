@@ -143,19 +143,31 @@ static long long count_le(long long v) {
 }
 
 static long long binary_search_value() {
-    // Sample the main diagonal to tighten [lo, hi].
-    // a[i][i] has le-rank >= i*i and lt-rank <= (i-1)*(2n-i+1).
+    // Phase 1: sample main diagonal (n queries).
     vector<long long> diag(n + 2, 0);
     for (int i = 1; i <= n; i++) diag[i] = query_cell(i, i);
-    long long lo = diag[1];
-    long long hi = diag[n];
-    for (int i = 1; i <= n; i++) {
-        long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
-        if (lt_max < k_target) lo = max(lo, diag[i]);
-        long long le_min = (long long)i * i;
-        if (le_min >= k_target) { hi = min(hi, diag[i]); break; }
+
+    const long long BUDGET = 49500;
+    auto used = [&]() -> long long { return (long long)cache.size(); };
+
+    // Phase 2: binary search on diagonal INDEX. Find largest i in [0, n]
+    // with count_le(diag[i]) < k_target. (i=0 is the virtual sentinel with count 0.)
+    int lo_i = 0, hi_i = n;
+    while (lo_i < hi_i) {
+        if (used() + 3 * n > BUDGET) break;
+        int mid = lo_i + (hi_i - lo_i + 1) / 2;
+        long long c = count_le(diag[mid]);
+        if (c < k_target) lo_i = mid;
+        else hi_i = mid - 1;
     }
+
+    // After narrowing: ans in (diag[lo_i], diag[hi_i + 1]].
+    long long lo = (lo_i >= 1) ? diag[lo_i] + 1 : diag[1];
+    long long hi = (hi_i + 1 <= n) ? diag[hi_i + 1] : diag[n];
+
+    // Phase 3: value binary search on the narrowed range.
     while (lo < hi) {
+        if (used() + 3 * n > BUDGET) break;
         long long mid = lo + (hi - lo) / 2;
         long long c = count_le(mid);
         if (c >= k_target) hi = mid;
