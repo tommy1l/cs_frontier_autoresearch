@@ -35,50 +35,39 @@ int main() {
 
     vector<int> best_path;
 
-    // DAG branch: topo sort + longest-path DP.
+    // DAG branch: vector-queue Kahn topo + longest-path DP.
     {
         vector<int> indeg_copy = indeg;
         vector<int> topo;
         topo.reserve(n);
-        queue<int> q;
-        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) q.push(i);
-        while (!q.empty()) {
-            int u = q.front(); q.pop();
-            topo.push_back(u);
+        int head = 0;
+        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) topo.push_back(i);
+        while (head < (int)topo.size()) {
+            int u = topo[head++];
             for (int v : adj[u]) {
-                if (--indeg_copy[v] == 0) q.push(v);
+                if (--indeg_copy[v] == 0) topo.push_back(v);
             }
         }
         if ((int)topo.size() == n) {
-            // Forward DP: longest path starting at u.
-            vector<int> fwd(n + 1, 1);
+            vector<int> longest(n + 1, 1);
             vector<int> nxt(n + 1, -1);
             for (int i = n - 1; i >= 0; i--) {
                 int u = topo[i];
                 for (int v : adj[u]) {
-                    if (fwd[v] + 1 > fwd[u]) { fwd[u] = fwd[v] + 1; nxt[u] = v; }
+                    if (longest[v] + 1 > longest[u]) {
+                        longest[u] = longest[v] + 1;
+                        nxt[u] = v;
+                    }
                 }
             }
-            // Backward DP: longest path ending at u.
-            vector<int> bwd(n + 1, 1);
-            vector<int> prv(n + 1, -1);
-            for (int u : topo) {
-                for (int v : adj[u]) {
-                    if (bwd[u] + 1 > bwd[v]) { bwd[v] = bwd[u] + 1; prv[v] = u; }
-                }
+            int start = 1;
+            for (int i = 1; i <= n; i++) if (longest[i] > longest[start]) start = i;
+            vector<int> path;
+            int cur = start;
+            while (cur != -1) {
+                path.push_back(cur);
+                cur = nxt[cur];
             }
-            // Longest path through any vertex: bwd[v] + fwd[v] - 1.
-            int best_v = 1, best_len = 0;
-            for (int v = 1; v <= n; v++) {
-                int len = bwd[v] + fwd[v] - 1;
-                if (len > best_len) { best_len = len; best_v = v; }
-            }
-            vector<int> left_part, right_part;
-            for (int u = best_v; u != -1; u = prv[u]) left_part.push_back(u);
-            reverse(left_part.begin(), left_part.end());
-            for (int u = nxt[best_v]; u != -1; u = nxt[u]) right_part.push_back(u);
-            vector<int> path = left_part;
-            for (int x : right_part) path.push_back(x);
             if (path.size() > best_path.size()) best_path = path;
         }
     }
