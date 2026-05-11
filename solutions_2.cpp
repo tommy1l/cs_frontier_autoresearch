@@ -111,9 +111,8 @@ int main() {
     perm_global[1] = anchor;
     anchor_val = anchor;
 
-    // Process remaining values from high to low to vary pair choices.
     vector<int> remaining;
-    for (int v = n; v >= 1; v--) if (v != anchor) remaining.push_back(v);
+    for (int v = 1; v <= n; v++) if (v != anchor) remaining.push_back(v);
     vector<int> unknown;
     for (int p = 2; p <= n; p++) unknown.push_back(p);
 
@@ -131,7 +130,13 @@ int main() {
             i++;
             continue;
         }
-        int v2 = remaining[i + 1];
+        // Pair v1 with the FURTHEST remaining value (anti-adjacent pairing).
+        int v2 = remaining.back();
+        if (v2 == v1) v2 = remaining[i + 1];
+        // swap remaining[i+1] with last to consume v2 next.
+        if (i + 1 != (int)remaining.size() - 1 && v2 != remaining[i + 1]) {
+            std::swap(remaining[i + 1], remaining.back());
+        }
 
         // Joint same-set bisection until separation.
         vector<int> cand_common = unknown;
