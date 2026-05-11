@@ -1,60 +1,30 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Min-DFA with multi-length states; end-accept handled via direct edges to end.
-// State Rep = sorted list of (B, Lo, Hi) with B >= 1, at most one per B.
-// Future language of state = union over (B, Lo, Hi) of length-B strings in [Lo, Hi].
+// Iter 11: Simple (B, Lo, Hi) DAFSA, output ordered start=1, end=n (per example convention).
 
-struct Rep {
-    // sorted by B
-    vector<tuple<int,int,int>> v;
-    bool operator<(const Rep& o) const { return v < o.v; }
-};
-
-map<Rep, int> mem;
+map<tuple<int,int,int>, int> mem;
 vector<vector<pair<int,int>>> edges;
-int endNode;
 
-// transition: given rep and bit b, return next_rep and whether end-accept fires.
-pair<Rep,bool> trans(const Rep& r, int b) {
-    Rep next;
-    bool end_accept = false;
-    for (auto& [B, Lo, Hi] : r.v) {
-        int half = 1 << (B - 1);
-        int loB, hiB;
-        if (b == 0) {
-            loB = Lo;
-            hiB = min(Hi, half - 1);
-        } else {
-            loB = max(Lo, half) - half;
-            hiB = Hi - half;
-        }
-        if (loB > hiB) continue;
-        if (B == 1) {
-            end_accept = true;
-        } else {
-            next.v.push_back({B - 1, loB, hiB});
-        }
-    }
-    // already sorted by B since input was sorted
-    return {next, end_accept};
-}
-
-int build(const Rep& r) {
-    auto it = mem.find(r);
+int build(int B, int Lo, int Hi) {
+    auto key = make_tuple(B, Lo, Hi);
+    auto it = mem.find(key);
     if (it != mem.end()) return it->second;
     int sid = (int)edges.size();
-    mem[r] = sid;
+    mem[key] = sid;
     edges.push_back({});
-    for (int b = 0; b < 2; b++) {
-        auto [nr, ea] = trans(r, b);
-        if (ea) {
-            edges[sid].push_back({endNode, b});
-        }
-        if (!nr.v.empty()) {
-            int child = build(nr);
-            edges[sid].push_back({child, b});
-        }
+    if (B == 0) return sid;
+    int mid = 1 << (B - 1);
+    int Lo0 = Lo, Hi0 = min(Hi, mid - 1);
+    if (Lo0 <= Hi0) {
+        int child = build(B - 1, Lo0, Hi0);
+        edges[sid].push_back({child, 0});
+    }
+    if (Hi >= mid) {
+        int Lo1 = max(Lo, mid) - mid;
+        int Hi1 = Hi - mid;
+        int child = build(B - 1, Lo1, Hi1);
+        edges[sid].push_back({child, 1});
     }
     return sid;
 }
@@ -62,6 +32,7 @@ int build(const Rep& r) {
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
+
     int L, R;
     cin >> L >> R;
 
@@ -69,42 +40,42 @@ int main() {
     for (int x = L; x; x >>= 1) bL++;
     for (int x = R; x; x >>= 1) bR++;
 
-    // Pre-allocate end node.
-    endNode = 0;
-    edges.push_back({});
-
-    // Initial rep after leading 1.
-    Rep init;
-    bool init_end = false;
-    for (int B = bL; B <= bR; B++) {
-        int half = 1 << (B - 1);
-        int lo = max(L, half) - half;
-        int hi = min(R, (1 << B) - 1) - half;
-        if (lo > hi) continue;
-        if (B == 1) {
-            init_end = true;
-        } else {
-            init.v.push_back({B - 1, lo, hi});
-        }
-    }
-
     int start = (int)edges.size();
     edges.push_back({});
-    if (init_end) {
-        edges[start].push_back({endNode, 1});
-    }
-    if (!init.v.empty()) {
-        int child = build(init);
+
+    if (bL == bR) {
+        int B = bL;
+        int mid = 1 << (B - 1);
+        int child = build(B - 1, L - mid, R - mid);
         edges[start].push_back({child, 1});
+    } else {
+        int midL = 1 << (bL - 1);
+        int childL = build(bL - 1, L - midL, midL - 1);
+        edges[start].push_back({childL, 1});
+        for (int B = bL + 1; B < bR; B++) {
+            int childM = build(B - 1, 0, (1 << (B-1)) - 1);
+            edges[start].push_back({childM, 1});
+        }
+        int midR = 1 << (bR - 1);
+        int childR = build(bR - 1, 0, R - midR);
+        edges[start].push_back({childR, 1});
     }
 
-    // Reorder so start = 0, end = last (problem doesn't require, but cleaner).
+    // Find end node (the one with 0 outgoing edges; should be build(0, 0, 0)).
+    int endNode = -1;
+    auto it = mem.find(make_tuple(0, 0, 0));
+    if (it != mem.end()) endNode = it->second;
+
     int n = (int)edges.size();
+    // Permute: start -> 0, end -> n-1, others fill in between.
     vector<int> perm(n);
     perm[start] = 0;
+    if (endNode >= 0) perm[endNode] = n - 1;
     int idx = 1;
     for (int i = 0; i < n; i++) {
-        if (i != start) perm[i] = idx++;
+        if (i == start) continue;
+        if (i == endNode) continue;
+        perm[i] = idx++;
     }
     vector<vector<pair<int,int>>> out(n);
     for (int i = 0; i < n; i++) {
