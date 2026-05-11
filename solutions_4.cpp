@@ -143,8 +143,18 @@ static long long count_le(long long v) {
 }
 
 static long long binary_search_value() {
-    long long lo = query_cell(1, 1);
-    long long hi = query_cell(n, n);
+    // Sample the main diagonal to tighten [lo, hi].
+    // a[i][i] has le-rank >= i*i and lt-rank <= (i-1)*(2n-i+1).
+    vector<long long> diag(n + 2, 0);
+    for (int i = 1; i <= n; i++) diag[i] = query_cell(i, i);
+    long long lo = diag[1];
+    long long hi = diag[n];
+    for (int i = 1; i <= n; i++) {
+        long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
+        if (lt_max < k_target) lo = max(lo, diag[i]);
+        long long le_min = (long long)i * i;
+        if (le_min >= k_target) { hi = min(hi, diag[i]); break; }
+    }
     while (lo < hi) {
         long long mid = lo + (hi - lo) / 2;
         long long c = count_le(mid);
