@@ -1,15 +1,16 @@
 /**
- * Problem 5: longest simple path in a directed graph (a Hamiltonian path is
- * guaranteed to exist; we just need a path as long as possible).
+ * Problem 5: longest simple path in a directed graph (Hamiltonian guaranteed).
  *
- * Baseline: greedy walk from many starting vertices; pick the longest path
- * found. Try the original adjacency order, then with shuffled adjacency.
+ * Warnsdorff-style heuristic: at each step pick the unvisited neighbor with
+ * the fewest unvisited out-edges. Start from vertices in ascending in-degree
+ * order so true sources are tried first.
  */
 #include <bits/stdc++.h>
 using namespace std;
 
 int n, m;
-vector<vector<int>> adj;
+vector<vector<int>> adj, radj;
+vector<int> in_deg;
 
 int main() {
     ios::sync_with_stdio(false);
@@ -19,9 +20,13 @@ int main() {
     vector<int> a(10);
     for (int i = 0; i < 10; i++) cin >> a[i];
     adj.assign(n + 1, {});
+    radj.assign(n + 1, {});
+    in_deg.assign(n + 1, 0);
     for (int i = 0; i < m; i++) {
         int u, v; cin >> u >> v;
         adj[u].push_back(v);
+        radj[v].push_back(u);
+        in_deg[v]++;
     }
 
     auto start_time = chrono::steady_clock::now();
@@ -33,46 +38,52 @@ int main() {
     vector<int> best_path;
     vector<int> path;
     vector<bool> visited(n + 1, false);
+    vector<int> u_deg(n + 1, 0);
     path.reserve(n);
 
-    auto try_greedy = [&](int start) {
+    auto reset_state = [&]() {
         fill(visited.begin(), visited.end(), false);
+        for (int v = 1; v <= n; v++) u_deg[v] = (int)adj[v].size();
+    };
+
+    auto try_warnsdorff = [&](int start) {
+        reset_state();
         path.clear();
         path.push_back(start);
         visited[start] = true;
+        for (int p : radj[start]) u_deg[p]--;
         int cur = start;
         while (true) {
-            int next = -1;
+            int best_next = -1;
+            int best_score = INT_MAX;
             for (int v : adj[cur]) {
-                if (!visited[v]) { next = v; break; }
+                if (visited[v]) continue;
+                int s = u_deg[v];
+                if (s < best_score) {
+                    best_score = s;
+                    best_next = v;
+                }
             }
-            if (next == -1) break;
-            path.push_back(next);
-            visited[next] = true;
-            cur = next;
+            if (best_next == -1) break;
+            path.push_back(best_next);
+            visited[best_next] = true;
+            for (int p : radj[best_next]) u_deg[p]--;
+            cur = best_next;
         }
         if (path.size() > best_path.size()) best_path = path;
     };
 
-    mt19937 rng(42);
     vector<int> starts;
     starts.reserve(n);
     for (int i = 1; i <= n; i++) starts.push_back(i);
-    shuffle(starts.begin(), starts.end(), rng);
+    sort(starts.begin(), starts.end(), [&](int x, int y) {
+        return in_deg[x] < in_deg[y];
+    });
 
     for (int s : starts) {
         if (time_left_ms() <= 0) break;
-        try_greedy(s);
+        try_warnsdorff(s);
         if ((int)best_path.size() == n) break;
-    }
-
-    if ((int)best_path.size() < n) {
-        for (int i = 1; i <= n; i++) shuffle(adj[i].begin(), adj[i].end(), rng);
-        for (int s : starts) {
-            if (time_left_ms() <= 0) break;
-            try_greedy(s);
-            if ((int)best_path.size() == n) break;
-        }
     }
 
     cout << best_path.size() << '\n';
