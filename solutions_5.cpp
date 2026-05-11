@@ -35,64 +35,50 @@ int main() {
 
     vector<int> best_path;
 
-    // DAG branch: iterative DFS topo sort + longest-path DP.
+    // DAG branch: topo sort + longest-path DP.
     {
+        vector<int> indeg_copy = indeg;
         vector<int> topo;
         topo.reserve(n);
-        vector<int> state(n + 1, 0); // 0=unseen, 1=on-stack, 2=done
-        vector<int> stk_v, stk_i;
-        bool has_cycle = false;
-        for (int s = 1; s <= n && !has_cycle; s++) {
-            if (state[s]) continue;
-            stk_v.push_back(s);
-            stk_i.push_back(0);
-            state[s] = 1;
-            while (!stk_v.empty()) {
-                int u = stk_v.back();
-                int& i = stk_i.back();
-                if (i < (int)adj[u].size()) {
-                    int v = adj[u][i++];
-                    if (state[v] == 0) {
-                        state[v] = 1;
-                        stk_v.push_back(v);
-                        stk_i.push_back(0);
-                    } else if (state[v] == 1) {
-                        has_cycle = true;
-                        break;
-                    }
-                } else {
-                    state[u] = 2;
-                    topo.push_back(u);
-                    stk_v.pop_back();
-                    stk_i.pop_back();
-                }
+        queue<int> q;
+        for (int i = 1; i <= n; i++) if (indeg_copy[i] == 0) q.push(i);
+        while (!q.empty()) {
+            int u = q.front(); q.pop();
+            topo.push_back(u);
+            for (int v : adj[u]) {
+                if (--indeg_copy[v] == 0) q.push(v);
             }
         }
-        if (!has_cycle) {
-            reverse(topo.begin(), topo.end());
-        } else {
-            topo.clear();
-        }
         if ((int)topo.size() == n) {
-            vector<int> longest(n + 1, 1);
+            // Forward DP: longest path starting at u.
+            vector<int> fwd(n + 1, 1);
             vector<int> nxt(n + 1, -1);
             for (int i = n - 1; i >= 0; i--) {
                 int u = topo[i];
                 for (int v : adj[u]) {
-                    if (longest[v] + 1 > longest[u]) {
-                        longest[u] = longest[v] + 1;
-                        nxt[u] = v;
-                    }
+                    if (fwd[v] + 1 > fwd[u]) { fwd[u] = fwd[v] + 1; nxt[u] = v; }
                 }
             }
-            int start = 1;
-            for (int i = 1; i <= n; i++) if (longest[i] > longest[start]) start = i;
-            vector<int> path;
-            int cur = start;
-            while (cur != -1) {
-                path.push_back(cur);
-                cur = nxt[cur];
+            // Backward DP: longest path ending at u.
+            vector<int> bwd(n + 1, 1);
+            vector<int> prv(n + 1, -1);
+            for (int u : topo) {
+                for (int v : adj[u]) {
+                    if (bwd[u] + 1 > bwd[v]) { bwd[v] = bwd[u] + 1; prv[v] = u; }
+                }
             }
+            // Longest path through any vertex: bwd[v] + fwd[v] - 1.
+            int best_v = 1, best_len = 0;
+            for (int v = 1; v <= n; v++) {
+                int len = bwd[v] + fwd[v] - 1;
+                if (len > best_len) { best_len = len; best_v = v; }
+            }
+            vector<int> left_part, right_part;
+            for (int u = best_v; u != -1; u = prv[u]) left_part.push_back(u);
+            reverse(left_part.begin(), left_part.end());
+            for (int u = nxt[best_v]; u != -1; u = nxt[u]) right_part.push_back(u);
+            vector<int> path = left_part;
+            for (int x : right_part) path.push_back(x);
             if (path.size() > best_path.size()) best_path = path;
         }
     }
