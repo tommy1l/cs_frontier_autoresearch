@@ -1,1 +1,8 @@
 commit	best_score	best_unbounded	status	description
+421e48b	66.667	66.667	keep	initial all-pairs O(n^2) for n<=1500
+ec60e8a	66.667	66.667	keep	sparse adj list + cleaner trace
+a7ce35d	66.667	66.667	keep	hybrid all-pairs+sequential BFS
+0d38a2e	66.667	66.667	keep	bump all-pairs threshold to 295M ops
+ef3919a	66.667	66.667	keep	deterministic trace pick smallest neighbor first
+bc27de8	66.667	66.667	keep	two-front BFS for medium n
+

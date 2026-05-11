@@ -59,6 +59,8 @@ int main() {
     };
 
     if (use_allpairs) {
+        // Light v, test all k>v (toggle in then out), extinguish v.
+        // Each pair (v,k) gets a dedicated 2-op test. n^2 + n total ops.
         vector<int> ops;
         ops.reserve((size_t)allpairs_ops + 16);
         for (int v = 1; v <= n; v++) {
