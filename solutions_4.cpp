@@ -143,35 +143,42 @@ static long long count_le(long long v) {
 }
 
 static long long binary_search_value() {
-    // Phase 1: sample main diagonal (n queries).
+    // Sample the main diagonal to tighten [lo, hi].
     vector<long long> diag(n + 2, 0);
     for (int i = 1; i <= n; i++) diag[i] = query_cell(i, i);
-
-    const long long BUDGET = 49500;
-    auto used = [&]() -> long long { return (long long)cache.size(); };
-
-    // Phase 2: binary search on diagonal INDEX. Find largest i in [0, n]
-    // with count_le(diag[i]) < k_target. (i=0 is the virtual sentinel with count 0.)
-    int lo_i = 0, hi_i = n;
-    while (lo_i < hi_i) {
-        if (used() + 3 * n > BUDGET) break;
-        int mid = lo_i + (hi_i - lo_i + 1) / 2;
-        long long c = count_le(diag[mid]);
-        if (c < k_target) lo_i = mid;
-        else hi_i = mid - 1;
+    long long lo = diag[1];
+    long long hi = diag[n];
+    for (int i = 1; i <= n; i++) {
+        long long lt_max = (long long)(i - 1) * (2LL * n - i + 1);
+        if (lt_max < k_target) lo = max(lo, diag[i]);
+        long long le_min = (long long)i * i;
+        if (le_min >= k_target) { hi = min(hi, diag[i]); break; }
     }
-
-    // After narrowing: ans in (diag[lo_i], diag[hi_i + 1]].
-    long long lo = (lo_i >= 1) ? diag[lo_i] + 1 : diag[1];
-    long long hi = (hi_i + 1 <= n) ? diag[hi_i + 1] : diag[n];
-
-    // Phase 3: value binary search on the narrowed range.
+    // Interpolation search: use (lo, c_lo) → (hi, c_hi) linear estimate.
+    // Falls back to bisection every 3rd round and when counts unknown.
+    long long c_lo = -1, c_hi = -1;
+    int rounds = 0;
     while (lo < hi) {
-        if (used() + 3 * n > BUDGET) break;
-        long long mid = lo + (hi - lo) / 2;
+        long long mid;
+        bool can_interp = (c_lo >= 0 && c_hi >= 0 && c_hi > c_lo
+                           && k_target > c_lo && k_target <= c_hi);
+        if (can_interp && (rounds % 3) != 2) {
+            __int128 span = c_hi - c_lo;
+            __int128 target = (long long)k_target - c_lo;
+            __int128 offset = (__int128)(hi - lo) * target / span;
+            long long interp = lo + (long long)offset;
+            long long bis = lo + (hi - lo) / 2;
+            // Blend toward bisection by 1/4 for robustness on skewed data.
+            mid = (long long)(((__int128)interp * 3 + bis) / 4);
+        } else {
+            mid = lo + (hi - lo) / 2;
+        }
+        if (mid < lo) mid = lo;
+        if (mid >= hi) mid = hi - 1;
         long long c = count_le(mid);
-        if (c >= k_target) hi = mid;
-        else lo = mid + 1;
+        if (c >= k_target) { hi = mid; c_hi = c; }
+        else { lo = mid + 1; c_lo = c; }
+        rounds++;
     }
     return lo;
 }
