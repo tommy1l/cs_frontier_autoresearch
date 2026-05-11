@@ -1,14 +1,7 @@
 /**
- * Problem 2: Hidden Permutation guess with few queries.
- *
- * Phase 1: find perm[1] via pair queries [va, vb, ..., vb] (linear).
- * Phase 2 (paired): bisect two values v1, v2 simultaneously.
- *   Query q[left] = v1, q[right] = v2, q[else] = anchor.
- *   delta = match - known ∈ {0, 1, 2}.
- *   delta=2 → pos_v1∈left, pos_v2∈right (decisive).
- *   delta=0 → pos_v1∈right, pos_v2∈left (decisive).
- *   delta=1 → same side; disambig with q[left]=v1, rest=anchor.
- *   Saves ~1 query per pair vs sequential bisection.
+ * Problem 2: Hidden Permutation. Paired bisection in phase 2, including joint
+ * post-separation bisection (1 query halves BOTH disjoint candidate sets when
+ * decisive, +1 disambig query otherwise).
  */
 #include <bits/stdc++.h>
 using namespace std;
@@ -39,6 +32,12 @@ static vector<int> baseQ() {
     return q;
 }
 
+static void markFound(int v, int p, vector<int>& unknown) {
+    perm_global[p] = v;
+    auto it = find(unknown.begin(), unknown.end(), p);
+    if (it != unknown.end()) unknown.erase(it);
+}
+
 static void searchSingle(int v, vector<int> cand, vector<int>& unknown) {
     while (cand.size() > 1) {
         int half = (int)cand.size() / 2;
@@ -49,10 +48,45 @@ static void searchSingle(int v, vector<int> cand, vector<int>& unknown) {
         if (a > known_count) cand.resize(half);
         else cand.erase(cand.begin(), cand.begin() + half);
     }
-    int p = cand[0];
-    perm_global[p] = v;
-    auto it = find(unknown.begin(), unknown.end(), p);
-    if (it != unknown.end()) unknown.erase(it);
+    markFound(v, cand[0], unknown);
+}
+
+static void searchPairDisjoint(int v1, int v2,
+                                vector<int> c1, vector<int> c2,
+                                vector<int>& unknown) {
+    while ((int)c1.size() > 1 && (int)c2.size() > 1) {
+        int sz1 = (int)c1.size(), sz2 = (int)c2.size();
+        int h1 = sz1 / 2, h2 = sz2 / 2;
+        vector<int> q = baseQ();
+        for (int k = 0; k < h1; k++) q[c1[k] - 1] = v1;
+        for (int k = 0; k < h2; k++) q[c2[k] - 1] = v2;
+        int a = query(q);
+        int known_count = n - (int)unknown.size();
+        int delta = a - known_count;
+        if (delta == 2) {
+            c1.resize(h1);
+            c2.resize(h2);
+        } else if (delta == 0) {
+            c1.erase(c1.begin(), c1.begin() + h1);
+            c2.erase(c2.begin(), c2.begin() + h2);
+        } else {
+            // delta == 1: ambiguous; disambig by testing only v1's left.
+            vector<int> q2 = baseQ();
+            for (int k = 0; k < h1; k++) q2[c1[k] - 1] = v1;
+            int a2 = query(q2);
+            if (a2 > known_count) {
+                c1.resize(h1);
+                c2.erase(c2.begin(), c2.begin() + h2);
+            } else {
+                c1.erase(c1.begin(), c1.begin() + h1);
+                c2.resize(h2);
+            }
+        }
+    }
+    if ((int)c1.size() == 1) markFound(v1, c1[0], unknown);
+    else searchSingle(v1, c1, unknown);
+    if ((int)c2.size() == 1) markFound(v2, c2[0], unknown);
+    else searchSingle(v2, c2, unknown);
 }
 
 int main() {
@@ -63,7 +97,7 @@ int main() {
 
     perm_global.assign(n + 1, 0);
 
-    // Phase 1: pair-test linear scan.
+    // Phase 1: linear pair-test scan.
     int anchor = -1;
     for (int va = 1; va + 1 <= n; va += 2) {
         int vb = va + 1;
@@ -77,7 +111,6 @@ int main() {
     perm_global[1] = anchor;
     anchor_val = anchor;
 
-    // Phase 2: paired bisection.
     vector<int> remaining;
     for (int v = 1; v <= n; v++) if (v != anchor) remaining.push_back(v);
     vector<int> unknown;
@@ -88,8 +121,7 @@ int main() {
         if (unknown.empty()) break;
         int v1 = remaining[i];
         if ((int)unknown.size() == 1) {
-            perm_global[unknown[0]] = v1;
-            unknown.clear();
+            markFound(v1, unknown[0], unknown);
             i++;
             continue;
         }
@@ -100,10 +132,10 @@ int main() {
         }
         int v2 = remaining[i + 1];
 
+        // Joint same-set bisection until separation.
         vector<int> cand_common = unknown;
         vector<int> cand_v1, cand_v2;
         bool separated = false;
-
         while (!separated && (int)cand_common.size() > 1) {
             int sz = (int)cand_common.size();
             int half = sz / 2;
@@ -115,16 +147,10 @@ int main() {
             int a = query(q);
             int known_count = n - (int)unknown.size();
             int delta = a - known_count;
-            if (delta == 2) {
-                cand_v1 = left;
-                cand_v2 = right;
-                separated = true;
-            } else if (delta == 0) {
-                cand_v1 = right;
-                cand_v2 = left;
-                separated = true;
-            } else {
-                // delta == 1: same side. Disambiguate.
+            if (delta == 2) { cand_v1 = left; cand_v2 = right; separated = true; }
+            else if (delta == 0) { cand_v1 = right; cand_v2 = left; separated = true; }
+            else {
+                // delta == 1: same side; disambiguate.
                 vector<int> q2 = baseQ();
                 for (int p : left) q2[p - 1] = v1;
                 int a2 = query(q2);
@@ -134,20 +160,14 @@ int main() {
         }
 
         if (separated) {
-            searchSingle(v1, cand_v1, unknown);
-            searchSingle(v2, cand_v2, unknown);
+            searchPairDisjoint(v1, v2, cand_v1, cand_v2, unknown);
             i += 2;
         } else {
-            // cand_common.size() == 1: both v1 and v2 should be here? Impossible.
-            // Fallback: assign v1 here, then search v2 normally.
-            perm_global[cand_common[0]] = v1;
-            auto it = find(unknown.begin(), unknown.end(), cand_common[0]);
-            if (it != unknown.end()) unknown.erase(it);
+            markFound(v1, cand_common[0], unknown);
             i++;
         }
     }
 
-    // Fill any leftover.
     if (!unknown.empty()) {
         set<int> used;
         for (int p = 1; p <= n; p++) if (perm_global[p]) used.insert(perm_global[p]);
