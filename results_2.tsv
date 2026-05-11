@@ -1,1 +1,14 @@
 commit	best_score	best_unbounded	status	description
+cfbd1f7	29.323333	29.323333	keep	phase1 pair-test, phase2 binary search positions
+de9b0f1	26.613	29.323333	discard	bisection phase1 (aux retries hurt total)
+42ea964	42.833	42.833	keep	paired bisection in phase 2 saves ~1q/pair
+7cb2ff5	86.513	86.513	keep	joint pair bisection continues after separation
+cd80b5c	85.583	86.513	discard	bisection phase1 + fallback (slightly worse)
+d6f2a6b	86.493	86.513	discard	3-value triple test phase 1 (no gain)
+943b7c3	84.16	86.513	discard	mid-out pair order in phase1 (worse)
+681464c	86.513	86.513	discard	disambig tests v2 (no gain)
+66cd543	86.00	86.513	discard	process values descending (no gain)
+c2956e1	86.36	86.513	discard	pair v1 with last remaining (no gain)
+cae63a0	86.733	86.733	keep	ceil split for joint same-set
+7cbfb8e	86.07	86.733	discard	ceil split for joint disjoint (worse)
+dfa46d7	86.733	86.733	keep	ceil split for searchSingle (same score)
