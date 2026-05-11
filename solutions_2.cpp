@@ -70,16 +70,35 @@ static void searchPairDisjoint(int v1, int v2,
             c1.erase(c1.begin(), c1.begin() + h1);
             c2.erase(c2.begin(), c2.begin() + h2);
         } else {
-            // delta == 1: ambiguous; disambig by testing only v1's left.
+            // delta == 1: ambiguous between
+            //   Case A: v1 in c1 left, v2 in c2 right.
+            //   Case B: v1 in c1 right, v2 in c2 left.
+            // Smarter disambig: v1 at FIRST HALF of c1 left, v2 at c2 right.
+            // 3 outcomes when h1 >= 2:
+            //   delta2=2 -> Case A, v1 in 1st-half-of-c1-left.
+            //   delta2=1 -> Case A, v1 in 2nd-half-of-c1-left.
+            //   delta2=0 -> Case B.
+            int q1_h = h1 / 2;
             vector<int> q2 = baseQ();
-            for (int k = 0; k < h1; k++) q2[c1[k] - 1] = v1;
+            for (int k = 0; k < q1_h; k++) q2[c1[k] - 1] = v1;
+            for (int k = h2; k < sz2; k++) q2[c2[k] - 1] = v2;
             int a2 = query(q2);
-            if (a2 > known_count) {
-                c1.resize(h1);
-                c2.erase(c2.begin(), c2.begin() + h2);
-            } else {
+            int delta2 = a2 - known_count;
+            if (delta2 == 0) {
+                // Case B.
                 c1.erase(c1.begin(), c1.begin() + h1);
                 c2.resize(h2);
+            } else if (delta2 == 2) {
+                // Case A, v1 in 1st-half-of-c1-left.
+                c1.resize(q1_h);
+                c2.erase(c2.begin(), c2.begin() + h2);
+            } else {
+                // delta2 == 1:
+                // If h1 >= 2: Case A, v1 in 2nd-half-of-c1-left.
+                // If h1 == 1 (q1_h == 0): Case A, v1 = c1[0].
+                if (q1_h == 0) c1.resize(h1);
+                else c1 = vector<int>(c1.begin() + q1_h, c1.begin() + h1);
+                c2.erase(c2.begin(), c2.begin() + h2);
             }
         }
     }
