@@ -55,7 +55,8 @@ int main() {
     }
 
     long long allpairs_ops = (long long)n * (n - 1) + 2LL * n;
-    bool use_allpairs = allpairs_ops <= 295000000LL;
+    // Stay conservatively under the Q budget so query 0 doesn't risk OOM.
+    bool use_allpairs = allpairs_ops <= 270000000LL;
 
     vector<vector<int>> adjL(n + 1);
     auto add_edge = [&](int u, int v) {
