@@ -111,8 +111,9 @@ int main() {
     perm_global[1] = anchor;
     anchor_val = anchor;
 
+    // Process remaining values from high to low to vary pair choices.
     vector<int> remaining;
-    for (int v = 1; v <= n; v++) if (v != anchor) remaining.push_back(v);
+    for (int v = n; v >= 1; v--) if (v != anchor) remaining.push_back(v);
     vector<int> unknown;
     for (int p = 2; p <= n; p++) unknown.push_back(p);
 
@@ -132,7 +133,7 @@ int main() {
         }
         int v2 = remaining[i + 1];
 
-        // Joint same-set bisection until separation. Disambig tests v2 (was v1).
+        // Joint same-set bisection until separation.
         vector<int> cand_common = unknown;
         vector<int> cand_v1, cand_v2;
         bool separated = false;
@@ -150,12 +151,12 @@ int main() {
             if (delta == 2) { cand_v1 = left; cand_v2 = right; separated = true; }
             else if (delta == 0) { cand_v1 = right; cand_v2 = left; separated = true; }
             else {
-                // delta == 1: same side; disambig by testing v2's right.
+                // delta == 1: same side; disambiguate.
                 vector<int> q2 = baseQ();
-                for (int p : right) q2[p - 1] = v2;
+                for (int p : left) q2[p - 1] = v1;
                 int a2 = query(q2);
-                if (a2 > known_count) cand_common = right;
-                else cand_common = left;
+                if (a2 > known_count) cand_common = left;
+                else cand_common = right;
             }
         }
 
