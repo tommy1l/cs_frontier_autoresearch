@@ -130,13 +130,7 @@ int main() {
             i++;
             continue;
         }
-        // Pair v1 with the FURTHEST remaining value (anti-adjacent pairing).
-        int v2 = remaining.back();
-        if (v2 == v1) v2 = remaining[i + 1];
-        // swap remaining[i+1] with last to consume v2 next.
-        if (i + 1 != (int)remaining.size() - 1 && v2 != remaining[i + 1]) {
-            std::swap(remaining[i + 1], remaining.back());
-        }
+        int v2 = remaining[i + 1];
 
         // Joint same-set bisection until separation.
         vector<int> cand_common = unknown;
@@ -144,7 +138,7 @@ int main() {
         bool separated = false;
         while (!separated && (int)cand_common.size() > 1) {
             int sz = (int)cand_common.size();
-            int half = sz / 2;
+            int half = (sz + 1) / 2; // ceil split
             vector<int> left(cand_common.begin(), cand_common.begin() + half);
             vector<int> right(cand_common.begin() + half, cand_common.end());
             vector<int> q = baseQ();
