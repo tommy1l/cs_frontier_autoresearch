@@ -1,13 +1,13 @@
 /**
- * Problem 2: Hidden Permutation. Bisection phase 1 (find pos_1 via aux-retry
- * bisection, with linear pair-test fallback) + paired bisection phase 2.
+ * Problem 2: Hidden Permutation. Paired bisection in phase 2, including joint
+ * post-separation bisection (1 query halves BOTH disjoint candidate sets when
+ * decisive, +1 disambig query otherwise).
  */
 #include <bits/stdc++.h>
 using namespace std;
 
 static int n;
 static int anchor_val;
-static int anchor_pos;
 static vector<int> perm_global;
 
 static int query(const vector<int>& q) {
@@ -70,6 +70,7 @@ static void searchPairDisjoint(int v1, int v2,
             c1.erase(c1.begin(), c1.begin() + h1);
             c2.erase(c2.begin(), c2.begin() + h2);
         } else {
+            // delta == 1: ambiguous; disambig by testing only v1's left.
             vector<int> q2 = baseQ();
             for (int k = 0; k < h1; k++) q2[c1[k] - 1] = v1;
             int a2 = query(q2);
@@ -96,35 +97,22 @@ int main() {
 
     perm_global.assign(n + 1, 0);
 
-    // Phase 1: bisection for pos_1 with bounded budget.
-    int pos_1 = -1;
-    {
-        int lo = 1, hi = n;
-        int aux = 2;
-        int budget = 3 * (int)ceil(log2((double)n)) + 5;
-        int used = 0;
-        while (lo < hi && used < budget) {
-            int mid = (lo + hi) / 2;
-            vector<int> q(n, aux);
-            for (int p = lo; p <= mid; p++) q[p - 1] = 1;
-            int a = query(q);
-            used++;
-            if (a == 2) hi = mid;
-            else if (a == 0) lo = mid + 1;
-            else {
-                aux = (aux == n) ? 2 : aux + 1;
-            }
-        }
-        if (lo == hi) pos_1 = lo;
+    // Phase 1: 3-value test. q = [va, vb, vc, vc, ..., vc].
+    // match=3 -> perm[1]=va AND perm[2]=vb (2 anchors free).
+    // match=0 -> perm[1]=vc XOR perm[2]=vc.
+    // match=2 -> (perm[1]=va XOR perm[2]=vb), with vc unknown.
+    // We resolve anchor cleanly only on match=3 fast-path; else linear pair test.
+    int anchor = -1;
+    int perm2 = -1;
+    if (n >= 3) {
+        // try first triple test (va,vb,vc) = (1, 2, 3).
+        vector<int> q(n, 3);
+        q[0] = 1; q[1] = 2;
+        int a = query(q);
+        if (a == 3) { anchor = 1; perm2 = 2; }
     }
-
-    if (pos_1 != -1) {
-        anchor_pos = pos_1;
-        anchor_val = 1;
-        perm_global[pos_1] = 1;
-    } else {
-        // Fallback: linear pair-test scan to find perm[1].
-        int anchor = -1;
+    if (anchor == -1) {
+        // Fallback to old pair test (skipping the (1,2) test since 3-value already implies info).
         for (int va = 1; va + 1 <= n; va += 2) {
             int vb = va + 1;
             vector<int> q(n, vb);
@@ -134,15 +122,15 @@ int main() {
             if (a == 0) { anchor = vb; break; }
         }
         if (anchor == -1) anchor = n;
-        anchor_pos = 1;
-        anchor_val = anchor;
-        perm_global[1] = anchor;
     }
+    perm_global[1] = anchor;
+    anchor_val = anchor;
+    if (perm2 != -1) perm_global[2] = perm2;
 
     vector<int> remaining;
-    for (int v = 1; v <= n; v++) if (v != anchor_val) remaining.push_back(v);
+    for (int v = 1; v <= n; v++) if (v != anchor && v != perm2) remaining.push_back(v);
     vector<int> unknown;
-    for (int p = 1; p <= n; p++) if (p != anchor_pos) unknown.push_back(p);
+    for (int p = 2; p <= n; p++) if (perm_global[p] == 0) unknown.push_back(p);
 
     int i = 0;
     while (i < (int)remaining.size()) {
@@ -160,6 +148,7 @@ int main() {
         }
         int v2 = remaining[i + 1];
 
+        // Joint same-set bisection until separation.
         vector<int> cand_common = unknown;
         vector<int> cand_v1, cand_v2;
         bool separated = false;
@@ -177,6 +166,7 @@ int main() {
             if (delta == 2) { cand_v1 = left; cand_v2 = right; separated = true; }
             else if (delta == 0) { cand_v1 = right; cand_v2 = left; separated = true; }
             else {
+                // delta == 1: same side; disambiguate.
                 vector<int> q2 = baseQ();
                 for (int p : left) q2[p - 1] = v1;
                 int a2 = query(q2);
