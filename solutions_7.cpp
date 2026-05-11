@@ -1,8 +1,63 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Iter 9: signature-based bottom-up minimization (Hopcroft-style).
-// Build all (B,Lo,Hi) states bottom-up, then compute equivalence classes via hashing.
+// Min-DFA with multi-length states; end-accept handled via direct edges to end.
+// State Rep = sorted list of (B, Lo, Hi) with B >= 1, at most one per B.
+// Future language of state = union over (B, Lo, Hi) of length-B strings in [Lo, Hi].
+
+struct Rep {
+    // sorted by B
+    vector<tuple<int,int,int>> v;
+    bool operator<(const Rep& o) const { return v < o.v; }
+};
+
+map<Rep, int> mem;
+vector<vector<pair<int,int>>> edges;
+int endNode;
+
+// transition: given rep and bit b, return next_rep and whether end-accept fires.
+pair<Rep,bool> trans(const Rep& r, int b) {
+    Rep next;
+    bool end_accept = false;
+    for (auto& [B, Lo, Hi] : r.v) {
+        int half = 1 << (B - 1);
+        int loB, hiB;
+        if (b == 0) {
+            loB = Lo;
+            hiB = min(Hi, half - 1);
+        } else {
+            loB = max(Lo, half) - half;
+            hiB = Hi - half;
+        }
+        if (loB > hiB) continue;
+        if (B == 1) {
+            end_accept = true;
+        } else {
+            next.v.push_back({B - 1, loB, hiB});
+        }
+    }
+    // already sorted by B since input was sorted
+    return {next, end_accept};
+}
+
+int build(const Rep& r) {
+    auto it = mem.find(r);
+    if (it != mem.end()) return it->second;
+    int sid = (int)edges.size();
+    mem[r] = sid;
+    edges.push_back({});
+    for (int b = 0; b < 2; b++) {
+        auto [nr, ea] = trans(r, b);
+        if (ea) {
+            edges[sid].push_back({endNode, b});
+        }
+        if (!nr.v.empty()) {
+            int child = build(nr);
+            edges[sid].push_back({child, b});
+        }
+    }
+    return sid;
+}
 
 int main() {
     ios_base::sync_with_stdio(false);
@@ -14,110 +69,55 @@ int main() {
     for (int x = L; x; x >>= 1) bL++;
     for (int x = R; x; x >>= 1) bR++;
 
-    // Collect required states top-down per width.
-    vector<set<pair<int,int>>> intervals(bR + 1);
+    // Pre-allocate end node.
+    endNode = 0;
+    edges.push_back({});
 
-    auto addInitial = [&]() {
-        if (bL == bR) {
-            int B = bL;
-            int mid = 1 << (B - 1);
-            intervals[B - 1].insert({L - mid, R - mid});
+    // Initial rep after leading 1.
+    Rep init;
+    bool init_end = false;
+    for (int B = bL; B <= bR; B++) {
+        int half = 1 << (B - 1);
+        int lo = max(L, half) - half;
+        int hi = min(R, (1 << B) - 1) - half;
+        if (lo > hi) continue;
+        if (B == 1) {
+            init_end = true;
         } else {
-            int midL = 1 << (bL - 1);
-            intervals[bL - 1].insert({L - midL, midL - 1});
-            for (int B = bL + 1; B < bR; B++) {
-                intervals[B - 1].insert({0, (1 << (B - 1)) - 1});
-            }
-            int midR = 1 << (bR - 1);
-            intervals[bR - 1].insert({0, R - midR});
-        }
-    };
-    addInitial();
-    for (int B = bR - 1; B >= 1; B--) {
-        for (auto& [Lo, Hi] : intervals[B]) {
-            int mid = 1 << (B - 1);
-            if (Lo <= min(Hi, mid - 1))
-                intervals[B - 1].insert({Lo, min(Hi, mid - 1)});
-            if (Hi >= mid)
-                intervals[B - 1].insert({max(Lo, mid) - mid, Hi - mid});
+            init.v.push_back({B - 1, lo, hi});
         }
     }
 
-    // Assign canonical IDs via signature.
-    // signature for (B, Lo, Hi) = (B, child0_canonId or -1, child1_canonId or -1)
-    map<tuple<int,int,int>, int> canon; // sig -> id
-    map<tuple<int,int,int>, int> stateId; // (B,Lo,Hi) -> id
-    int nextId = 0;
-
-    // Bottom-up: width 0 first.
-    // (0, 0, 0) is the only state at width 0.
-    {
-        auto sig = make_tuple(0, -1, -1);
-        canon[sig] = nextId++;
-        stateId[{0, 0, 0}] = canon[sig];
+    int start = (int)edges.size();
+    edges.push_back({});
+    if (init_end) {
+        edges[start].push_back({endNode, 1});
+    }
+    if (!init.v.empty()) {
+        int child = build(init);
+        edges[start].push_back({child, 1});
     }
 
-    for (int B = 1; B < bR; B++) {
-        for (auto& [Lo, Hi] : intervals[B]) {
-            int mid = 1 << (B - 1);
-            int c0 = -1, c1 = -1;
-            if (Lo <= min(Hi, mid - 1)) c0 = stateId[{B - 1, Lo, min(Hi, mid - 1)}];
-            if (Hi >= mid) c1 = stateId[{B - 1, max(Lo, mid) - mid, Hi - mid}];
-            auto sig = make_tuple(B, c0, c1);
-            auto it = canon.find(sig);
-            int id;
-            if (it == canon.end()) {
-                id = nextId++;
-                canon[sig] = id;
-            } else id = it->second;
-            stateId[{B, Lo, Hi}] = id;
-        }
-    }
-
-    // Start node.
-    int startId = nextId++;
-    vector<vector<pair<int,int>>> edges(nextId);
-
-    if (bL == bR) {
-        int mid = 1 << (bL - 1);
-        edges[startId].push_back({stateId[{bL - 1, L - mid, R - mid}], 1});
-    } else {
-        int midL = 1 << (bL - 1);
-        edges[startId].push_back({stateId[{bL - 1, L - midL, midL - 1}], 1});
-        for (int B = bL + 1; B < bR; B++) {
-            edges[startId].push_back({stateId[{B - 1, 0, (1 << (B - 1)) - 1}], 1});
-        }
-        int midR = 1 << (bR - 1);
-        edges[startId].push_back({stateId[{bR - 1, 0, R - midR}], 1});
-    }
-
-    // Internal edges (per canonical state).
-    map<int, pair<int,int>> nodeChildren; // canon id -> (c0, c1)
-    for (auto& [k, id] : canon) {
-        auto [B, c0, c1] = k;
-        nodeChildren[id] = {c0, c1};
-    }
-    for (auto& [id, ch] : nodeChildren) {
-        if (id == 0) continue; // end state
-        if (ch.first >= 0) edges[id].push_back({ch.first, 0});
-        if (ch.second >= 0) edges[id].push_back({ch.second, 1});
-    }
-
-    // Reorder: put start first.
-    int n = nextId;
+    // Reorder so start = 0, end = last (problem doesn't require, but cleaner).
+    int n = (int)edges.size();
     vector<int> perm(n);
-    perm[startId] = 0;
+    perm[start] = 0;
     int idx = 1;
-    for (int i = 0; i < n; i++) if (i != startId) perm[i] = idx++;
+    for (int i = 0; i < n; i++) {
+        if (i != start) perm[i] = idx++;
+    }
     vector<vector<pair<int,int>>> out(n);
-    for (int i = 0; i < n; i++)
-        for (auto& e : edges[i])
+    for (int i = 0; i < n; i++) {
+        for (auto& e : edges[i]) {
             out[perm[i]].push_back({perm[e.first], e.second});
-
+        }
+    }
     cout << n << "\n";
     for (int i = 0; i < n; i++) {
         cout << out[i].size();
-        for (auto& e : out[i]) cout << " " << (e.first + 1) << " " << e.second;
+        for (auto& e : out[i]) {
+            cout << " " << (e.first + 1) << " " << e.second;
+        }
         cout << "\n";
     }
     return 0;
