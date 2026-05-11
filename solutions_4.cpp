@@ -146,8 +146,6 @@ static long long binary_search_value() {
     long long lo = query_cell(1, 1);
     long long hi = query_cell(n, n);
     while (lo < hi) {
-        // Stop if we're approaching the 50000-query limit.
-        if ((int)cache.size() + 2 * n + 10 > 49500) break;
         long long mid = lo + (hi - lo) / 2;
         long long c = count_le(mid);
         if (c >= k_target) hi = mid;
