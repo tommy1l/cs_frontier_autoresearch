@@ -12,3 +12,5 @@ c2956e1	86.36	86.513	discard	pair v1 with last remaining (no gain)
 cae63a0	86.733	86.733	keep	ceil split for joint same-set
 7cbfb8e	86.07	86.733	discard	ceil split for joint disjoint (worse)
 dfa46d7	86.733	86.733	keep	ceil split for searchSingle (same score)
+6356bd9	86.757	86.757	keep	skip disambig when right=1 (sz=3 case)
+d64a791	93.187	93.187	keep	smarter disambig in pair disjoint (3-outcome)

@@ -13,4 +13,4 @@ bc27de8	66.667	66.667	keep	two-front BFS for medium n
 281770d	66.667	66.667	keep	simpler first-fit trace
 5c8a3d4	66.667	66.667	keep	conservative threshold 270M
 75d03fa	66.667	66.667	keep	chunk size 8.5M
-
+c16a3f3	66.66666666666666	66.66666666666666	keep	simplify by dropping unused BFS path
