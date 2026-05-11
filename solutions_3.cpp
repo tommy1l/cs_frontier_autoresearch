@@ -54,6 +54,7 @@ int main() {
 
     vector<vector<int>> adjL(n + 1);
     auto add_edge = [&](int u, int v) {
+        // Insert in sorted order to keep adjacency list small/predictable.
         adjL[u].push_back(v);
         adjL[v].push_back(u);
     };
