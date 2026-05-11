@@ -10,9 +10,13 @@ using namespace std;
 static int n;
 
 static vector<int> do_query(const vector<int>& ops) {
-    cout << ops.size();
-    for (int x : ops) cout << ' ' << x;
-    cout << '\n';
+    // Output one line: count and ops.
+    string buf;
+    buf.reserve(16 * ops.size());
+    buf += to_string(ops.size());
+    for (int x : ops) { buf += ' '; buf += to_string(x); }
+    buf += '\n';
+    cout << buf;
     cout.flush();
     vector<int> resp(ops.size());
     for (size_t i = 0; i < ops.size(); i++) cin >> resp[i];
