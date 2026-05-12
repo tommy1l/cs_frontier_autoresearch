@@ -9,8 +9,8 @@ int main() {
     while (T--) {
         int n;
         scanf("%d", &n);
-        vector<int> p(n + 1);
-        for (int i = 1; i <= n; i++) scanf("%d", &p[i]);
+        vector<int> p_init(n + 1);
+        for (int i = 1; i <= n; i++) scanf("%d", &p_init[i]);
         vector<vector<int>> adj(n + 1);
         vector<pair<int, int>> edges(n + 1);
         for (int i = 1; i <= n - 1; i++) {
@@ -48,7 +48,6 @@ int main() {
             else if (par[v] == u) edgeToParent[v] = i;
         }
 
-        // inSubtree[v] = bitset of vertices in subtree rooted at v
         vector<bitset<MAXN>> inSubtree(n + 1);
         for (int i = 1; i <= n; i++) inSubtree[i].set(i);
         for (int i = (int)order_arr.size() - 1; i >= 0; i--) {
@@ -56,61 +55,78 @@ int main() {
             if (par[u] != 0) inSubtree[par[u]] |= inSubtree[u];
         }
 
-        vector<vector<int>> ops;
-        auto isSorted = [&]() {
-            for (int i = 1; i <= n; i++) if (p[i] != i) return false;
-            return true;
-        };
+        // variant bits:
+        //   bit 0: 0 = deepest-first greedy, 1 = shallowest-first greedy
+        //   bit 1: 0 = Pass 2 only when Pass 1 empty, 1 = always Pass 2
+        auto runStrategy = [&](int variant) -> vector<vector<int>> {
+            vector<int> q = p_init;
+            vector<vector<int>> ops_local;
+            int maxOps = 6 * n + 200;
+            auto isSortedQ = [&]() {
+                for (int i = 1; i <= n; i++) if (q[i] != i) return false;
+                return true;
+            };
+            int sz = (int)order_arr.size();
+            while ((int)ops_local.size() < maxOps && !isSortedQ()) {
+                vector<int> matched(n + 1, 0);
+                vector<int> chosen;
 
-        // Edge (u=par[v], v): good for v iff p[v] is NOT in subtree(v)
-        //                     good for u iff p[u] IS in subtree(v)
-        // Phase 1: pick max matching from double-good edges (greedy deepest-first).
-        // Phase 2 (only when phase 1 empty): pick matching from single-good edges to break stalls.
-
-        int maxOps = 4 * n + 50;
-        while ((int)ops.size() < maxOps && !isSorted()) {
-            vector<int> matched(n + 1, 0);
-            vector<int> chosen;
-
-            for (int i = (int)order_arr.size() - 1; i >= 0; i--) {
-                int v = order_arr[i];
-                if (par[v] == 0) continue;
-                int u = par[v];
-                if (matched[v] || matched[u]) continue;
-                bool gv = !inSubtree[v][p[v]];
-                bool gu = inSubtree[v][p[u]];
-                if (gv && gu) {
-                    matched[v] = matched[u] = 1;
-                    chosen.push_back(edgeToParent[v]);
-                }
-            }
-
-            if (chosen.empty()) {
-                for (int i = (int)order_arr.size() - 1; i >= 0; i--) {
+                for (int idx = 0; idx < sz; idx++) {
+                    int i = (variant & 1) ? idx : sz - 1 - idx;
                     int v = order_arr[i];
                     if (par[v] == 0) continue;
                     int u = par[v];
                     if (matched[v] || matched[u]) continue;
-                    bool gv = !inSubtree[v][p[v]];
-                    bool gu = inSubtree[v][p[u]];
-                    if (gv || gu) {
+                    bool gv = !inSubtree[v][q[v]];
+                    bool gu = inSubtree[v][q[u]];
+                    if (gv && gu) {
                         matched[v] = matched[u] = 1;
                         chosen.push_back(edgeToParent[v]);
                     }
                 }
-            }
 
-            if (chosen.empty()) break;
+                bool runPass2 = (variant & 2) || chosen.empty();
+                if (runPass2) {
+                    for (int idx = 0; idx < sz; idx++) {
+                        int i = (variant & 1) ? idx : sz - 1 - idx;
+                        int v = order_arr[i];
+                        if (par[v] == 0) continue;
+                        int u = par[v];
+                        if (matched[v] || matched[u]) continue;
+                        bool gv = !inSubtree[v][q[v]];
+                        bool gu = inSubtree[v][q[u]];
+                        if (gv || gu) {
+                            matched[v] = matched[u] = 1;
+                            chosen.push_back(edgeToParent[v]);
+                        }
+                    }
+                }
 
-            for (int eid : chosen) {
-                int u = edges[eid].first, v = edges[eid].second;
-                swap(p[u], p[v]);
+                if (chosen.empty()) break;
+
+                for (int eid : chosen) {
+                    int u = edges[eid].first, v = edges[eid].second;
+                    swap(q[u], q[v]);
+                }
+                ops_local.push_back(chosen);
             }
-            ops.push_back(chosen);
+            if (!isSortedQ()) return {{-1}}; // signal failure
+            return ops_local;
+        };
+
+        vector<vector<int>> best;
+        bool haveBest = false;
+        for (int variant = 0; variant < 4; variant++) {
+            auto res = runStrategy(variant);
+            if (!res.empty() && res[0].size() == 1 && res[0][0] == -1) continue;
+            if (!haveBest || res.size() < best.size()) {
+                best = res;
+                haveBest = true;
+            }
         }
 
-        printf("%d\n", (int)ops.size());
-        for (auto& op : ops) {
+        printf("%d\n", (int)best.size());
+        for (auto& op : best) {
             printf("%d", (int)op.size());
             for (int e : op) printf(" %d", e);
             printf("\n");
