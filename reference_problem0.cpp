@@ -150,10 +150,10 @@ int main(){
                     else if(bds2==bds){
                         if(bl2<bl) take=true;
                         else if(bl2==bl){
-                            if(ps[id].k > ps[bestid].k) take=true;
-                            else if(ps[id].k == ps[bestid].k){
-                                if(bdr2<bdr) take=true;
-                                else if(bdr2==bdr){
+                            if(bdr2<bdr) take=true;
+                            else if(bdr2==bdr){
+                                if(ps[id].k > ps[bestid].k) take=true;
+                                else if(ps[id].k == ps[bestid].k){
                                     if(by02<by0) take=true;
                                     else if(by02==by0){
                                         if(bx02<bx0) take=true;
@@ -228,7 +228,7 @@ int main(){
         unordered_set<int> used; used.reserve(512);
         auto addW=[&](int w){if(w<minW) w=minW; if(used.insert(w).second) Ws.push_back(w);};
         addW(base);
-        int span=min(150,max(40,base));
+        int span=min(96,max(20,base/2));
         for(int d=1;d<=span;d++){addW(base-d); addW(base+d);}
         addW(minW);
         addW((int)max<long long>(minW,(S+base-1)/base));
