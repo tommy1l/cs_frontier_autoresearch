@@ -95,8 +95,8 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
         ll maxB = min({items[b].q, (MAX_MASS-usedM)/items[b].m, (MAX_VOLUME-usedL)/items[b].l});
         ll takeB = maxB>0? uniform_int_distribution<long long>(0,maxB)(rng) : 0;
         cnt[b]=takeB; usedM+=takeB*items[b].m; usedL+=takeB*items[b].l; val+=takeB*items[b].v;
-        long double am = 1.0L/(long double)MAX_MASS;
-        long double av = 1.0L/(long double)MAX_VOLUME;
+        long double am = 1.0L/(long double)max< ll >(1, MAX_MASS-usedM);
+        long double av = 1.0L/(long double)max< ll >(1, MAX_VOLUME-usedL);
         vector<pair<long double,int>> ord; ord.reserve(n-2);
         for (int k=2;k<n;++k){ int i=perm[k]; long double den = am*items[i].m + av*items[i].l; long double sc = (den>0)? ((long double)items[i].v/den) : (long double)items[i].v; ord.push_back({sc,i}); }
         sort(ord.begin(), ord.end(), [&](auto& x, auto& y){ if (x.first!=y.first) return x.first>y.first; return items[x.second].v>items[y.second].v; });
