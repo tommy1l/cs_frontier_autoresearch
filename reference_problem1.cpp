@@ -166,6 +166,56 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
         }
     }
     if (bestVal==0 && !pool.empty()){ bestVal=pool[0].val; bestCnt=pool[0].cnt; }
+    {
+        vector<ll> cur = bestCnt;
+        long long curVal = bestVal;
+        ll usedM=0, usedL=0;
+        for (int i=0;i<n;++i){ usedM+=cur[i]*items[i].m; usedL+=cur[i]*items[i].l; }
+        long double T = (long double)bestVal * 0.001L + 1.0L;
+        uniform_real_distribution<double> uni(0.0, 1.0);
+        uniform_int_distribution<int> di(0,n-1);
+        while (nowms() < tend){
+            vector<ll> next = cur;
+            ll nM=usedM, nL=usedL; long long nV=curVal;
+            int kicks = 1 + (int)(rng()%3);
+            for (int s=0;s<kicks;++s){
+                int x = di(rng);
+                nM -= next[x]*items[x].m; nL -= next[x]*items[x].l; nV -= next[x]*items[x].v;
+                next[x] = 0;
+            }
+            for (int i=0;i<n;++i){
+                ll capM = MAX_MASS - nM, capL = MAX_VOLUME - nL;
+                if (capM<=0 || capL<=0) break;
+                ll add = min({items[i].q - next[i], capM/items[i].m, capL/items[i].l});
+                if (add<=0) continue;
+                next[i] += add; nM += add*items[i].m; nL += add*items[i].l; nV += add*items[i].v;
+            }
+            for (int i=0;i<n && nowms()<tend;++i){
+                for (int j=i+1;j<n;++j){
+                    ll pairM = next[i]*items[i].m + next[j]*items[j].m;
+                    ll pairL = next[i]*items[i].l + next[j]*items[j].l;
+                    ll Mrem = MAX_MASS - (nM - pairM);
+                    ll Vrem = MAX_VOLUME - (nL - pairL);
+                    if (Mrem<=0 || Vrem<=0) continue;
+                    ll ai=0,bj=0; long long bestPair=0;
+                    two_opt(i,j,Mrem,Vrem,ai,bj,bestPair);
+                    long long curPair = next[i]*items[i].v + next[j]*items[j].v;
+                    if (bestPair>curPair){
+                        nM = nM - pairM + ai*items[i].m + bj*items[j].m;
+                        nL = nL - pairL + ai*items[i].l + bj*items[j].l;
+                        nV = nV - curPair + bestPair;
+                        next[i]=ai; next[j]=bj;
+                    }
+                }
+            }
+            long long delta = nV - curVal;
+            if (delta>0 || (T>0 && uni(rng) < exp((double)delta/(double)T))){
+                cur = next; curVal = nV; usedM = nM; usedL = nL;
+                if (curVal > bestVal){ bestVal = curVal; bestCnt = cur; }
+            }
+            T *= 0.995L;
+        }
+    }
     g_bestSolutionCounts.clear();
     for (int i=0;i<n;++i) g_bestSolutionCounts[items[i].name]=bestCnt[i];
     return bestVal;
