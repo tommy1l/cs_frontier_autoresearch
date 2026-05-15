@@ -86,26 +86,21 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
     vector<int> idx(n); iota(idx.begin(), idx.end(), 0);
     auto make_cand = [&](vector<ll>& cnt, long long& val){
         cnt.assign(n,0); val=0;
-        vector<int> perm = idx; shuffle(perm.begin(), perm.end(), rng);
         ll usedM=0, usedL=0;
-        int a=perm[0], b=perm[1];
-        ll maxA = min({items[a].q, (MAX_MASS-usedM)/items[a].m, (MAX_VOLUME-usedL)/items[a].l});
-        ll takeA = maxA>0? uniform_int_distribution<long long>(0,maxA)(rng) : 0;
-        cnt[a]=takeA; usedM+=takeA*items[a].m; usedL+=takeA*items[a].l; val+=takeA*items[a].v;
-        ll maxB = min({items[b].q, (MAX_MASS-usedM)/items[b].m, (MAX_VOLUME-usedL)/items[b].l});
-        ll takeB = maxB>0? uniform_int_distribution<long long>(0,maxB)(rng) : 0;
-        cnt[b]=takeB; usedM+=takeB*items[b].m; usedL+=takeB*items[b].l; val+=takeB*items[b].v;
-        long double am = 1.0L/(long double)max< ll >(1, MAX_MASS-usedM);
-        long double av = 1.0L/(long double)max< ll >(1, MAX_VOLUME-usedL);
-        vector<pair<long double,int>> ord; ord.reserve(n-2);
-        for (int k=2;k<n;++k){ int i=perm[k]; long double den = am*items[i].m + av*items[i].l; long double sc = (den>0)? ((long double)items[i].v/den) : (long double)items[i].v; ord.push_back({sc,i}); }
-        sort(ord.begin(), ord.end(), [&](auto& x, auto& y){ if (x.first!=y.first) return x.first>y.first; return items[x.second].v>items[y.second].v; });
+        long double wm = uniform_real_distribution<double>(0.5, 1.5)(rng) / (long double)MAX_MASS;
+        long double wv = uniform_real_distribution<double>(0.5, 1.5)(rng) / (long double)MAX_VOLUME;
+        vector<pair<long double,int>> ord; ord.reserve(n);
+        for (int i=0;i<n;++i){ long double den = wm*items[i].m + wv*items[i].l; long double sc = (den>0)? ((long double)items[i].v/den) : (long double)items[i].v; ord.push_back({sc,i}); }
+        sort(ord.begin(), ord.end(), [](auto& a, auto& b){ return a.first>b.first; });
         for (auto& p: ord){
             int i=p.second;
             ll capM = MAX_MASS - usedM, capL = MAX_VOLUME - usedL;
             if (capM<=0 || capL<=0) break;
-            ll take = min({items[i].q, capM/items[i].m, capL/items[i].l});
-            if (take<=0) continue;
+            ll maxTake = min({items[i].q, capM/items[i].m, capL/items[i].l});
+            if (maxTake<=0) continue;
+            double frac = uniform_real_distribution<double>(0.0, 1.0)(rng);
+            ll take = (ll)((double)maxTake * (0.5 + 0.5*frac));
+            if (take<=0) take = maxTake;
             cnt[i]=take; usedM+=take*items[i].m; usedL+=take*items[i].l; val+=take*items[i].v;
         }
     };
