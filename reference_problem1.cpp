@@ -166,6 +166,23 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
         }
     }
     if (bestVal==0 && !pool.empty()){ bestVal=pool[0].val; bestCnt=pool[0].cnt; }
+    {
+        ll usedM=0, usedL=0;
+        for (int i=0;i<n;++i){ usedM+=bestCnt[i]*items[i].m; usedL+=bestCnt[i]*items[i].l; }
+        vector<pair<long double,int>> ord; ord.reserve(n);
+        long double am = 1.0L/(long double)max<ll>(1, MAX_MASS-usedM);
+        long double av = 1.0L/(long double)max<ll>(1, MAX_VOLUME-usedL);
+        for (int i=0;i<n;++i){ long double den = am*items[i].m + av*items[i].l; long double sc = (den>0)? ((long double)items[i].v/den) : (long double)items[i].v; ord.push_back({sc,i}); }
+        sort(ord.begin(), ord.end(), [](auto& a, auto& b){ return a.first>b.first; });
+        for (auto& p: ord){
+            int i=p.second;
+            ll capM = MAX_MASS - usedM, capL = MAX_VOLUME - usedL;
+            if (capM<=0 || capL<=0) break;
+            ll add = min({items[i].q - bestCnt[i], capM/items[i].m, capL/items[i].l});
+            if (add<=0) continue;
+            bestCnt[i] += add; usedM += add*items[i].m; usedL += add*items[i].l; bestVal += add*items[i].v;
+        }
+    }
     g_bestSolutionCounts.clear();
     for (int i=0;i<n;++i) g_bestSolutionCounts[items[i].name]=bestCnt[i];
     return bestVal;
