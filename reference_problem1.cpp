@@ -166,6 +166,62 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
         }
     }
     if (bestVal==0 && !pool.empty()){ bestVal=pool[0].val; bestCnt=pool[0].cnt; }
+    {
+        auto refill_two_opt = [&](vector<ll>& cur, ll& usedM, ll& usedL, long long& curVal){
+            long double am = 1.0L/(long double)max<ll>(1, MAX_MASS-usedM);
+            long double av = 1.0L/(long double)max<ll>(1, MAX_VOLUME-usedL);
+            vector<pair<long double,int>> ord; ord.reserve(n);
+            for (int i=0;i<n;++i){ long double den = am*items[i].m + av*items[i].l; long double sc = (den>0)? ((long double)items[i].v/den) : (long double)items[i].v; ord.push_back({sc,i}); }
+            sort(ord.begin(), ord.end(), [](auto& a, auto& b){ return a.first>b.first; });
+            for (auto& p: ord){
+                int i=p.second;
+                ll capM = MAX_MASS - usedM, capL = MAX_VOLUME - usedL;
+                if (capM<=0 || capL<=0) break;
+                ll add = min({items[i].q - cur[i], capM/items[i].m, capL/items[i].l});
+                if (add<=0) continue;
+                cur[i] += add; usedM += add*items[i].m; usedL += add*items[i].l; curVal += add*items[i].v;
+            }
+            bool improved=true; int rounds=0;
+            while (improved && nowms()<tend && rounds<8){
+                improved=false; ++rounds;
+                for (int i=0;i<n;++i){
+                    for (int j=i+1;j<n;++j){
+                        ll pairM = cur[i]*items[i].m + cur[j]*items[j].m;
+                        ll pairL = cur[i]*items[i].l + cur[j]*items[j].l;
+                        ll Mrem = MAX_MASS - (usedM - pairM);
+                        ll Vrem = MAX_VOLUME - (usedL - pairL);
+                        if (Mrem<=0 || Vrem<=0) continue;
+                        ll ai=0,bj=0; long long bestPair=0;
+                        two_opt(i,j,Mrem,Vrem,ai,bj,bestPair);
+                        long long curPair = cur[i]*items[i].v + cur[j]*items[j].v;
+                        if (bestPair>curPair){
+                            usedM = usedM - pairM + ai*items[i].m + bj*items[j].m;
+                            usedL = usedL - pairL + ai*items[i].l + bj*items[j].l;
+                            curVal = curVal - curPair + bestPair;
+                            cur[i]=ai; cur[j]=bj;
+                            improved=true;
+                        }
+                    }
+                }
+            }
+        };
+        for (int i=0;i<n && nowms()<tend;++i){
+            ll maxC = items[i].q;
+            ll step = max((ll)1, maxC/40);
+            for (ll c=0; c<=maxC && nowms()<tend; c+=step){
+                vector<ll> cur = bestCnt; cur[i]=c;
+                ll usedM=0, usedL=0; long long curVal=0;
+                bool ok = true;
+                for (int k=0;k<n;++k){
+                    usedM+=cur[k]*items[k].m; usedL+=cur[k]*items[k].l; curVal+=cur[k]*items[k].v;
+                    if (usedM>MAX_MASS || usedL>MAX_VOLUME){ ok=false; break; }
+                }
+                if (!ok) continue;
+                refill_two_opt(cur, usedM, usedL, curVal);
+                if (curVal>bestVal){ bestVal=curVal; bestCnt=cur; }
+            }
+        }
+    }
     g_bestSolutionCounts.clear();
     for (int i=0;i<n;++i) g_bestSolutionCounts[items[i].name]=bestCnt[i];
     return bestVal;
