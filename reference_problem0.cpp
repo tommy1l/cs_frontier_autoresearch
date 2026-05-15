@@ -148,12 +148,12 @@ int main(){
                 else if(bestg2==bestg){
                     if(bds2<bds) take=true;
                     else if(bds2==bds){
-                        if(bl2<bl) take=true;
-                        else if(bl2==bl){
-                            if(bdr2<bdr) take=true;
-                            else if(bdr2==bdr){
-                                if(ps[id].k > ps[bestid].k) take=true;
-                                else if(ps[id].k == ps[bestid].k){
+                        if(ps[id].k > ps[bestid].k) take=true;
+                        else if(ps[id].k == ps[bestid].k){
+                            if(bl2<bl) take=true;
+                            else if(bl2==bl){
+                                if(bdr2<bdr) take=true;
+                                else if(bdr2==bdr){
                                     if(by02<by0) take=true;
                                     else if(by02==by0){
                                         if(bx02<bx0) take=true;
