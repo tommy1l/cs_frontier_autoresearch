@@ -242,7 +242,7 @@ int main(){
     for(int wi=0;wi<(int)Ws.size();wi++){
         auto now=chrono::steady_clock::now();
         double used=chrono::duration<double,milli>(now-t0).count();
-        if(used+avg*1.05>TL) break;
+        if(used+avg*1.3>TL) break;
         int W=Ws[wi];
         vector<vector<int>> orders;
         orders.push_back(ord4());
