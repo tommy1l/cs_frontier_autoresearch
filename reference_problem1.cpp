@@ -109,18 +109,10 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
             cnt[i]=take; usedM+=take*items[i].m; usedL+=take*items[i].l; val+=take*items[i].v;
         }
     };
-    {
-        int sinceImproveMin = 0;
-        long long lastMin = -1;
-        while (nowms() < gen_end) {
-            vector<ll> cnt; long long val; make_cand(cnt,val);
-            bool improved = false;
-            if ((int)pq.size() < TOPK) { pq.push({val, move(cnt)}); improved = true; }
-            else if (val > pq.top().val) { pq.pop(); pq.push({val, move(cnt)}); improved = true; }
-            long long minNow = pq.top().val;
-            if (improved && minNow != lastMin){ sinceImproveMin = 0; lastMin = minNow; }
-            else if (++sinceImproveMin > TOPK*4) break;
-        }
+    while (nowms() < gen_end) {
+        vector<ll> cnt; long long val; make_cand(cnt,val);
+        if ((int)pq.size() < TOPK) pq.push({val, move(cnt)});
+        else if (val > pq.top().val) { pq.pop(); pq.push({val, move(cnt)}); }
     }
     vector<Cand> pool; pool.reserve(pq.size());
     while (!pq.empty()) { pool.push_back(move(const_cast<Cand&>(pq.top()))); pq.pop(); }
