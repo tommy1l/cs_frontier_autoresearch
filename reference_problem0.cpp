@@ -55,7 +55,7 @@ int main(){
             int db = min(ps[b].minW, ps[b].minH);
             if (da != db) return da < db;
             if (ps[a].k != ps[b].k) return ps[a].k < ps[b].k;
-            return ps[a].id > ps[b].id;
+            return ps[a].id < ps[b].id;
         });
         return res;
     };
