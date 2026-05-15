@@ -137,33 +137,6 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
             }
         }
     };
-    auto triple_opt = [&](int a, int b, int c, ll Mrem, ll Vrem, ll& outA, ll& outB, ll& outC, long long& outVal){
-        outA=0; outB=0; outC=0; outVal=0;
-        ll maxA = min({items[a].q, Mrem/items[a].m, Vrem/items[a].l});
-        for (ll ka=0; ka<=maxA; ++ka){
-            ll m1 = Mrem - ka*items[a].m, l1 = Vrem - ka*items[a].l;
-            if (m1<0 || l1<0) break;
-            ll maxB = min({items[b].q, m1/items[b].m, l1/items[b].l});
-            ll maxC0 = min({items[c].q, m1/items[c].m, l1/items[c].l});
-            if (maxB<=maxC0){
-                for (ll kb=0; kb<=maxB; ++kb){
-                    ll m2=m1 - kb*items[b].m, l2=l1 - kb*items[b].l;
-                    if (m2<0 || l2<0) break;
-                    ll kc=min({items[c].q, m2/items[c].m, l2/items[c].l});
-                    long long val=ka*items[a].v + kb*items[b].v + kc*items[c].v;
-                    if (val>outVal){ outVal=val; outA=ka; outB=kb; outC=kc; }
-                }
-            } else {
-                for (ll kc=0; kc<=maxC0; ++kc){
-                    ll m2=m1 - kc*items[c].m, l2=l1 - kc*items[c].l;
-                    if (m2<0 || l2<0) break;
-                    ll kb=min({items[b].q, m2/items[b].m, l2/items[b].l});
-                    long long val=ka*items[a].v + kb*items[b].v + kc*items[c].v;
-                    if (val>outVal){ outVal=val; outA=ka; outB=kb; outC=kc; }
-                }
-            }
-        }
-    };
     long long bestVal = 0; vector<ll> bestCnt(n,0);
     uniform_int_distribution<int> dist(0,n-1);
     for (size_t p=0; p<pool.size() && nowms()<tend; ++p){
@@ -190,31 +163,6 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
                 stall=0;
                 if (curVal>bestVal){ bestVal=curVal; bestCnt=cur; }
             } else ++stall;
-        }
-        // Triple optimization pass: enumerate all triples once and lock in improvements
-        for (int i=0; i<n && nowms()<tend; ++i){
-            for (int j=i+1; j<n && nowms()<tend; ++j){
-                for (int k=j+1; k<n && nowms()<tend; ++k){
-                    ll tripM = cur[i]*items[i].m + cur[j]*items[j].m + cur[k]*items[k].m;
-                    ll tripL = cur[i]*items[i].l + cur[j]*items[j].l + cur[k]*items[k].l;
-                    ll Mrem = MAX_MASS - (usedM - tripM);
-                    ll Vrem = MAX_VOLUME - (usedL - tripL);
-                    if (Mrem<=0 || Vrem<=0) continue;
-                    // Skip if smallest q*m exceeds threshold (avoid cubic blowup on huge q)
-                    ll maxI = min({items[i].q, Mrem/items[i].m, Vrem/items[i].l});
-                    if (maxI > 300) continue;
-                    ll ai2=0, bj2=0, ck2=0; long long bestTrip=0;
-                    triple_opt(i,j,k,Mrem,Vrem,ai2,bj2,ck2,bestTrip);
-                    long long curTrip = cur[i]*items[i].v + cur[j]*items[j].v + cur[k]*items[k].v;
-                    if (bestTrip>curTrip){
-                        usedM = usedM - tripM + ai2*items[i].m + bj2*items[j].m + ck2*items[k].m;
-                        usedL = usedL - tripL + ai2*items[i].l + bj2*items[j].l + ck2*items[k].l;
-                        curVal = curVal - curTrip + bestTrip;
-                        cur[i]=ai2; cur[j]=bj2; cur[k]=ck2;
-                        if (curVal>bestVal){ bestVal=curVal; bestCnt=cur; }
-                    }
-                }
-            }
         }
     }
     if (bestVal==0 && !pool.empty()){ bestVal=pool[0].val; bestCnt=pool[0].cnt; }
