@@ -164,34 +164,6 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
                 if (curVal>bestVal){ bestVal=curVal; bestCnt=cur; }
             } else ++stall;
         }
-        for (int a=0;a<n && nowms()<tend;++a){
-            for (int b=a+1;b<n && nowms()<tend;++b){
-                for (int c=b+1;c<n;++c){
-                    ll trM = cur[a]*items[a].m + cur[b]*items[b].m + cur[c]*items[c].m;
-                    ll trL = cur[a]*items[a].l + cur[b]*items[b].l + cur[c]*items[c].l;
-                    long long trV = cur[a]*items[a].v + cur[b]*items[b].v + cur[c]*items[c].v;
-                    ll Mrem = MAX_MASS - (usedM - trM);
-                    ll Vrem = MAX_VOLUME - (usedL - trL);
-                    if (Mrem<=0 || Vrem<=0) continue;
-                    ll maxC = min({items[c].q, Mrem/items[c].m, Vrem/items[c].l});
-                    ll bestA=cur[a], bestB=cur[b], bestC=cur[c]; long long bestT=trV;
-                    for (ll k=0;k<=maxC;++k){
-                        ll m2=Mrem - k*items[c].m, l2=Vrem - k*items[c].l;
-                        ll ai=0,bj=0; long long bestPair=0;
-                        two_opt(a,b,m2,l2,ai,bj,bestPair);
-                        long long total = bestPair + k*items[c].v;
-                        if (total>bestT){ bestT=total; bestA=ai; bestB=bj; bestC=k; }
-                    }
-                    if (bestT>trV){
-                        usedM = usedM - trM + bestA*items[a].m + bestB*items[b].m + bestC*items[c].m;
-                        usedL = usedL - trL + bestA*items[a].l + bestB*items[b].l + bestC*items[c].l;
-                        curVal = curVal - trV + bestT;
-                        cur[a]=bestA; cur[b]=bestB; cur[c]=bestC;
-                        if (curVal>bestVal){ bestVal=curVal; bestCnt=cur; }
-                    }
-                }
-            }
-        }
     }
     if (bestVal==0 && !pool.empty()){ bestVal=pool[0].val; bestCnt=pool[0].cnt; }
     g_bestSolutionCounts.clear();
