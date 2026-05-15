@@ -103,6 +103,7 @@ int main(){
                             int inc=nhbuf[j]-h[x0+j];
                             if(inc>0) dsum+=inc;
                         }
+                        dsum -= p.k;
                         long long dr=0;
                         if(x0>0){
                             long long old=llabs((long long)h[x0]-h[x0-1]);
