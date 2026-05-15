@@ -154,10 +154,14 @@ int main(){
                             else if(bdr2==bdr){
                                 if(ps[id].k > ps[bestid].k) take=true;
                                 else if(ps[id].k == ps[bestid].k){
-                                    if(by02<by0) take=true;
-                                    else if(by02==by0){
-                                        if(bx02<bx0) take=true;
-                                        else if(bx02==bx0 && randtie && rng.coin()) take=true;
+                                    int w1=ps[id].t[bti2].w, w2=ps[bestid].t[bti].w;
+                                    if(w1>w2) take=true;
+                                    else if(w1==w2){
+                                        if(by02<by0) take=true;
+                                        else if(by02==by0){
+                                            if(bx02<bx0) take=true;
+                                            else if(bx02==bx0 && randtie && rng.coin()) take=true;
+                                        }
                                     }
                                 }
                             }
