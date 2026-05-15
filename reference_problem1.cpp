@@ -109,26 +109,6 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
             cnt[i]=take; usedM+=take*items[i].m; usedL+=take*items[i].l; val+=take*items[i].v;
         }
     };
-    auto greedy_by = [&](double wm, double wl){
-        vector<ll> cnt(n,0); long long val=0; ll usedM=0, usedL=0;
-        vector<pair<double,int>> ord; ord.reserve(n);
-        for (int i=0;i<n;++i){ double den = wm*items[i].m + wl*items[i].l; double sc = (den>0)? ((double)items[i].v/den) : (double)items[i].v; ord.push_back({sc,i}); }
-        sort(ord.begin(), ord.end(), [](auto& a, auto& b){ return a.first>b.first; });
-        for (auto& p: ord){
-            int i=p.second;
-            ll capM = MAX_MASS - usedM, capL = MAX_VOLUME - usedL;
-            if (capM<=0 || capL<=0) break;
-            ll take = min({items[i].q, capM/items[i].m, capL/items[i].l});
-            if (take<=0) continue;
-            cnt[i]=take; usedM+=take*items[i].m; usedL+=take*items[i].l; val+=take*items[i].v;
-        }
-        return make_pair(val, cnt);
-    };
-    for (int s=0;s<11;++s){
-        double wm = 1.0/MAX_MASS, wl = (double)s/10.0/MAX_VOLUME;
-        auto pr = greedy_by(wm, wl);
-        pq.push({pr.first, move(pr.second)});
-    }
     while (nowms() < gen_end) {
         vector<ll> cnt; long long val; make_cand(cnt,val);
         if ((int)pq.size() < TOPK) pq.push({val, move(cnt)});
