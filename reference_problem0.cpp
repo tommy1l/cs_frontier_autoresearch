@@ -59,6 +59,17 @@ int main(){
         });
         return res;
     };
+    auto ord_large = [&]() {
+        vector<int> res = idx;
+        stable_sort(res.begin(), res.end(), [&](int a, int b) {
+            int da = max(ps[a].minW, ps[a].minH);
+            int db = max(ps[b].minW, ps[b].minH);
+            if (da != db) return da > db;
+            if (ps[a].k != ps[b].k) return ps[a].k > ps[b].k;
+            return ps[a].id < ps[b].id;
+        });
+        return res;
+    };
     auto pack=[&](int W,const vector<int>& o0,RNG &rng,bool randtie){
         vector<int> h(W,-1);
         long long g=-1;
@@ -242,6 +253,7 @@ int main(){
         int W=Ws[wi];
         vector<vector<int>> orders;
         orders.push_back(ord4());
+        if (S <= 1500) orders.push_back(ord_large());
         int oi=0;
         while(oi<(int)orders.size()){
             auto t1=chrono::steady_clock::now();
