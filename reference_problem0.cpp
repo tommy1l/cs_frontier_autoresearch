@@ -66,7 +66,7 @@ int main(){
         vector<int> o=o0;
         int t=0,nm=(int)o.size();
         bool big=S>7000;
-        int maxBound=max(1,n/4);
+        int maxBound=max(1,n/2);
         int expLIM=min(maxBound,(int)(350000/max(1LL,S-3500)));
         int dynLIM=big?expLIM:maxBound;
         auto tStart=chrono::steady_clock::now();
