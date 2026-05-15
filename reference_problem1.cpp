@@ -84,22 +84,9 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
     const int TOPK = 1000;
     priority_queue<Cand, vector<Cand>, MinCmp> pq;
     vector<int> idx(n); iota(idx.begin(), idx.end(), 0);
-    vector<double> baseDen(n);
-    for (int i=0;i<n;++i){
-        double dm = (double)items[i].m / (double)MAX_MASS;
-        double dv = (double)items[i].l / (double)MAX_VOLUME;
-        double den = dm + dv;
-        baseDen[i] = (den>0)? ((double)items[i].v / den) : (double)items[i].v;
-    }
     auto make_cand = [&](vector<ll>& cnt, long long& val){
         cnt.assign(n,0); val=0;
-        vector<pair<double,int>> keys(n);
-        for (int i=0;i<n;++i){
-            double u = uniform_real_distribution<double>(1e-9, 1.0)(rng);
-            keys[i] = { -log(u) / baseDen[i], i };
-        }
-        sort(keys.begin(), keys.end());
-        vector<int> perm(n); for (int i=0;i<n;++i) perm[i]=keys[i].second;
+        vector<int> perm = idx; shuffle(perm.begin(), perm.end(), rng);
         ll usedM=0, usedL=0;
         int a=perm[0], b=perm[1];
         ll maxA = min({items[a].q, (MAX_MASS-usedM)/items[a].m, (MAX_VOLUME-usedL)/items[a].l});
