@@ -220,6 +220,7 @@ int main(){
         factor = 0.01;
     }
     int base = max(minW, (int)floor(sqrt((double)S * factor)));
+    int base2 = max(minW, (int)floor(sqrt((double)S)));
     vector<int> Ws;
     {
         unordered_set<int> used; used.reserve(512);
@@ -230,7 +231,15 @@ int main(){
         addW(minW);
         addW((int)max<long long>(minW,(S+base-1)/base));
         for(int m=2;m<=6;m++){addW(base*m/3); addW((int)max<long long>(minW,S/((base*m/3)?(base*m/3):1)));}
-        sort(Ws.begin(),Ws.end(),[&](int a,int b){int da=abs(a-base),db=abs(b-base); if(da!=db) return da<db; return a<b;});
+        addW(base2);
+        int span2=min(40,max(10,base2/2));
+        for(int d=1;d<=span2;d++){addW(base2-d); addW(base2+d);}
+        sort(Ws.begin(),Ws.end(),[&](int a,int b){
+            int da=min(abs(a-base),abs(a-base2));
+            int db=min(abs(b-base),abs(b-base2));
+            if(da!=db) return da<db;
+            return a<b;
+        });
     }
     long long bestA=LLONG_MAX; int bestW=0,bestH=0; R bestR; bool hasBestmine=false;
     auto t0=chrono::steady_clock::now();
