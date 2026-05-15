@@ -117,14 +117,6 @@ long long generateBestSolution(const std::map<std::string, std::vector<long long
     vector<Cand> pool; pool.reserve(pq.size());
     while (!pq.empty()) { pool.push_back(move(const_cast<Cand&>(pq.top()))); pq.pop(); }
     sort(pool.begin(), pool.end(), [](const Cand& a, const Cand& b){ return a.val>b.val; });
-    {
-        set<vector<ll>> seen;
-        vector<Cand> dedup; dedup.reserve(pool.size());
-        for (auto& c : pool){
-            if (seen.insert(c.cnt).second) dedup.push_back(move(c));
-        }
-        pool = move(dedup);
-    }
     auto two_opt = [&](int a, int b, ll Mrem, ll Vrem, ll& outA, ll& outB, long long& outVal){
         ll maxA = min({items[a].q, Mrem/items[a].m, Vrem/items[a].l});
         ll maxB = min({items[b].q, Mrem/items[b].m, Vrem/items[b].l});
