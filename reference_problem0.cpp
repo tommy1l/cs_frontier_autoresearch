@@ -216,7 +216,7 @@ int main(){
     } else if (S < 3000) {
         factor = 0.5;
     } else if (S < 10000) {
-        factor = 0.30;
+        factor = 0.27;
     } else if (S < 30000) {
         factor = 0.08;
     } else {
