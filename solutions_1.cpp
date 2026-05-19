@@ -137,6 +137,57 @@ void lp_enumerate(vector<ll>& best_sol, ll& best_val) {
     }
 }
 
+void lp_enumerate_3(vector<ll>& best_sol, ll& best_val,
+                    double time_limit_sec, chrono::steady_clock::time_point start) {
+    for (int i = 0; i < n; i++) {
+        for (int k = i + 1; k < n; k++) {
+            for (int l_i = k + 1; l_i < n; l_i++) {
+                if (chrono::duration<double>(chrono::steady_clock::now() - start).count() > time_limit_sec) return;
+                vector<int> others;
+                for (int j = 0; j < n; j++) {
+                    if (j != i && j != k && j != l_i) others.push_back(j);
+                }
+                int mo = (int)others.size();
+                for (int mask = 0; mask < (1 << mo); mask++) {
+                    ll fixed_val = 0, fixed_m = 0, fixed_l = 0;
+                    bool ok = true;
+                    for (int b = 0; b < mo; b++) {
+                        int j = others[b];
+                        if (mask & (1 << b)) {
+                            fixed_val += Q[j] * V[j];
+                            fixed_m += Q[j] * M[j];
+                            fixed_l += Q[j] * L[j];
+                            if (fixed_m > M_CAP || fixed_l > L_CAP) { ok = false; break; }
+                        }
+                    }
+                    if (!ok) continue;
+                    ll Cmax = Q[l_i];
+                    ll step = max((ll)1, Cmax / 80);
+                    for (ll c = 0; c <= Cmax; c += step) {
+                        ll new_m = fixed_m + c * M[l_i];
+                        ll new_l = fixed_l + c * L[l_i];
+                        if (new_m > M_CAP || new_l > L_CAP) break;
+                        ll new_val = fixed_val + c * V[l_i];
+                        auto [a, b] = best_ab(i, k, M_CAP - new_m, L_CAP - new_l, Q[i], Q[k]);
+                        ll total = new_val + a * V[i] + b * V[k];
+                        if (total > best_val) {
+                            best_val = total;
+                            vector<ll> cur(n, 0);
+                            for (int b2 = 0; b2 < mo; b2++) {
+                                if (mask & (1 << b2)) cur[others[b2]] = Q[others[b2]];
+                            }
+                            cur[i] = a;
+                            cur[k] = b;
+                            cur[l_i] = c;
+                            best_sol = cur;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
     bool any = false;
     for (int j = 0; j < n; j++) {
@@ -242,6 +293,7 @@ int main() {
     }
 
     lp_enumerate(best_sol, best_val);
+    lp_enumerate_3(best_sol, best_val, 0.6, start);
 
     local_search(best_sol, 0.85, start);
     ll mass, vol;
