@@ -82,7 +82,7 @@ int main() {
         vector<vector<uint64_t>> grid(S, vector<uint64_t>(W, 0));
         vector<int> sky(S, 0);
         for (int ii : idx) {
-            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
+            int bestY = INT_MAX, bestWaste = INT_MAX, bestX = INT_MAX, bestO = -1;
             for (int o = 0; o < (int)orients[ii].size(); o++) {
                 auto& orient = orients[ii][o];
                 if (orient.w > S || orient.h > S) continue;
@@ -91,11 +91,19 @@ int main() {
                 for (int X = 0; X <= maxX; X++) {
                     int Y = 0;
                     for (int c = 0; c < w; c++) {
+                        if (orient.bot[c] == INT_MAX) continue;
                         int cand = sky[X + c] - orient.bot[c];
                         if (cand > Y) Y = cand;
                     }
                     if (Y + h > S) continue;
-                    if (Y > bestY || (Y == bestY && X >= bestX)) continue;
+                    int waste = 0;
+                    for (int c = 0; c < w; c++) {
+                        if (orient.bot[c] == INT_MAX) continue;
+                        waste += Y + orient.bot[c] - sky[X + c];
+                    }
+                    if (Y > bestY) continue;
+                    if (Y == bestY && waste > bestWaste) continue;
+                    if (Y == bestY && waste == bestWaste && X >= bestX) continue;
                     int wi = X >> 6, bo = X & 63;
                     bool ok = true;
                     for (int r = 0; r < h; r++) {
@@ -106,7 +114,7 @@ int main() {
                         }
                     }
                     if (!ok) continue;
-                    bestY = Y; bestX = X; bestO = o;
+                    bestY = Y; bestWaste = waste; bestX = X; bestO = o;
                 }
             }
             if (bestO == -1) return false;
