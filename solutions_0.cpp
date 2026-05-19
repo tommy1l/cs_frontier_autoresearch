@@ -1,4 +1,4 @@
-// Polyomino packing into a square. Greedy bottom-left fill heuristic.
+// Polyomino packing into a square. Skyline-based greedy bottom-left fill.
 #include <bits/stdc++.h>
 using namespace std;
 
@@ -7,6 +7,8 @@ struct Orient {
     int minx, miny;
     int w, h;
     vector<uint64_t> rowMask;
+    vector<int> bot; // bot[c] = min cell_y in column c
+    vector<int> top; // top[c] = max cell_y in column c
 };
 
 int main() {
@@ -49,6 +51,13 @@ int main() {
                 o.w = mx + 1; o.h = my + 1;
                 o.rowMask.assign(o.h, 0);
                 for (auto& p : t) o.rowMask[p.second] |= (1ULL << p.first);
+                o.bot.assign(o.w, INT_MAX);
+                o.top.assign(o.w, -1);
+                for (auto& p : t) {
+                    int c = p.first, ry = p.second;
+                    if (ry < o.bot[c]) o.bot[c] = ry;
+                    if (ry > o.top[c]) o.top[c] = ry;
+                }
                 orients[i].push_back(o);
             }
         }
@@ -64,33 +73,34 @@ int main() {
         result.assign(n, make_tuple(0,0,0,0));
         int W = (S + 63) / 64 + 1;
         vector<vector<uint64_t>> grid(S, vector<uint64_t>(W, 0));
+        vector<int> sky(S, 0);
         for (int ii : idx) {
-            int bestY = S, bestX = S, bestO = -1;
+            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
             for (int o = 0; o < (int)orients[ii].size(); o++) {
                 auto& orient = orients[ii][o];
                 if (orient.w > S || orient.h > S) continue;
-                int maxY = min(S - orient.h, bestY);
-                bool found = false;
-                for (int y = 0; y <= maxY && !found; y++) {
-                    int maxX = (y == bestY) ? (bestX - 1) : (S - orient.w);
-                    for (int x = 0; x <= maxX; x++) {
-                        int wi = x >> 6, bo = x & 63;
-                        bool ok = true;
-                        for (int r = 0; r < orient.h; r++) {
-                            uint64_t m = orient.rowMask[r];
-                            if ((m << bo) & grid[y + r][wi]) { ok = false; break; }
-                            if (bo > 0) {
-                                if ((m >> (64 - bo)) & grid[y + r][wi + 1]) { ok = false; break; }
-                            }
-                        }
-                        if (ok) {
-                            bestY = y; bestX = x; bestO = o;
-                            found = true;
-                            break;
+                int w = orient.w, h = orient.h;
+                int maxX = S - w;
+                for (int X = 0; X <= maxX; X++) {
+                    int Y = 0;
+                    for (int c = 0; c < w; c++) {
+                        int cand = sky[X + c] - orient.bot[c];
+                        if (cand > Y) Y = cand;
+                    }
+                    if (Y + h > S) continue;
+                    if (Y > bestY || (Y == bestY && X >= bestX)) continue;
+                    int wi = X >> 6, bo = X & 63;
+                    bool ok = true;
+                    for (int r = 0; r < h; r++) {
+                        uint64_t m = orient.rowMask[r];
+                        if ((m << bo) & grid[Y + r][wi]) { ok = false; break; }
+                        if (bo > 0) {
+                            if ((m >> (64 - bo)) & grid[Y + r][wi + 1]) { ok = false; break; }
                         }
                     }
+                    if (!ok) continue;
+                    bestY = Y; bestX = X; bestO = o;
                 }
-                if (bestY == 0 && bestX == 0) break;
             }
             if (bestO == -1) return false;
             auto& orient = orients[ii][bestO];
@@ -99,6 +109,10 @@ int main() {
                 uint64_t m = orient.rowMask[r];
                 grid[bestY + r][wi] |= (m << bo);
                 if (bo > 0) grid[bestY + r][wi + 1] |= (m >> (64 - bo));
+            }
+            for (int c = 0; c < orient.w; c++) {
+                int newSky = bestY + orient.top[c] + 1;
+                if (newSky > sky[bestX + c]) sky[bestX + c] = newSky;
             }
             int Xi = bestX - orient.minx;
             int Yi = bestY - orient.miny;
