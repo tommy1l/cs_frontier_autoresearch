@@ -70,10 +70,10 @@ int main() {
     vector<int> idx(n);
     iota(idx.begin(), idx.end(), 0);
     sort(idx.begin(), idx.end(), [&](int a, int b){
-        if (ks[a] != ks[b]) return ks[a] > ks[b];
         int ma = max(orients[a][0].w, orients[a][0].h);
         int mb = max(orients[b][0].w, orients[b][0].h);
-        return ma > mb;
+        if (ma != mb) return ma > mb;
+        return ks[a] > ks[b];
     });
 
     auto tryPack = [&](int S, vector<tuple<int,int,int,int>>& result) -> bool {
