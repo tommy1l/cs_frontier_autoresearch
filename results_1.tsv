@@ -1,16 +1,1 @@
-commit	best_score	best_unbounded	status	description
-89371e4	99.613333	99.613333	keep	initial multi-greedy + local search
-4b08374	99.613333	99.613333	discard	widen swap window 32->128 (no gain)
-9359db8	99.613333	99.613333	discard	iterated local search with kicks (no gain)
-0238cf2	99.613333	99.613333	discard	add LP-bound branch&bound (no gain)
-4de9a15	99.613333	99.613333	discard	add Lagrangian dual UB (no gain)
-369b719	99.613333	99.613333	discard	add 1-for-2 and 2-for-1 swap moves (no gain)
-ea23916	99.613333	99.613333	discard	per-node Lagrangian dual UB (no gain — likely at integer opt)
-02dc832	99.613333	99.613333	discard	raise TIME_LIMIT 0.92->0.96 (no gain)
-6d293ed	99.613333	99.613333	discard	widen k-for-r window 128->512 (no gain)
-3eadcf1	99.613333	99.613333	discard	multi-seed RNG for restarts (no gain)
-5b2b6c3	99.613333	99.613333	discard	finer alpha grid 40->100 (no gain)
-878d59d	99.613333	99.613333	discard	add v-desc/m-asc/l-asc greedy starts (no gain)
-a08c021	99.613333	99.613333	discard	add 3-item swap moves
-3762ad6	99.743333	99.743333	keep	normalize v/(m/Mcap + l/Lcap) sort order
-13d86dc	99.743333	99.743333	discard	reorder items by reduced cost pre-B&B (no gain)
+commit	best_unbounded	status	description
