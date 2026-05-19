@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+85bd192	89.08786485571429	keep	initial solution
+31e35bc	87.81705652571429	discard	add large-first ordering
+1994768	89.07888692428573	discard	ord_large only for S<=1500
+c401734	89.66169428571428	keep	dsum=gap-only (subtract k) for cross-piece compare
+8edc4f2	88.33443803857143	discard	add sqrt(S) W candidates with interleaved sort
+baf92bd	89.75780073285718	keep	prefer larger k in outer cascade tie
+c07cb4c	89.6550386042857	discard	move k preference to after dsum (too aggressive)
+0766fb6	89.66331277571427	discard	increase W span
+5dc8c89	88.65823930428573	discard	replace ord4 with large-first
+d8b6148	89.7236854871429	discard	relax time margin to 1.05
+70b2e5d	88.27059617	discard	prefer smaller bounding box after k tie
+813fa80	87.67182751714286	discard	widen lookahead maxBound to n/2
+51c0564	89.72632927999999	discard	prefer wider orientation after k tie
+5efaeba	88.3444315742857	discard	ord4 id ASC tiebreaker
+1ad6070	89.75387541285718	discard	factor 0.30 for S<10000

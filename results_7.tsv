@@ -1,0 +1,16 @@
+commit	best_score	best_unbounded	status	description
+021cb0f	90	90	keep	DAFSA (B,Lo,Hi) memoization
+7485ade	90	90	discard	canonical interval decomposition + trie
+68a15f3	88	88	discard	NFA start-split L-side/R-side roots
+a9e89a9	90	90	discard	lambda DAFSA long long
+4e12a64	90	90	discard	common-prefix decomposition variant
+3fadea7	90	90	discard	bottom-up DAFSA iterative build
+a5ca279	90	90	discard	min-DFA multi-length tuple states
+63a9645	0	0	crash	probe minimal output
+e5e5c81	90	90	discard	signature-based bottom-up minimization
+25a9b58	90	90	discard	min-DFA with end-accept via direct edges
+8c02787	90	90	discard	ordered output start=1 end=n
+8a422cb	90	90	discard	DAFSA + post-build signature minimization
+362ca75	90	90	discard	multi-length Rep + post-Hopcroft
+e234556	90	90	discard	mode-typed state keys
+1543278	90	90	discard	BFS-ordered node output

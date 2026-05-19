@@ -1,0 +1,16 @@
+commit	best_score	best_unbounded	status	description
+7623420	3.00	3.00	keep	DFS-walk 3-row bands plus single-cell intrusions for non-tree edges
+1c2d1da	99.50	99.50	keep	diagonal 3-stripes-per-vertex with Hamiltonian path plus mid-diag intrusions
+0d2ee19	100.00	100.00	keep	variable-width stripes with greedy IS leaving low-degree vertices at width 1
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible
+000000	100.00	100.00	skip	score already 100 no improvement possible

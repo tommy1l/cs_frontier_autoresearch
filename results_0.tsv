@@ -1,1 +1,16 @@
 commit	best_unbounded	status	description
+9e08a68	41.080146251428566	keep	initial bottom-left fill solution
+61df541	70.37338580857141	keep	skyline-based BL fill
+8683d88	70.37338580857141	discard	monomino backfill
+a041f9c	70.41395302999999	keep	sort by max(w,h) desc
+2849791	69.32320862571429	discard	downward Y scan from skyline
+ee9ed33	69.70887942428571	discard	multi-ordering search
+d7980b9	69.7368433842857	discard	sort by bbox area desc
+f4a0741	70.68681073571427	keep	prefer flatter orient on ties
+4d0cd15	76.29469924857145	keep	add waste tiebreak in placement criterion
+39a3ec7	75.94186904714287	discard	sort by k desc then max(w,h) desc
+e27d7be	77.47451012428571	keep	minimize post-skyline max criterion
+aa40d09	77.47451012428571	discard	monomino backfill
+db945fe	42.402191338571434	discard	minimize bbox square side criterion
+694cc17	77.47451012428571	discard	shrink output to actual occupied square
+99aca77	77.47451012428571	discard	single-step downward tuck

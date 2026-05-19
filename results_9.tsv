@@ -1,1 +1,4 @@
 commit	best_score	best_unbounded	status	description
+b86ddf0	33.33	33.33	keep	initial double-good + single-good greedy matching
+7d6d309	33.33	33.33	discard	multi-variant greedy (4 strategies, pick best)
+b78737c	100	100	keep	8-variant strategy with lookahead Pass 2 selection

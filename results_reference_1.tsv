@@ -1,1 +1,16 @@
 commit	best_unbounded	status	description
+215a7f5	100	keep	initial solution
+f2f14ee	100	discard	add 3-opt triple optimization
+5061552	100	discard	residual fill after 2-opt
+29d0e72	100	discard	systematic deterministic 2-opt
+828dbcb	100	discard	final 3-opt pass on best solution
+61a51f6	100	discard	SA kick-and-reoptimize loop
+a96501b	100	discard	deterministic seeds with density mix
+d8c9ab0	100	discard	density-biased random shuffle
+25ed743	100	discard	deduplicate pool candidates
+e56958d	100	discard	adaptive generation termination
+7c5de25	100	discard	inline 3-opt per pool iteration
+008665a	100	discard	fixed capacity weights for density
+4ca48e7	100	discard	drop-one-refill polish
+54a5e3b	100	discard	weighted density seeded make_cand
+9e0e6ef	100	discard	single-item enumeration polish

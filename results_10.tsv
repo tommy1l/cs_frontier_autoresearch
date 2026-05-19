@@ -1,1 +1,4 @@
 commit	best_score	best_unbounded	status	description
+3ecdb31	97.55	97.55	keep	initial BFS-style parent finding
+7690910	99.07	99.07	keep	chain elimination + min parent depth
+add2d4e	100	100	keep	subtree elimination via BFS from LCA child

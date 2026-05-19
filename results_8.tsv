@@ -1,1 +1,5 @@
 commit	best_score	best_unbounded	status	description
+d59bce8	33.27	33.27	keep	initial ping-pong construction
+4b8b895	95.83	95.83	keep	doubler chain with markers >=1 and valid GOTOs
+9ecd661	95.83	95.83	discard	multi-setup pre-push of distinct levels
+9b1d435	95.83	95.83	discard	greedy multi-marker pre-push
