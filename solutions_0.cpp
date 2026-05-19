@@ -66,9 +66,6 @@ int main() {
     vector<int> idx(n);
     iota(idx.begin(), idx.end(), 0);
     sort(idx.begin(), idx.end(), [&](int a, int b){
-        int aa = orients[a][0].w * orients[a][0].h;
-        int ab = orients[b][0].w * orients[b][0].h;
-        if (aa != ab) return aa > ab;
         int ma = max(orients[a][0].w, orients[a][0].h);
         int mb = max(orients[b][0].w, orients[b][0].h);
         if (ma != mb) return ma > mb;
