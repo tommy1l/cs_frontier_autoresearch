@@ -61,6 +61,10 @@ int main() {
                 orients[i].push_back(o);
             }
         }
+        sort(orients[i].begin(), orients[i].end(), [](const Orient& a, const Orient& b){
+            if (a.h != b.h) return a.h < b.h;
+            return a.w < b.w;
+        });
     }
 
     vector<int> idx(n);
