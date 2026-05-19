@@ -81,8 +81,13 @@ int main() {
         int W = (S + 63) / 64 + 1;
         vector<vector<uint64_t>> grid(S, vector<uint64_t>(W, 0));
         vector<int> sky(S, 0);
+        vector<int> prefMax(S+1, 0), sufMax(S+1, 0);
         for (int ii : idx) {
-            int bestY = INT_MAX, bestWaste = INT_MAX, bestX = INT_MAX, bestO = -1;
+            prefMax[0] = 0;
+            for (int i = 0; i < S; i++) prefMax[i+1] = max(prefMax[i], sky[i]);
+            sufMax[S] = 0;
+            for (int i = S-1; i >= 0; i--) sufMax[i] = max(sufMax[i+1], sky[i]);
+            int bestNewMax = INT_MAX, bestY = INT_MAX, bestWaste = INT_MAX, bestX = INT_MAX, bestO = -1;
             for (int o = 0; o < (int)orients[ii].size(); o++) {
                 auto& orient = orients[ii][o];
                 if (orient.w > S || orient.h > S) continue;
@@ -101,9 +106,12 @@ int main() {
                         if (orient.bot[c] == INT_MAX) continue;
                         waste += Y + orient.bot[c] - sky[X + c];
                     }
-                    if (Y > bestY) continue;
-                    if (Y == bestY && waste > bestWaste) continue;
-                    if (Y == bestY && waste == bestWaste && X >= bestX) continue;
+                    int otherMax = max(prefMax[X], sufMax[X+w]);
+                    int newMax = max(Y + h, otherMax);
+                    if (newMax > bestNewMax) continue;
+                    if (newMax == bestNewMax && Y > bestY) continue;
+                    if (newMax == bestNewMax && Y == bestY && waste > bestWaste) continue;
+                    if (newMax == bestNewMax && Y == bestY && waste == bestWaste && X >= bestX) continue;
                     int wi = X >> 6, bo = X & 63;
                     bool ok = true;
                     for (int r = 0; r < h; r++) {
@@ -114,7 +122,7 @@ int main() {
                         }
                     }
                     if (!ok) continue;
-                    bestY = Y; bestWaste = waste; bestX = X; bestO = o;
+                    bestNewMax = newMax; bestY = Y; bestWaste = waste; bestX = X; bestO = o;
                 }
             }
             if (bestO == -1) return false;
