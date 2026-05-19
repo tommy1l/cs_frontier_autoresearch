@@ -1,34 +1,45 @@
 commit,description,lines_changed,size,best_score,best_unbounded,status
-89371e4,initial multi-greedy + local search,+218,creation,99.613333,99.613333,keep
-4b08374,widen swap window 32->128,+3/-3,tiny,99.613333,99.613333,discard
-9359db8,iterated local search with kicks,+16/-4,small (~5%),99.613333,99.613333,discard
-0238cf2,LP-bound branch&bound,+102/-43,huge (~36%),99.613333,99.613333,discard
-4de9a15,Lagrangian dual UB,+91/-22,huge (~28%),99.613333,99.613333,discard
-369b719,1-for-2 and 2-for-1 swap moves,+58/-89,huge (~36%),99.613333,99.613333,discard
-ea23916,per-node Lagrangian dual UB,+131/-79,huge (~52%),99.613333,99.613333,discard
-02dc832,raise TIME_LIMIT 0.92->0.96,+79/-131,huge (~52%),99.613333,99.613333,discard
-6d293ed,widen k-for-r window 128->512,+133/-81,huge (~53%),99.613333,99.613333,discard
-3eadcf1,multi-seed RNG for restarts,+89/-134,huge (~55%),99.613333,99.613333,discard
-5b2b6c3,finer alpha grid 40->100,+135/-90,huge (~56%),99.613333,99.613333,discard
-878d59d,v-desc/m-asc/l-asc greedy starts,+100/-135,huge (~58%),99.613333,99.613333,discard
-a08c021,3-item swap moves,+152/-94,huge (~61%),99.613333,99.613333,discard
-3762ad6,normalize v/(m/Mcap + l/Lcap) ordering,+4/-2,tiny,99.743333,99.743333,keep
-13d86dc,reorder by reduced cost pre-B&B,+19/-19,small,99.743333,99.743333,discard
+54bc624,initial solution,+163,creation,99.233333,99.233333,keep
+adee129,multi-start local search,+19/-8,small (~17%),99.233333,99.233333,discard
+789963a,revert,+8/-19,small,(→ 99.233333),(→ 99.233333),revert
+760aa2c,fill-remaining after swap,+28/-1,small (~18%),99.233333,99.233333,discard
+44923b1,revert,+1/-28,small,(→ 99.233333),(→ 99.233333),revert
+cbd47b9,3-way swap moves,+117/-1,huge (~72%),99.233333,99.233333,discard
+7489c9b,revert,+1/-117,huge,(→ 99.233333),(→ 99.233333),revert
+1d16bd4,LP-vertex structure enumeration,+96,large (~37%),99.613333,99.613333,keep
+40bcd88,add 3-way swap to local search,+63/-1,medium (~20%),99.613333,99.613333,discard
+b47d3ef,revert,+1/-63,medium,(→ 99.613333),(→ 99.613333),revert
+e2c5105,3-fractional LP enumeration,+52,medium (~17%),99.613333,99.613333,discard
+dc77251,revert,-52,medium,(→ 99.613333),(→ 99.613333),revert
+bb3c110,gauss-seidel pair optimization,+18/-29,medium (~18%),100,100,keep
+8b057ee,remove redundant multi-weight greedy init,-11,small (~4%),100,100,keep
+f36effb,remove local_search after lp_enumerate,-4,tiny,98.746667,98.746667,discard
+1ac965b,revert,+4,tiny,(→ 100),(→ 100),revert
+7e1b5f2,remove dead greedy code,-25,small (~11%),100,100,keep
+6748502,remove time-limit safety net,+3/-9,small,100,100,keep
+8cff99d,simplify best_ab LP intersection check,+3/-9,small,98.986667,98.986667,discard
+ee8c54c,revert,+9/-3,small,(→ 100),(→ 100),revert
+8cdbeb7,single-pass swap_improve,+1/-1,tiny,100,100,keep
+b66f9b4,remove redundant Sm/Sl guards in best_ab,+2/-2,tiny,100,100,keep
 
 # Analysis
-# File: solutions_1.cpp (currently 404 lines)
-# Score trajectory of kept commits: 99.613 → 99.743 (single +0.13 gain across the entire run)
+# File: solutions_1.cpp (currently 206 lines)
+# Score trajectory of kept commits: 99.233 → 99.613 → 100 → 100 → 100 → 100 → 100 → 100
 #
-# Iteration pattern is RADICALLY different from problem_0:
-# - No explicit "revert" commits — discarded attempts are layered on top with full rewrites instead.
-# - Nine consecutive commits each rewrite ~50-60% of the file (+100-150 lines, -80-130 lines).
-# - These are major structural changes: LP-bound B&B, Lagrangian dual UB, multi-seed RNG, finer alpha grid, 3-item swaps.
-# - Despite all that effort, NONE of the structural rewrites moved the score from 99.613.
-# - The one improvement (3762ad6) was a TINY 4-line tweak — normalizing the sort key.
+# Iteration pattern now matches problem_0 discipline: every discard is followed by an explicit revert.
+# (This is a re-run — git note "redoing run for solutions_1.cpp, before was incorrectly reverting" — and the new pattern lines up with the reference: tweak → measure → revert on failure.)
 #
-# Implication: the score plateau at 99.613 was almost certainly the integer optimum on most instances; only a sort-order change exposed a tiebreak path to a fractionally better instance. The huge rewrites were wasted effort — the small tweak won.
+# Where the gains came from:
+# - The +0.38 step (99.233 → 99.613) came from a LARGE structural rewrite (1d16bd4, +96 lines, LP-vertex structure enumeration).
+# - The +0.39 step (99.613 → 100) came from a MEDIUM, focused change (bb3c110, +18/-29, gauss-seidel pair optimization).
+# - After hitting 100, every accepted commit is a REMOVAL (-11, -25, +3/-9, +1/-1, +2/-2) — score holds because the deleted code was redundant. Two attempts at simplification overshot (f36effb, 8cff99d) and got reverted.
 #
-# Comparison to problem_0:
-# - problem_0: iterative tweak → measure → explicit revert. Small/medium edits dominated.
-# - problem_1: tweak → measure → KEEP code regardless of result (no reverts). File ballooned via rewrites that never improved the score.
-# - problem_0 got +36 points across keeps; problem_1 got +0.13.
+# Size vs. outcome:
+# - The huge speculative rewrite (cbd47b9, +117/-1, 72% of file) gave nothing and was reverted.
+# - The two large/medium structural changes that DID help (1d16bd4, bb3c110) were both motivated by a specific algorithmic idea (LP geometry, pairwise re-optimization), not blind expansion.
+# - All post-ceiling improvements are tiny/small cleanups — once at 100, gains stop and only code-size shrinks.
+#
+# Comparison to the previous problem_1 run (now superseded):
+# - Old run: no reverts, layered huge rewrites, ceiling at 99.743.
+# - New run: clean revert discipline, fewer total commits, ceiling at 100.
+# - Confirms the reference-style iterate/revert workflow beats keep-everything-and-rewrite for this problem.

@@ -1,1 +1,16 @@
 commit	best_unbounded	status	description
+54bc624	99.23333333333333	keep	initial solution
+adee129	99.23333333333333	discard	multi-start local search
+760aa2c	99.23333333333333	discard	fill-remaining after swap
+cbd47b9	99.23333333333333	discard	3-way swap moves
+1d16bd4	99.61333333333333	keep	LP-vertex structure enumeration
+40bcd88	99.61333333333333	discard	add 3-way swap to local search
+e2c5105	99.61333333333333	discard	3-fractional LP enumeration
+bb3c110	100.0	keep	gauss-seidel pair optimization
+8b057ee	100.0	keep	remove redundant multi-weight greedy init
+f36effb	98.74666666666666	discard	remove local_search after lp_enumerate
+7e1b5f2	100.0	keep	remove dead greedy code
+6748502	100.0	keep	remove time-limit safety net
+8cff99d	98.98666666666665	discard	simplify best_ab LP intersection check
+8cdbeb7	100.0	keep	single-pass swap_improve
+b66f9b4	100.0	keep	remove redundant Sm/Sl guards in best_ab
