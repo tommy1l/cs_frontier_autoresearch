@@ -18,31 +18,6 @@ ll eval_value(const vector<ll>& x, ll& mass, ll& vol) {
     return val;
 }
 
-vector<ll> greedy_fill_order(const vector<int>& ord) {
-    vector<ll> x(n, 0);
-    ll mass = 0, vol = 0;
-    for (int idx : ord) {
-        ll max_m = (M_CAP - mass) / M[idx];
-        ll max_l = (L_CAP - vol) / L[idx];
-        ll take = min({Q[idx], max_m, max_l});
-        x[idx] = take;
-        mass += take * M[idx];
-        vol += take * L[idx];
-    }
-    return x;
-}
-
-vector<ll> greedy_w(double w) {
-    vector<int> ord(n);
-    iota(ord.begin(), ord.end(), 0);
-    sort(ord.begin(), ord.end(), [&](int a, int b) {
-        double da = (double)V[a] / (w * (double)M[a] / M_CAP + (1 - w) * (double)L[a] / L_CAP);
-        double db = (double)V[b] / (w * (double)M[b] / M_CAP + (1 - w) * (double)L[b] / L_CAP);
-        return da > db;
-    });
-    return greedy_fill_order(ord);
-}
-
 pair<ll, ll> best_ab(int i, int k, ll Sm, ll Sl, ll Amax, ll Bmax) {
     if (Amax < 0) Amax = 0;
     if (Bmax < 0) Bmax = 0;
