@@ -64,28 +64,13 @@ int main() {
     }
 
     vector<int> idx(n);
-    auto buildIdx = [&](int crit) {
-        iota(idx.begin(), idx.end(), 0);
-        if (crit == 0) {
-            sort(idx.begin(), idx.end(), [&](int a, int b){
-                int ma = max(orients[a][0].w, orients[a][0].h);
-                int mb = max(orients[b][0].w, orients[b][0].h);
-                if (ma != mb) return ma > mb;
-                return ks[a] > ks[b];
-            });
-        } else if (crit == 1) {
-            sort(idx.begin(), idx.end(), [&](int a, int b){
-                int aa = orients[a][0].w * orients[a][0].h;
-                int ab = orients[b][0].w * orients[b][0].h;
-                if (aa != ab) return aa > ab;
-                return ks[a] > ks[b];
-            });
-        } else {
-            sort(idx.begin(), idx.end(), [&](int a, int b){
-                return ks[a] > ks[b];
-            });
-        }
-    };
+    iota(idx.begin(), idx.end(), 0);
+    sort(idx.begin(), idx.end(), [&](int a, int b){
+        int ma = max(orients[a][0].w, orients[a][0].h);
+        int mb = max(orients[b][0].w, orients[b][0].h);
+        if (ma != mb) return ma > mb;
+        return ks[a] > ks[b];
+    });
 
     auto tryPack = [&](int S, vector<tuple<int,int,int,int>>& result) -> bool {
         result.assign(n, make_tuple(0,0,0,0));
@@ -139,26 +124,14 @@ int main() {
         return true;
     };
 
-    int bestS = INT_MAX;
-    vector<tuple<int,int,int,int>> bestResult;
-    int S0 = (int)ceil(sqrt((double)T));
-    if (S0 < 1) S0 = 1;
-    for (int crit = 0; crit < 3; crit++) {
-        buildIdx(crit);
-        int S = S0;
-        vector<tuple<int,int,int,int>> result;
-        while (S < bestS) {
-            if (tryPack(S, result)) {
-                bestS = S; bestResult = result;
-                break;
-            }
-            S++;
-        }
-    }
+    int S = (int)ceil(sqrt((double)T));
+    if (S < 1) S = 1;
+    vector<tuple<int,int,int,int>> result;
+    while (!tryPack(S, result)) S++;
 
-    printf("%d %d\n", bestS, bestS);
+    printf("%d %d\n", S, S);
     for (int i = 0; i < n; i++) {
-        auto& r = bestResult[i];
+        auto& r = result[i];
         printf("%d %d %d %d\n", get<0>(r), get<1>(r), get<2>(r), get<3>(r));
     }
     return 0;
