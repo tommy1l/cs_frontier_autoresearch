@@ -221,6 +221,10 @@ int main() {
 
     lp_enumerate(best_sol, best_val);
 
+    local_search(best_sol, 0.85, start);
+    ll mass, vol;
+    best_val = eval_value(best_sol, mass, vol);
+
     cout << "{\n";
     for (int i = 0; i < n; i++) {
         cout << " \"" << names[i] << "\": " << best_sol[i];
