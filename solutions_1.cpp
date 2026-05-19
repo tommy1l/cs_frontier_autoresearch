@@ -142,7 +142,7 @@ bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
 void local_search(vector<ll>& x) {
     ll mass, vol;
     ll val = eval_value(x, mass, vol);
-    while (swap_improve(x, val, mass, vol)) {}
+    swap_improve(x, val, mass, vol);
 }
 
 int main() {
