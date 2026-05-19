@@ -101,19 +101,6 @@ int main() {
                         if (cand > Y) Y = cand;
                     }
                     if (Y + h > S) continue;
-                    int wiTuck = X >> 6, boTuck = X & 63;
-                    if (Y > 0) {
-                        int newY = Y - 1;
-                        bool tuckOk = true;
-                        for (int r = 0; r < h; r++) {
-                            uint64_t m = orient.rowMask[r];
-                            if ((m << boTuck) & grid[newY + r][wiTuck]) { tuckOk = false; break; }
-                            if (boTuck > 0) {
-                                if ((m >> (64 - boTuck)) & grid[newY + r][wiTuck + 1]) { tuckOk = false; break; }
-                            }
-                        }
-                        if (tuckOk) Y = newY;
-                    }
                     int waste = 0;
                     for (int c = 0; c < w; c++) {
                         if (orient.bot[c] == INT_MAX) continue;
