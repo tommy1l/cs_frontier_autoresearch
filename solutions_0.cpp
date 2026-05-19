@@ -91,17 +91,22 @@ int main() {
                         if (cand > Y) Y = cand;
                     }
                     if (Y + h > S) continue;
-                    if (Y > bestY || (Y == bestY && X >= bestX)) continue;
                     int wi = X >> 6, bo = X & 63;
-                    bool ok = true;
-                    for (int r = 0; r < h; r++) {
-                        uint64_t m = orient.rowMask[r];
-                        if ((m << bo) & grid[Y + r][wi]) { ok = false; break; }
-                        if (bo > 0) {
-                            if ((m >> (64 - bo)) & grid[Y + r][wi + 1]) { ok = false; break; }
+                    // Try to slide down below skyline (tucking into overhangs)
+                    while (Y > 0) {
+                        int newY = Y - 1;
+                        bool ok = true;
+                        for (int r = 0; r < h; r++) {
+                            uint64_t m = orient.rowMask[r];
+                            if ((m << bo) & grid[newY + r][wi]) { ok = false; break; }
+                            if (bo > 0) {
+                                if ((m >> (64 - bo)) & grid[newY + r][wi + 1]) { ok = false; break; }
+                            }
                         }
+                        if (!ok) break;
+                        Y = newY;
                     }
-                    if (!ok) continue;
+                    if (Y > bestY || (Y == bestY && X >= bestX)) continue;
                     bestY = Y; bestX = X; bestO = o;
                 }
             }
