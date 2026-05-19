@@ -175,74 +175,12 @@ bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
     return any;
 }
 
-bool triple_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
-    bool any = false;
-    for (int j = 0; j < n; j++) {
-        if (x[j] == 0) continue;
-        ll xj = x[j];
-        for (int i = 0; i < n; i++) {
-            if (i == j) continue;
-            for (int k = i + 1; k < n; k++) {
-                if (k == j) continue;
-                ll Amax = Q[i] - x[i];
-                ll Bmax = Q[k] - x[k];
-                if (Amax < 0) Amax = 0;
-                if (Bmax < 0) Bmax = 0;
-                if (Amax == 0 && Bmax == 0) continue;
-
-                ll best_delta = 0;
-                ll best_rem = 0, best_a = 0, best_b = 0;
-                ll step = max((ll)1, xj / 100);
-                ll rem = 1;
-                while (rem <= xj) {
-                    ll Sm = M_CAP - mass + rem * M[j];
-                    ll Sl = L_CAP - vol + rem * L[j];
-                    auto [a, b] = best_ab(i, k, Sm, Sl, Amax, Bmax);
-                    ll delta = a*V[i] + b*V[k] - rem*V[j];
-                    if (delta > best_delta) {
-                        best_delta = delta;
-                        best_rem = rem;
-                        best_a = a;
-                        best_b = b;
-                    }
-                    rem += step;
-                }
-                if (xj > 1) {
-                    ll Sm = M_CAP - mass + xj * M[j];
-                    ll Sl = L_CAP - vol + xj * L[j];
-                    auto [a, b] = best_ab(i, k, Sm, Sl, Amax, Bmax);
-                    ll delta = a*V[i] + b*V[k] - xj*V[j];
-                    if (delta > best_delta) {
-                        best_delta = delta;
-                        best_rem = xj;
-                        best_a = a;
-                        best_b = b;
-                    }
-                }
-                if (best_delta > 0) {
-                    x[j] -= best_rem;
-                    x[i] += best_a;
-                    x[k] += best_b;
-                    mass += -best_rem*M[j] + best_a*M[i] + best_b*M[k];
-                    vol += -best_rem*L[j] + best_a*L[i] + best_b*L[k];
-                    val += best_delta;
-                    any = true;
-                }
-            }
-        }
-    }
-    return any;
-}
-
 void local_search(vector<ll>& x, double time_limit_sec, chrono::steady_clock::time_point start) {
     ll mass, vol;
     ll val = eval_value(x, mass, vol);
     while (true) {
         if (chrono::duration<double>(chrono::steady_clock::now() - start).count() > time_limit_sec) break;
-        bool a = swap_improve(x, val, mass, vol);
-        if (chrono::duration<double>(chrono::steady_clock::now() - start).count() > time_limit_sec) break;
-        bool b = triple_improve(x, val, mass, vol);
-        if (!a && !b) break;
+        if (!swap_improve(x, val, mass, vol)) break;
     }
 }
 
