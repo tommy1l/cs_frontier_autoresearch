@@ -81,39 +81,12 @@ bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
     return any;
 }
 
-bool fill_remaining(vector<ll>& x, ll& val, ll& mass, ll& vol) {
-    bool any = false;
-    vector<int> ord(n);
-    iota(ord.begin(), ord.end(), 0);
-    sort(ord.begin(), ord.end(), [&](int a, int b) {
-        double da = (double)V[a] / ((double)M[a] / M_CAP + (double)L[a] / L_CAP);
-        double db = (double)V[b] / ((double)M[b] / M_CAP + (double)L[b] / L_CAP);
-        return da > db;
-    });
-    for (int idx : ord) {
-        if (x[idx] >= Q[idx]) continue;
-        ll max_m = (M_CAP - mass) / M[idx];
-        ll max_l = (L_CAP - vol) / L[idx];
-        ll take = min({Q[idx] - x[idx], max_m, max_l});
-        if (take > 0) {
-            x[idx] += take;
-            val += take * V[idx];
-            mass += take * M[idx];
-            vol += take * L[idx];
-            any = true;
-        }
-    }
-    return any;
-}
-
 void local_search(vector<ll>& x, double time_limit_sec, chrono::steady_clock::time_point start) {
     ll mass, vol;
     ll val = eval_value(x, mass, vol);
     while (true) {
         if (chrono::duration<double>(chrono::steady_clock::now() - start).count() > time_limit_sec) break;
-        bool a = swap_improve(x, val, mass, vol);
-        bool b = fill_remaining(x, val, mass, vol);
-        if (!a && !b) break;
+        if (!swap_improve(x, val, mass, vol)) break;
     }
 }
 
