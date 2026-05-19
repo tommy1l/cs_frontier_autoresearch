@@ -50,14 +50,14 @@ pair<ll, ll> best_ab(int i, int k, ll Sm, ll Sl, ll Amax, ll Bmax) {
             try_ab(a, Bmax);
         }
     }
-    if (Sm >= 0 && Sl >= 0) {
+    {
         ll b = min({Bmax, Sm/M[k], Sl/L[k]});
         try_ab(0, b);
         ll a = min({Amax, Sm/M[i], Sl/L[i]});
         try_ab(a, 0);
     }
     long long det = (long long)M[i]*L[k] - (long long)M[k]*L[i];
-    if (det != 0 && Sm >= 0 && Sl >= 0) {
+    if (det != 0) {
         double a_d = (double)((long long)Sm * L[k] - (long long)Sl * M[k]) / det;
         double b_d = (double)((long long)Sl * M[i] - (long long)Sm * L[i]) / det;
         if (a_d >= -1 && b_d >= -1) {
