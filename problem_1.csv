@@ -1,0 +1,34 @@
+commit,description,lines_changed,size,best_score,best_unbounded,status
+89371e4,initial multi-greedy + local search,+218,creation,99.613333,99.613333,keep
+4b08374,widen swap window 32->128,+3/-3,tiny,99.613333,99.613333,discard
+9359db8,iterated local search with kicks,+16/-4,small (~5%),99.613333,99.613333,discard
+0238cf2,LP-bound branch&bound,+102/-43,huge (~36%),99.613333,99.613333,discard
+4de9a15,Lagrangian dual UB,+91/-22,huge (~28%),99.613333,99.613333,discard
+369b719,1-for-2 and 2-for-1 swap moves,+58/-89,huge (~36%),99.613333,99.613333,discard
+ea23916,per-node Lagrangian dual UB,+131/-79,huge (~52%),99.613333,99.613333,discard
+02dc832,raise TIME_LIMIT 0.92->0.96,+79/-131,huge (~52%),99.613333,99.613333,discard
+6d293ed,widen k-for-r window 128->512,+133/-81,huge (~53%),99.613333,99.613333,discard
+3eadcf1,multi-seed RNG for restarts,+89/-134,huge (~55%),99.613333,99.613333,discard
+5b2b6c3,finer alpha grid 40->100,+135/-90,huge (~56%),99.613333,99.613333,discard
+878d59d,v-desc/m-asc/l-asc greedy starts,+100/-135,huge (~58%),99.613333,99.613333,discard
+a08c021,3-item swap moves,+152/-94,huge (~61%),99.613333,99.613333,discard
+3762ad6,normalize v/(m/Mcap + l/Lcap) ordering,+4/-2,tiny,99.743333,99.743333,keep
+13d86dc,reorder by reduced cost pre-B&B,+19/-19,small,99.743333,99.743333,discard
+
+# Analysis
+# File: solutions_1.cpp (currently 404 lines)
+# Score trajectory of kept commits: 99.613 → 99.743 (single +0.13 gain across the entire run)
+#
+# Iteration pattern is RADICALLY different from problem_0:
+# - No explicit "revert" commits — discarded attempts are layered on top with full rewrites instead.
+# - Nine consecutive commits each rewrite ~50-60% of the file (+100-150 lines, -80-130 lines).
+# - These are major structural changes: LP-bound B&B, Lagrangian dual UB, multi-seed RNG, finer alpha grid, 3-item swaps.
+# - Despite all that effort, NONE of the structural rewrites moved the score from 99.613.
+# - The one improvement (3762ad6) was a TINY 4-line tweak — normalizing the sort key.
+#
+# Implication: the score plateau at 99.613 was almost certainly the integer optimum on most instances; only a sort-order change exposed a tiebreak path to a fractionally better instance. The huge rewrites were wasted effort — the small tweak won.
+#
+# Comparison to problem_0:
+# - problem_0: iterative tweak → measure → explicit revert. Small/medium edits dominated.
+# - problem_1: tweak → measure → KEEP code regardless of result (no reverts). File ballooned via rewrites that never improved the score.
+# - problem_0 got +36 points across keeps; problem_1 got +0.13.

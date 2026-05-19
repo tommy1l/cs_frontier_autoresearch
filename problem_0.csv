@@ -1,0 +1,36 @@
+commit,description,lines_changed,size,best_unbounded,status
+9e08a68,initial BL fill,+121,creation,41.08,keep
+61df541,skyline-based BL fill,+35/-21,large (~25%),70.37,keep
+8683d88,monomino backfill,+25/-1,medium,70.37,discard
+b19cfee,revert,+1/-25,medium,(→ 70.37),revert
+a041f9c,sort by max(w h),+3,small,70.41,keep
+2849791,downward Y scan,+13/-8,medium,69.32,discard
+f142414,revert,+8/-13,medium,(→ 70.41),revert
+ee9ed33,multi-ordering search,+40/-13,large (~18%),69.71,discard
+0b449eb,revert,+13/-40,large,(→ 70.41),revert
+d7980b9,sort by bbox area,+3,small,69.74,discard
+8790216,revert,-3,small,(→ 70.41),revert
+f4a0741,prefer flatter orient,+4,small,70.69,keep
+4d0cd15,waste tiebreak,+11/-3,medium,76.29,keep
+39a3ec7,sort k desc,+2/-2,small,75.94,discard
+e5f9aac,revert,+2/-2,small,(→ 76.29),revert
+e27d7be,post-skyline max,+13/-5,medium,77.47,keep
+aa40d09,monomino backfill,+25/-1,medium,77.47,discard
+ff7824a,revert,+1/-25,medium,(→ 77.47),revert
+db945fe,bbox square criterion,+10/-2,medium,42.40,discard
+a9b6d60,revert,+2/-10,medium,(→ 77.47),revert
+694cc17,shrink output,+7/-1,small,77.47,discard
+575dfdb,revert,+1/-7,small,(→ 77.47),revert
+99aca77,single-step tuck,+13,medium,77.47,discard
+d0581b9,revert,-13,medium,(→ 77.47),revert
+
+# Analysis
+# File: solutions_0.cpp (currently 224 lines)
+# Score trajectory of kept commits: 41.08 → 70.37 → 70.41 → 70.69 → 76.29 → 77.47
+# After hitting 77.47, five attempts in a row failed to improve it.
+#
+# Observation on size vs. gain:
+# - Two biggest jumps came from a LARGE rewrite (skyline, +29 pts) and a MEDIUM scoring-criterion change (waste tiebreak, +5.6 pts; post-skyline max, +1.2 pts).
+# - Small tweaks (+3/+4 lines) gave only fractional gains (~0.04 / ~0.28).
+# - Once the score plateaued at 77.47, further small AND medium attempts (including 25-line aa40d09 and 10-line db945fe) all failed.
+# - Suggests the current local optimum needs a structural change rather than another parameter tweak.
