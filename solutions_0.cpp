@@ -76,13 +76,19 @@ int main() {
         return ks[a] > ks[b];
     });
 
+    int firstMono = (int)idx.size();
+    for (int j = 0; j < (int)idx.size(); j++) {
+        if (ks[idx[j]] == 1) { firstMono = j; break; }
+    }
+
     auto tryPack = [&](int S, vector<tuple<int,int,int,int>>& result) -> bool {
         result.assign(n, make_tuple(0,0,0,0));
         int W = (S + 63) / 64 + 1;
         vector<vector<uint64_t>> grid(S, vector<uint64_t>(W, 0));
         vector<int> sky(S, 0);
         vector<int> prefMax(S+1, 0), sufMax(S+1, 0);
-        for (int ii : idx) {
+        for (int j = 0; j < firstMono; j++) {
+            int ii = idx[j];
             prefMax[0] = 0;
             for (int i = 0; i < S; i++) prefMax[i+1] = max(prefMax[i], sky[i]);
             sufMax[S] = 0;
@@ -140,6 +146,24 @@ int main() {
             int Xi = bestX - orient.minx;
             int Yi = bestY - orient.miny;
             result[ii] = make_tuple(Xi, Yi, orient.R, orient.F);
+        }
+        // Monomino backfill: row-major scan for empty cells
+        int sy = 0, sx = 0;
+        for (int j = firstMono; j < (int)idx.size(); j++) {
+            int ii = idx[j];
+            while (sy < S) {
+                if (!(grid[sy][sx >> 6] & (1ULL << (sx & 63)))) break;
+                sx++;
+                if (sx == S) { sy++; sx = 0; }
+            }
+            if (sy >= S) return false;
+            grid[sy][sx >> 6] |= (1ULL << (sx & 63));
+            auto& orient = orients[ii][0];
+            int Xi = sx - orient.minx;
+            int Yi = sy - orient.miny;
+            result[ii] = make_tuple(Xi, Yi, orient.R, orient.F);
+            sx++;
+            if (sx == S) { sy++; sx = 0; }
         }
         return true;
     };
