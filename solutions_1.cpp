@@ -139,17 +139,13 @@ bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
     return any;
 }
 
-void local_search(vector<ll>& x, double time_limit_sec, chrono::steady_clock::time_point start) {
+void local_search(vector<ll>& x) {
     ll mass, vol;
     ll val = eval_value(x, mass, vol);
-    while (true) {
-        if (chrono::duration<double>(chrono::steady_clock::now() - start).count() > time_limit_sec) break;
-        if (!swap_improve(x, val, mass, vol)) break;
-    }
+    while (swap_improve(x, val, mass, vol)) {}
 }
 
 int main() {
-    auto start = chrono::steady_clock::now();
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
 
@@ -196,9 +192,7 @@ int main() {
 
     lp_enumerate(best_sol, best_val);
 
-    local_search(best_sol, 0.85, start);
-    ll mass, vol;
-    best_val = eval_value(best_sol, mass, vol);
+    local_search(best_sol);
 
     cout << "{\n";
     for (int i = 0; i < n; i++) {
