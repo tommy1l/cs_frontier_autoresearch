@@ -2,127 +2,91 @@
 
 You are an autonomous competitive programming researcher.
 
-Your goal is to maximize the score across **Frontier-CS algorithmic problems 1 through 10** by iteratively improving a separate solution file for each problem.
-
----
-
-## Problem Setup
-
-You will work through problems **1, 2, 3, 4, 5, 6, 7, 8, 9, 10** in order — completing exactly 15 iterations on problem N before moving on to problem N+1.
+Your goal is to maximize the score on **Frontier-CS algorithmic problem 0** by iteratively improving `solutions_0.cpp`.
 
 ---
 
 ## Pre-Run Check: Count Logged Iterations
 
-**Before starting any problem**, check how many iterations are already logged for each problem by running:
+Before starting, check how many iterations are already logged:
 
-    for p in 1 2 3 4 5 6 7 8 9 10; do
-      f="results_${p}.tsv"
-      if [ -f "$f" ]; then
-        count=$(tail -n +2 "$f" | grep -c .)
-        echo "Problem $p: $count iterations logged"
-      else
-        echo "Problem $p: 0 iterations logged (file not found)"
-      fi
-    done
+    f="results_0.tsv"
+    if [ -f "$f" ]; then
+      count=$(tail -n +2 "$f" | grep -c .)
+      echo "Problem 0: $count iterations logged"
+    else
+      echo "Problem 0: 0 iterations logged (file not found)"
+    fi
 
-Use this output to determine where to resume:
-
-- If a problem already has **15 iterations logged** → **skip it** and move to the next.
-- If a problem has **fewer than 15** → **resume from where it left off**, running only the remaining iterations needed to reach 15.
-- If a problem has **0 or no file** → begin from scratch (follow First-Time Setup).
+- If already **15 iterations logged** → stop, you are done.
+- If **fewer than 15** → resume from where it left off, running only the remaining iterations needed to reach 15.
+- If **0 or no file** → do First-Time Setup before starting the loop.
 
 **Never redo iterations that are already logged.**
 
 ---
 
-Each problem has its own dedicated files:
-
-| Problem | Solution file      | Log file         |
-| ------- | ------------------ | ---------------- |
-| 1       | `solutions_1.cpp`  | `results_1.tsv`  |
-| 2       | `solutions_2.cpp`  | `results_2.tsv`  |
-| …       | …                  | …                |
-| 10      | `solutions_10.cpp` | `results_10.tsv` |
-
-The evaluation command for problem **P** is:
-
-    uv --directory Frontier-CS run frontier eval algorithmic <P> ../solutions_<P>.cpp
-
-For example, for problem 3:
-
-    uv --directory Frontier-CS run frontier eval algorithmic 3 ../solutions_3.cpp
-
-Rules:
-
-- Never change the evaluation command structure
-- Never use the wrong problem ID or wrong solution file for a given problem
-
----
-
-## First-Time Setup (only if `solutions_<P>.cpp` does not yet exist)
-
-Before beginning the iteration loop for problem P, check whether `solutions_<P>.cpp` exists.
-
-**If it does not exist**, do the following setup steps once:
+## First-Time Setup (only if 0 iterations logged)
 
 1.  Read the problem statement carefully:
 
-    cat Frontier-CS/algorithmic/problems/<P>/statement.txt
+        cat Frontier-CS/algorithmic/problems/0/statement.txt
 
-2.  Write a complete, working `solutions_<P>.cpp` from scratch based on the problem statement. This should be a full solution attempt — not an empty file. Do not copy from any other problem's solution file.
+2.  Write a complete, working `solutions_0.cpp` from scratch based on the problem statement. This should be a full solution attempt — not an empty file.
 
 3.  Create the log file with a header row:
 
-        printf "commit\tbest_score\tbest_unbounded\tstatus\tdescription\n" > results_<P>.tsv
+        printf "commit\tbest_unbounded\tstatus\tdescription\n" > results_0.tsv
 
-    Verify it was created:
+4.  Evaluate the new `solutions_0.cpp` to establish a baseline:
 
-        cat results_<P>.tsv
+uv --directory Frontier-CS run python3 -c "
+from frontier_cs import SingleEvaluator
+evaluator = SingleEvaluator()
+result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../solutions_0.cpp').read())
+print(f'Score (unbounded): {result.score_unbounded}')
+"
 
-4.  Run the first evaluation to establish a baseline score. This counts as iteration 1.
+5.  Commit and log as iteration 0:
 
-**If `solutions_<P>.cpp` already exists**, skip setup and go directly to the iteration loop.
+        git add solutions_0.cpp
+        git commit -m "p0 score=<score> initial solution"
+        git push origin HEAD
+        git rev-parse --short HEAD
+
+    Then append using the hash printed above — run this as a separate standalone command:
+
+        printf "<hash>\t<score>\tkeep\tinitial solution\n" >> results_0.tsv
+
+This counts as iteration 0. Then continue the loop for 15 more iterations.
 
 ---
 
 ## Files
 
-- `solutions_<P>.cpp` — the only file to edit when working on problem P; written from scratch for each problem
-- `program.md` — instructions; read-only
-- `results_<P>.tsv` — experiment log for problem P
-- `Frontier-CS/algorithmic/problems/<P>/statement.txt` — the problem statement for problem P
+| Solution file     | Log file        |
+| ----------------- | --------------- |
+| `solutions_0.cpp` | `results_0.tsv` |
 
-Do **not** create or modify files inside `Frontier-CS/`.
+The evaluation command is:
 
----
+    uv --directory Frontier-CS run python3 -c "
+    from frontier_cs import SingleEvaluator
+    evaluator = SingleEvaluator()
+    result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../solutions_0.cpp').read())
+    print(f'Score (unbounded): {result.score_unbounded}')
+    "
 
-## Critical Evaluation Rule
+Rules:
 
-All evaluation must be done **only** through:
-
-    uv --directory Frontier-CS run frontier eval algorithmic <P> ../solutions_<P>.cpp
-
-Never manually compile or run solution files.
-
-Do **not** run:
-
-- `g++`
-- `clang++`
-- `gcc`
-- `make`
-- custom compile commands
-- manual test binaries
-
-These produce misleading results on this machine.
-
-If evaluation fails or score is `0.0`, rerun the official evaluation command and inspect its output. Do not switch to manual compilation.
+- Never change the evaluation command structure
+- Never use a different problem ID or solution file
 
 ---
 
-## Loop (per problem P)
+## Loop
 
-Complete **exactly 15 iterations** for problem P, then move on to problem P+1. Do not stop early. Do not do more than 15.
+Complete **exactly 15 iterations**, then stop.
 
 ---
 
@@ -130,118 +94,120 @@ Complete **exactly 15 iterations** for problem P, then move on to problem P+1. D
 
 Read:
 
-- `Frontier-CS/algorithmic/problems/<P>/statement.txt` — problem statement
-- `results_<P>.tsv` — your history for this problem
-- `solutions_<P>.cpp` — current solution
+- `Frontier-CS/algorithmic/problems/0/statement.txt`
+- `results_0.tsv`
+- `solutions_0.cpp`
 
-Optionally review past git history for ideas on what has or hasn't worked:
+Optionally review past git history:
 
     git log --oneline
-    git show <commit>:solutions_<P>.cpp
+    git show <commit>:solutions_0.cpp | cat
 
 ---
 
-### 3. Edit `solutions_<P>.cpp`
+### 2. Edit `solutions_0.cpp`
 
-Edit only:
-
-    solutions_<P>.cpp
-
-Make one meaningful change per iteration.
+Make one meaningful algorithmic change per iteration.
 
 Do not edit:
 
 - anything inside `Frontier-CS/`
-- `program.md`
-- any other problem's solution file
+- any other file
 
-**Never make trivial non-algorithmic changes** such as adjusting time limits, buffer sizes, or constants that don't change the algorithm's logic. Every iteration must implement a meaningfully different algorithmic strategy.
+**Never make trivial non-algorithmic changes** such as adjusting time limits, buffer sizes, or constants that don't change the algorithm's logic.
 
 ---
 
-### 4. Evaluate
+### 3. Evaluate
 
-Run exactly:
-
-    uv --directory Frontier-CS run frontier eval algorithmic <P> ../solutions_<P>.cpp
+uv --directory Frontier-CS run python3 -c "
+from frontier_cs import SingleEvaluator
+evaluator = SingleEvaluator()
+result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../solutions_0.cpp').read())
+print(f'Score (unbounded): {result.score_unbounded}')
+"
 
 Find the output line:
 
-    Score: <float>
+    Score (unbounded): <float>
 
-Use that exact score value for the commit message and `results_<P>.tsv`.
-
-If score is `0.0`:
-
-- rerun the official evaluation command once
-- inspect only the official evaluation output
-- fix `solutions_<P>.cpp` if needed
-- evaluate again using the same official command
+If score is `0.0`, rerun once, inspect output, fix if needed, evaluate again.
 
 ---
 
-### 5. Commit
+### 4. Commit
 
-After every completed evaluation, commit:
+Run each of these as a separate standalone command:
 
-    git add solutions_<P>.cpp
-    git commit -m "p<P> score=<score> <short description>"
+    git add solutions_0.cpp
+
+    git commit -m "p0 score=<score> <short description>"
+
     git push origin HEAD
-
-Then get the short commit hash:
 
     git rev-parse --short HEAD
 
 ---
 
-### 6. Log result
+### 5. Log result
 
-Append one tab-separated row to `results_<P>.tsv`:
+Run each of these as a separate standalone command.
 
-    <commit>	<score>	<score>	<status>	<description>
+First get the commit hash:
+
+    git rev-parse --short HEAD
+
+Then append to `results_0.tsv` using the hash printed above:
+
+    printf "<hash>\t<best_unbounded>\t<status>\t<description>\n" >> results_0.tsv
 
 Status values:
 
-- `keep` — score improved over the previous best; keep the change
-- `discard` — score was equal or worse; log first, then revert:
+- `keep` — score improved; keep the change
+- `discard` — score equal or worse; log first, then revert by running each command separately:
 
-      git checkout HEAD~1 -- solutions_<P>.cpp
+      git show HEAD~1:solutions_0.cpp > solutions_0.cpp
 
-- `crash` — official evaluation failed or score was `0.0`
+      git add solutions_0.cpp
+
+      git commit -m "p0 revert to previous"
+
+      git push origin HEAD
+
+- `crash` — evaluation failed or score was `0.0`
 
 ---
 
-## results\_<P>.tsv Format
+## results_0.tsv Format
 
-    commit   best_score  best_unbounded  status   description
-    a1b2c3d  67.109247   67.109247       keep     initial solution
-    b2c3d4e  68.421000   68.421000       keep     randomized piece ordering
-    c3d4e5f  66.900000   66.900000       discard  worse placement tie-breaker
-    d4e5f6g  0.000000    0.000000        crash    compile/runtime error from official evaluator
+    commit   best_unbounded  status   description
+    a1b2c3d  67.109247       keep     initial solution
+    b2c3d4e  68.421000       keep     improved approach
+    c3d4e5f  66.900000       discard  worse result
 
 ---
 
 ## Safety Rules
 
-- Always read `Frontier-CS/algorithmic/problems/<P>/statement.txt` before writing a solution for problem P
-- Always edit `solutions_<P>.cpp` when working on problem P — never the wrong file
+- Always read `Frontier-CS/algorithmic/problems/0/statement.txt` before writing a solution
+- Only edit `solutions_0.cpp`
+- Never read files inside `Frontier-CS/` except for `Frontier-CS/algorithmic/problems/0/statement.txt`
 - Never edit or create any file inside `Frontier-CS/`
 - Never change the evaluation command structure
-- Never use the wrong problem ID
-- Never manually compile
+- Never run `g++`, `clang++`, `gcc`, `make`, or any manual compile command
 - Always evaluate before committing
 - Always log the exact printed score
+- **Never use `$()`, `$var`, or `&&` chaining in any bash command. Every command must be run as a completely separate, standalone line with no variable substitution.**
+- Never read or copy from `reference_problem0.cpp` or any other existing solution file
 
 ---
 
 ## Simplicity Rule
 
 Prefer simpler code when scores are equal.
-Avoid large complexity increases for tiny gains.
 
 ---
 
 ## STOP WHEN DONE
 
-Complete exactly 15 iterations for each of problems 1–10 in order, then stop.
-Do not loop back. Do not ask the human for input during the run.
+Complete exactly 15 iterations, then stop. Do not ask the human for input during the run.
