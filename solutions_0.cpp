@@ -76,12 +76,14 @@ int main() {
         return ks[a] > ks[b];
     });
 
+    int finalSide = 0;
     auto tryPack = [&](int S, vector<tuple<int,int,int,int>>& result) -> bool {
         result.assign(n, make_tuple(0,0,0,0));
         int W = (S + 63) / 64 + 1;
         vector<vector<uint64_t>> grid(S, vector<uint64_t>(W, 0));
         vector<int> sky(S, 0);
         vector<int> prefMax(S+1, 0), sufMax(S+1, 0);
+        int curMaxW = 0;
         for (int ii : idx) {
             prefMax[0] = 0;
             for (int i = 0; i < S; i++) prefMax[i+1] = max(prefMax[i], sky[i]);
@@ -140,7 +142,11 @@ int main() {
             int Xi = bestX - orient.minx;
             int Yi = bestY - orient.miny;
             result[ii] = make_tuple(Xi, Yi, orient.R, orient.F);
+            if (bestX + orient.w > curMaxW) curMaxW = bestX + orient.w;
         }
+        int curMaxH = 0;
+        for (int c = 0; c < S; c++) if (sky[c] > curMaxH) curMaxH = sky[c];
+        finalSide = max(curMaxW, curMaxH);
         return true;
     };
 
@@ -149,7 +155,7 @@ int main() {
     vector<tuple<int,int,int,int>> result;
     while (!tryPack(S, result)) S++;
 
-    printf("%d %d\n", S, S);
+    printf("%d %d\n", finalSide, finalSide);
     for (int i = 0; i < n; i++) {
         auto& r = result[i];
         printf("%d %d %d %d\n", get<0>(r), get<1>(r), get<2>(r), get<3>(r));
