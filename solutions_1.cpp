@@ -219,17 +219,6 @@ int main() {
     vector<ll> best_sol(n, 0);
     ll best_val = 0;
 
-    for (int wi = 0; wi <= 20; wi++) {
-        double w = wi / 20.0;
-        auto x = greedy_w(w);
-        ll mass, vol;
-        ll v = eval_value(x, mass, vol);
-        if (v > best_val) {
-            best_val = v;
-            best_sol = x;
-        }
-    }
-
     lp_enumerate(best_sol, best_val);
 
     local_search(best_sol, 0.85, start);
