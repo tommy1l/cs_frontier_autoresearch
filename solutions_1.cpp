@@ -133,22 +133,33 @@ int main() {
 
     n = (int)names.size();
 
-    vector<ll> best_sol(n, 0);
-    ll best_val = 0;
-
+    vector<vector<ll>> starts;
     for (int wi = 0; wi <= 20; wi++) {
         double w = wi / 20.0;
-        auto x = greedy_w(w);
-        ll mass, vol;
+        starts.push_back(greedy_w(w));
+    }
+
+    sort(starts.begin(), starts.end(), [&](const vector<ll>& a, const vector<ll>& b) {
+        ll ma, va, mb, vb;
+        return eval_value(a, ma, va) > eval_value(b, mb, vb);
+    });
+
+    vector<ll> best_sol = starts[0];
+    ll mass, vol;
+    ll best_val = eval_value(best_sol, mass, vol);
+
+    const double TOTAL_BUDGET = 0.85;
+    for (auto& s : starts) {
+        double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
+        if (elapsed >= TOTAL_BUDGET) break;
+        vector<ll> x = s;
+        local_search(x, TOTAL_BUDGET, start);
         ll v = eval_value(x, mass, vol);
         if (v > best_val) {
             best_val = v;
             best_sol = x;
         }
     }
-
-    local_search(best_sol, 0.85, start);
-    ll mass, vol;
     best_val = eval_value(best_sol, mass, vol);
 
     cout << "{\n";
