@@ -139,35 +139,24 @@ void lp_enumerate(vector<ll>& best_sol, ll& best_val) {
 
 bool swap_improve(vector<ll>& x, ll& val, ll& mass, ll& vol) {
     bool any = false;
-    for (int j = 0; j < n; j++) {
-        if (x[j] == 0) continue;
-        for (int i = 0; i < n; i++) {
-            if (i == j) continue;
-            if (x[i] >= Q[i]) continue;
-
-            ll best_delta = 0;
-            ll best_rem = 0, best_add = 0;
-            ll xj = x[j];
-            for (ll rem = 1; rem <= xj; rem++) {
-                ll new_mass = mass - rem * M[j];
-                ll new_vol = vol - rem * L[j];
-                ll max_m = (M_CAP - new_mass) / M[i];
-                ll max_l = (L_CAP - new_vol) / L[i];
-                ll can_add = min({Q[i] - x[i], max_m, max_l});
-                if (can_add <= 0) continue;
-                ll delta = can_add * V[i] - rem * V[j];
-                if (delta > best_delta) {
-                    best_delta = delta;
-                    best_rem = rem;
-                    best_add = can_add;
-                }
-            }
-            if (best_delta > 0) {
-                x[j] -= best_rem;
-                x[i] += best_add;
-                mass = mass - best_rem * M[j] + best_add * M[i];
-                vol = vol - best_rem * L[j] + best_add * L[i];
-                val += best_delta;
+    for (int i = 0; i < n; i++) {
+        for (int k = i + 1; k < n; k++) {
+            ll fixed_m = mass - x[i]*M[i] - x[k]*M[k];
+            ll fixed_l = vol - x[i]*L[i] - x[k]*L[k];
+            ll fixed_v = val - x[i]*V[i] - x[k]*V[k];
+            ll rem_m = M_CAP - fixed_m;
+            ll rem_l = L_CAP - fixed_l;
+            if (rem_m < 0 || rem_l < 0) continue;
+            auto [a, b] = best_ab(i, k, rem_m, rem_l, Q[i], Q[k]);
+            ll new_val = fixed_v + a*V[i] + b*V[k];
+            if (new_val > val) {
+                ll dm = (a - x[i])*M[i] + (b - x[k])*M[k];
+                ll dl = (a - x[i])*L[i] + (b - x[k])*L[k];
+                val = new_val;
+                mass += dm;
+                vol += dl;
+                x[i] = a;
+                x[k] = b;
                 any = true;
             }
         }
