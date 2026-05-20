@@ -282,25 +282,25 @@ int main()
                         if (gg < l)
                             gg = l;
                         bool take = false;
-                        if (gg < bestg2)
+                        if (y0 < by02)
                             take = true;
-                        else if (gg == bestg2)
+                        else if (y0 == by02)
                         {
-                            if (dsum < bds2)
+                            if (gg < bestg2)
                                 take = true;
-                            else if (dsum == bds2)
+                            else if (gg == bestg2)
                             {
-                                if (l < bl2)
+                                if (dsum < bds2)
                                     take = true;
-                                else if (l == bl2)
+                                else if (dsum == bds2)
                                 {
-                                    if (dr < bdr2)
+                                    if (l < bl2)
                                         take = true;
-                                    else if (dr == bdr2)
+                                    else if (l == bl2)
                                     {
-                                        if (y0 < by02)
+                                        if (dr < bdr2)
                                             take = true;
-                                        else if (y0 == by02)
+                                        else if (dr == bdr2)
                                         {
                                             if (x0 < bx02)
                                                 take = true;
@@ -328,25 +328,25 @@ int main()
                 if (bti2 == -1)
                     continue;
                 bool take = false;
-                if (bestg2 < bestg)
+                if (by02 < by0)
                     take = true;
-                else if (bestg2 == bestg)
+                else if (by02 == by0)
                 {
-                    if (bds2 < bds)
+                    if (bestg2 < bestg)
                         take = true;
-                    else if (bds2 == bds)
+                    else if (bestg2 == bestg)
                     {
-                        if (bl2 < bl)
+                        if (bds2 < bds)
                             take = true;
-                        else if (bl2 == bl)
+                        else if (bds2 == bds)
                         {
-                            if (bdr2 < bdr)
+                            if (bl2 < bl)
                                 take = true;
-                            else if (bdr2 == bdr)
+                            else if (bl2 == bl)
                             {
-                                if (by02 < by0)
+                                if (bdr2 < bdr)
                                     take = true;
-                                else if (by02 == by0)
+                                else if (bdr2 == bdr)
                                 {
                                     if (bx02 < bx0)
                                         take = true;
