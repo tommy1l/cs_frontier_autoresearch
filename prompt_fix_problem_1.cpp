@@ -1,5 +1,6 @@
-// Treasure Packing: 2D bounded knapsack, 12 categories
-// Approach: multi-greedy start, then simulated annealing exploring a wider neighborhood
+// Treasure Packing: 2D bounded knapsack
+// Approach: Branch and bound. Order items by value-density. At each level branch on quantity.
+// Use LP upper bound = min(fractional-mass-knapsack, fractional-vol-knapsack) over remaining items.
 #include <bits/stdc++.h>
 using namespace std;
 
@@ -8,34 +9,62 @@ static vector<long long> q, v, mm, ll;
 static const long long M_CAP = 20000000LL;
 static const long long L_CAP = 25000000LL;
 
-long long evaluate(const vector<int>& take) {
-    long long mass = 0, vol = 0, val = 0;
-    for (int i = 0; i < n; ++i) {
-        mass += (long long)take[i] * mm[i];
-        vol  += (long long)take[i] * ll[i];
-        val  += (long long)take[i] * v[i];
-    }
-    if (mass > M_CAP || vol > L_CAP) return -1;
-    return val;
+static vector<int> ord;
+static vector<int> cur_take, best_take;
+static long long best_val;
+static chrono::steady_clock::time_point start_time;
+static bool budget_exceeded = false;
+
+double elapsed() {
+    return chrono::duration<double>(chrono::steady_clock::now() - start_time).count();
 }
 
-template<class F>
-vector<int> greedy_by(F score) {
-    vector<int> idx(n);
-    iota(idx.begin(), idx.end(), 0);
-    sort(idx.begin(), idx.end(), [&](int a, int b) { return score(a) > score(b); });
-    vector<int> take(n, 0);
-    long long mass = 0, vol = 0;
-    for (int i : idx) {
-        long long maxm = mm[i] > 0 ? (M_CAP - mass) / mm[i] : q[i];
-        long long maxv = ll[i] > 0 ? (L_CAP - vol)  / ll[i] : q[i];
-        long long cnt = min({q[i], maxm, maxv});
-        if (cnt < 0) cnt = 0;
-        take[i] = (int)cnt;
-        mass += cnt * mm[i];
-        vol  += cnt * ll[i];
+double lp_bound(int from, long long mass_left, long long vol_left) {
+    double bm = 0.0, bv = 0.0;
+    for (int t = from; t < n; ++t) {
+        int i = ord[t];
+        long long maxm = mm[i] > 0 ? mass_left / mm[i] : q[i];
+        long long take_m = min((long long)q[i], maxm);
+        bm += (double)take_m * v[i];
+        long long rem_m = mass_left - take_m * mm[i];
+        if (take_m < q[i] && mm[i] > 0 && rem_m > 0) {
+            bm += (double)v[i] * rem_m / (double)mm[i];
+        }
+        long long maxv = ll[i] > 0 ? vol_left / ll[i] : q[i];
+        long long take_v = min((long long)q[i], maxv);
+        bv += (double)take_v * v[i];
+        long long rem_v = vol_left - take_v * ll[i];
+        if (take_v < q[i] && ll[i] > 0 && rem_v > 0) {
+            bv += (double)v[i] * rem_v / (double)ll[i];
+        }
     }
-    return take;
+    return min(bm, bv);
+}
+
+void dfs(int depth, long long cur_val, long long mass_used, long long vol_used) {
+    if (budget_exceeded) return;
+    if (depth == n) {
+        if (cur_val > best_val) { best_val = cur_val; best_take = cur_take; }
+        return;
+    }
+    if (elapsed() > 0.65) { budget_exceeded = true; return; }
+    // Bound
+    long long mass_left = M_CAP - mass_used;
+    long long vol_left  = L_CAP - vol_used;
+    double bound = cur_val + lp_bound(depth, mass_left, vol_left);
+    if (bound <= (double)best_val + 0.5) return;
+    int i = ord[depth];
+    long long maxm = mm[i] > 0 ? mass_left / mm[i] : q[i];
+    long long maxv = ll[i] > 0 ? vol_left  / ll[i] : q[i];
+    long long maxk = min({q[i], maxm, maxv});
+    if (maxk < 0) maxk = 0;
+    // Try quantities from maxk down to 0
+    for (long long k = maxk; k >= 0; --k) {
+        cur_take[i] = (int)k;
+        dfs(depth + 1, cur_val + k * v[i], mass_used + k * mm[i], vol_used + k * ll[i]);
+        if (budget_exceeded) return;
+    }
+    cur_take[i] = 0;
 }
 
 int main() {
@@ -43,7 +72,6 @@ int main() {
     cin.tie(0);
 
     string s((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());
-
     vector<string> names;
     int pos = 0;
     while ((int)names.size() < 12) {
@@ -77,146 +105,37 @@ int main() {
     }
     n = (int)names.size();
 
-    vector<vector<int>> cands;
-    for (int wi = 0; wi <= 40; ++wi) {
-        double w = wi / 40.0;
-        cands.push_back(greedy_by([&, w](int i) {
-            return (double)v[i] / (w * mm[i] / (double)M_CAP + (1.0 - w) * ll[i] / (double)L_CAP);
-        }));
-    }
-    cands.push_back(greedy_by([&](int i) { return (double)v[i] / (double)mm[i]; }));
-    cands.push_back(greedy_by([&](int i) { return (double)v[i] / (double)ll[i]; }));
-    cands.push_back(greedy_by([&](int i) {
-        return (double)v[i] / max(mm[i] / (double)M_CAP, ll[i] / (double)L_CAP);
-    }));
-
-    vector<int> best = cands[0];
-    long long best_val = evaluate(best);
-    for (auto& c : cands) {
-        long long vv = evaluate(c);
-        if (vv > best_val) { best_val = vv; best = c; }
-    }
-
-    auto compute_state = [&](const vector<int>& t) {
-        long long mass = 0, vol = 0, val = 0;
-        for (int i = 0; i < n; ++i) {
-            mass += (long long)t[i] * mm[i];
-            vol  += (long long)t[i] * ll[i];
-            val  += (long long)t[i] * v[i];
-        }
-        return tuple<long long, long long, long long>(mass, vol, val);
+    // Initialize incumbent with greedy
+    ord.assign(n, 0);
+    iota(ord.begin(), ord.end(), 0);
+    auto density = [&](int i) {
+        return (double)v[i] / (mm[i] / (double)M_CAP + ll[i] / (double)L_CAP);
     };
+    sort(ord.begin(), ord.end(), [&](int a, int b) { return density(a) > density(b); });
 
-    // Simulated annealing starting from best greedy
-    mt19937_64 rng(0xC0FFEE);
-    vector<int> cur = best;
-    auto [cur_mass, cur_vol, cur_val] = compute_state(cur);
-    long long best_overall_val = best_val;
-    vector<int> best_overall = best;
-
-    auto start_time = chrono::steady_clock::now();
-    auto elapsed = [&]() {
-        return chrono::duration<double>(chrono::steady_clock::now() - start_time).count();
-    };
-
-    double TIME_LIMIT = 0.75;
-    double T0 = 1e7;
-    long long iter = 0;
-    while (elapsed() < TIME_LIMIT) {
-        iter++;
-        double frac = elapsed() / TIME_LIMIT;
-        double T = T0 * pow(1e-4, frac);
-
-        int move_type = (int)(rng() % 100);
-        int i = (int)(rng() % n);
-
-        if (move_type < 40) {
-            // Adjust single category by small delta
-            int range = 3 + (int)(rng() % 5);
-            int delta = (int)(rng() % (2 * range + 1)) - range;
-            if (delta == 0) continue;
-            long long new_take = (long long)cur[i] + delta;
-            if (new_take < 0 || new_take > q[i]) continue;
-            long long nm = cur_mass + (long long)delta * mm[i];
-            long long nv = cur_vol  + (long long)delta * ll[i];
-            if (nm > M_CAP || nv > L_CAP) continue;
-            long long nval = cur_val + (long long)delta * v[i];
-            long long dval = nval - cur_val;
-            double accept = dval >= 0 ? 1.0 : exp((double)dval / T);
-            if ((double)rng() / (double)rng.max() < accept) {
-                cur[i] = (int)new_take;
-                cur_mass = nm; cur_vol = nv; cur_val = nval;
-                if (cur_val > best_overall_val) { best_overall_val = cur_val; best_overall = cur; }
-            }
-        } else if (move_type < 80) {
-            // Swap: remove a few of i, add up to capacity of j
-            int j = (int)(rng() % n);
-            if (i == j) continue;
-            if (cur[i] == 0) continue;
-            int remove = 1 + (int)(rng() % min((long long)5, (long long)cur[i]));
-            long long free_mass = M_CAP - cur_mass + (long long)remove * mm[i];
-            long long free_vol  = L_CAP - cur_vol  + (long long)remove * ll[i];
-            long long max_add_m = mm[j] > 0 ? free_mass / mm[j] : q[j];
-            long long max_add_v = ll[j] > 0 ? free_vol  / ll[j] : q[j];
-            long long max_add = min({q[j] - (long long)cur[j], max_add_m, max_add_v});
-            if (max_add <= 0) continue;
-            long long add = 1 + (long long)(rng() % (max_add));
-            if (add > max_add) add = max_add;
-            long long dval = add * v[j] - (long long)remove * v[i];
-            double accept = dval >= 0 ? 1.0 : exp((double)dval / T);
-            if ((double)rng() / (double)rng.max() < accept) {
-                cur[i] -= remove;
-                cur[j] += (int)add;
-                cur_mass += add * mm[j] - (long long)remove * mm[i];
-                cur_vol  += add * ll[j] - (long long)remove * ll[i];
-                cur_val  += dval;
-                if (cur_val > best_overall_val) { best_overall_val = cur_val; best_overall = cur; }
-            }
-        } else {
-            // Kick: large random perturbation
-            int delta = (int)(rng() % 21) - 10;
-            if (delta == 0) continue;
-            long long new_take = (long long)cur[i] + delta;
-            if (new_take < 0) new_take = 0;
-            if (new_take > q[i]) new_take = q[i];
-            long long actual = new_take - cur[i];
-            long long nm = cur_mass + actual * mm[i];
-            long long nv = cur_vol  + actual * ll[i];
-            if (nm > M_CAP || nv > L_CAP) continue;
-            long long nval = cur_val + actual * v[i];
-            long long dval = nval - cur_val;
-            double accept = dval >= 0 ? 1.0 : exp((double)dval / T);
-            if ((double)rng() / (double)rng.max() < accept) {
-                cur[i] = (int)new_take;
-                cur_mass = nm; cur_vol = nv; cur_val = nval;
-                if (cur_val > best_overall_val) { best_overall_val = cur_val; best_overall = cur; }
-            }
-        }
-    }
-
-    best = best_overall;
-
-    // Final deterministic polish: keep adding any items that still fit
+    cur_take.assign(n, 0);
+    best_take.assign(n, 0);
+    best_val = 0;
     {
         long long mass = 0, vol = 0;
-        for (int i = 0; i < n; ++i) { mass += (long long)best[i] * mm[i]; vol += (long long)best[i] * ll[i]; }
-        bool improved = true;
-        while (improved) {
-            improved = false;
-            for (int i = 0; i < n; ++i) {
-                while (best[i] < q[i] && mass + mm[i] <= M_CAP && vol + ll[i] <= L_CAP) {
-                    best[i]++;
-                    mass += mm[i];
-                    vol  += ll[i];
-                    improved = true;
-                }
-            }
+        for (int i : ord) {
+            long long maxm = mm[i] > 0 ? (M_CAP - mass) / mm[i] : q[i];
+            long long maxv = ll[i] > 0 ? (L_CAP - vol)  / ll[i] : q[i];
+            long long cnt = min({q[i], maxm, maxv});
+            if (cnt < 0) cnt = 0;
+            best_take[i] = (int)cnt;
+            mass += cnt * mm[i];
+            vol  += cnt * ll[i];
+            best_val += cnt * v[i];
         }
     }
+
+    start_time = chrono::steady_clock::now();
+    dfs(0, 0, 0, 0);
 
     cout << "{\n";
     for (int i = 0; i < n; ++i) {
-        cout << " \"" << names[i] << "\": " << best[i];
+        cout << " \"" << names[i] << "\": " << best_take[i];
         if (i + 1 < n) cout << ",";
         cout << "\n";
     }
