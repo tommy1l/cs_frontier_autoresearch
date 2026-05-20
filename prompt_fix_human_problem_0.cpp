@@ -560,6 +560,93 @@ int main()
         bestR = r;
         hasBestmine = true;
     }
+    {
+        int H0 = bestR.H;
+        int Wmax = 0;
+        for (auto &pp : bestR.pl)
+        {
+            auto &tt = ps[pp.idx].t[pp.ti];
+            for (auto &c : tt.c)
+                Wmax = max(Wmax, pp.x + c.first + 1);
+        }
+        if (H0 > 0 && Wmax > 0)
+        {
+            vector<vector<char>> occ(H0, vector<char>(Wmax, 0));
+            for (auto &pp : bestR.pl)
+            {
+                auto &tt = ps[pp.idx].t[pp.ti];
+                for (auto &c : tt.c)
+                {
+                    int xx = pp.x + c.first, yy = pp.y + c.second;
+                    if (xx >= 0 && xx < Wmax && yy >= 0 && yy < H0)
+                        occ[yy][xx] = 1;
+                }
+            }
+            vector<pair<int, int>> holes;
+            for (int y = 0; y < H0; y++)
+                for (int x = 0; x < Wmax; x++)
+                    if (!occ[y][x])
+                        holes.push_back({y, x});
+            sort(holes.begin(), holes.end());
+            vector<int> monoIdxs;
+            for (int i = 0; i < (int)bestR.pl.size(); i++)
+                if (ps[bestR.pl[i].idx].k == 1)
+                    monoIdxs.push_back(i);
+            sort(monoIdxs.begin(), monoIdxs.end(), [&](int a, int b)
+                 { return bestR.pl[a].y > bestR.pl[b].y; });
+            size_t hi = 0;
+            for (int mi : monoIdxs)
+            {
+                auto &pp = bestR.pl[mi];
+                auto &tt = ps[pp.idx].t[pp.ti];
+                int curY = pp.y + tt.c[0].second;
+                int curX = pp.x + tt.c[0].first;
+                while (hi < holes.size())
+                {
+                    int hy = holes[hi].first, hx = holes[hi].second;
+                    if (hy >= curY)
+                        break;
+                    if (!occ[hy][hx])
+                    {
+                        occ[curY][curX] = 0;
+                        occ[hy][hx] = 1;
+                        pp.x = hx - tt.c[0].first;
+                        pp.y = hy - tt.c[0].second;
+                        hi++;
+                        break;
+                    }
+                    hi++;
+                }
+            }
+            int newH = 0, newMaxX = -1;
+            for (auto &pp : bestR.pl)
+            {
+                auto &tt = ps[pp.idx].t[pp.ti];
+                for (auto &c : tt.c)
+                {
+                    newH = max(newH, pp.y + c.second + 1);
+                    newMaxX = max(newMaxX, pp.x + c.first);
+                }
+            }
+            bestR.H = newH;
+            if (newMaxX >= 0)
+            {
+                vector<char> usedC(newMaxX + 1, false);
+                for (auto &pp : bestR.pl)
+                {
+                    auto &tt = ps[pp.idx].t[pp.ti];
+                    for (auto &c : tt.c)
+                        usedC[pp.x + c.first] = true;
+                }
+                int wf = 0;
+                for (int x = 0; x <= newMaxX; x++)
+                    if (usedC[x])
+                        wf++;
+                bestR.W = max(1, wf);
+            }
+            bestR.A = 1LL * bestR.W * bestR.H;
+        }
+    }
     int maxX = -1;
     for (auto &p : bestR.pl)
     {
