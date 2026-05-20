@@ -525,21 +525,6 @@ int main()
         int W = Ws[wi];
         vector<vector<int>> orders;
         orders.push_back(ord4());
-        {
-            auto o2 = ord4();
-            reverse(o2.begin(), o2.end());
-            orders.push_back(move(o2));
-            auto o3 = idx;
-            stable_sort(o3.begin(), o3.end(), [&](int a, int b)
-                        {
-                if (ps[a].k != ps[b].k) return ps[a].k > ps[b].k;
-                return ps[a].id < ps[b].id; });
-            orders.push_back(move(o3));
-            auto o4 = ord4();
-            for (int i = (int)o4.size() - 1; i > 0; i--)
-                swap(o4[i], o4[rng.rint(i + 1)]);
-            orders.push_back(move(o4));
-        }
         int oi = 0;
         while (oi < (int)orders.size())
         {
