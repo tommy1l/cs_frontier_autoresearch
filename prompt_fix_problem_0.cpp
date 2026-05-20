@@ -3,8 +3,8 @@ using namespace std;
 
 struct Orient {
     int w, h, R, F;
-    int mnx, mny; // mins of transformed cells before normalization
-    vector<pair<int,int>> cells; // normalized to start at (0,0)
+    int mnx, mny;
+    vector<pair<int,int>> cells;
 };
 
 int main(){
@@ -48,11 +48,16 @@ int main(){
 
     vector<vector<Orient>> ori(n);
     for(int i = 0; i < n; i++){
+        set<vector<pair<int,int>>> seen;
         for(int F = 0; F < 2; F++){
             for(int R = 0; R < 4; R++){
                 auto tup = apply_transform(P[i], R, F);
                 auto& c = get<0>(tup);
                 int mx = get<1>(tup), my = get<2>(tup);
+                auto c_sorted = c;
+                sort(c_sorted.begin(), c_sorted.end());
+                if(seen.count(c_sorted)) continue;
+                seen.insert(c_sorted);
                 int w = 0, h = 0;
                 for(auto& pr : c){
                     w = max(w, pr.first + 1);
@@ -67,83 +72,89 @@ int main(){
         }
     }
 
-    // Pick orientation minimizing height (ties: smaller width)
-    vector<int> pick(n);
-    for(int i = 0; i < n; i++){
-        int best = 0;
-        for(int j = 1; j < 8; j++){
-            const auto& a = ori[i][j];
-            const auto& b = ori[i][best];
-            if(a.h < b.h || (a.h == b.h && a.w < b.w)) best = j;
-        }
-        pick[i] = best;
-    }
-
-    // Sort pieces by height desc, then width desc
+    // Sort pieces by maximum dimension desc, then cell count desc
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b){
-        const auto& A = ori[a][pick[a]];
-        const auto& B = ori[b][pick[b]];
-        if(A.h != B.h) return A.h > B.h;
-        return A.w > B.w;
+        int ma = 0, mb = 0;
+        for(auto& o : ori[a]) ma = max(ma, max(o.w, o.h));
+        for(auto& o : ori[b]) mb = max(mb, max(o.w, o.h));
+        if(ma != mb) return ma > mb;
+        return P[a].size() > P[b].size();
     });
 
-    int max_w = 0;
-    for(int i = 0; i < n; i++){
-        max_w = max(max_w, ori[i][pick[i]].w);
-    }
+    // Bottom-left packing using skyline + bitmap.
+    auto try_pack = [&](int S, vector<tuple<int,int,int,int>>& placements) -> bool {
+        vector<int> skyline(S, 0);
+        vector<vector<char>> grid(S, vector<char>(S, 0));
+        placements.assign(n, make_tuple(0,0,0,0));
 
-    int Smin = max(max_w, (int)ceil(sqrt((double)T)));
-    int Smax = 4 * Smin + 20;
-
-    long long best_area = LLONG_MAX;
-    int best_S = Smin;
-    for(int S = Smin; S <= Smax; S++){
-        int curX = 0, curY = 0, shelfH = 0;
         for(int idx : order){
-            const auto& o = ori[idx][pick[idx]];
-            if(curX + o.w > S){
-                curY += shelfH;
-                curX = 0;
-                shelfH = 0;
+            int best_y = INT_MAX, best_x = 0, best_orient = 0;
+            for(int oi = 0; oi < (int)ori[idx].size(); oi++){
+                const auto& o = ori[idx][oi];
+                if(o.w > S || o.h > S) continue;
+                for(int X = 0; X + o.w <= S; X++){
+                    int Y_lb = 0;
+                    for(const auto& cell : o.cells){
+                        int req = skyline[X + cell.first] - cell.second;
+                        if(req > Y_lb) Y_lb = req;
+                    }
+                    if(Y_lb < 0) Y_lb = 0;
+                    if(Y_lb + o.h > S) continue;
+
+                    int Y = Y_lb;
+                    bool found = false;
+                    while(Y + o.h <= S){
+                        bool ok = true;
+                        for(const auto& cell : o.cells){
+                            if(grid[X + cell.first][Y + cell.second]){
+                                ok = false; break;
+                            }
+                        }
+                        if(ok){ found = true; break; }
+                        Y++;
+                    }
+                    if(!found) continue;
+
+                    if(Y < best_y || (Y == best_y && X < best_x)){
+                        best_y = Y;
+                        best_x = X;
+                        best_orient = oi;
+                    }
+                }
             }
-            curX += o.w;
-            shelfH = max(shelfH, o.h);
+            if(best_y == INT_MAX) return false;
+            const auto& o = ori[idx][best_orient];
+            int X = best_x, Y = best_y;
+            for(const auto& cell : o.cells){
+                grid[X + cell.first][Y + cell.second] = 1;
+                int top = Y + cell.second + 1;
+                if(top > skyline[X + cell.first]) skyline[X + cell.first] = top;
+            }
+            placements[idx] = make_tuple(X - o.mnx, Y - o.mny, o.R, o.F);
         }
-        int H = curY + shelfH;
-        int side = max(S, H);
-        long long area = (long long)side * side;
-        if(area < best_area){
-            best_area = area;
-            best_S = S;
+        return true;
+    };
+
+    int Smin = max(10, (int)ceil(sqrt((double)T)));
+    int S = Smin;
+    vector<tuple<int,int,int,int>> placements;
+    while(true){
+        if(try_pack(S, placements)) break;
+        S++;
+        if(S > Smin * 3 + 20){ // safety
+            try_pack(S, placements);
+            break;
         }
     }
 
-    int S = best_S;
-    int curX = 0, curY = 0, shelfH = 0;
-    vector<tuple<int,int,int,int>> place(n);
-    for(int idx : order){
-        const auto& o = ori[idx][pick[idx]];
-        if(curX + o.w > S){
-            curY += shelfH;
-            curX = 0;
-            shelfH = 0;
-        }
-        int X = curX - o.mnx;
-        int Y = curY - o.mny;
-        place[idx] = make_tuple(X, Y, o.R, o.F);
-        curX += o.w;
-        shelfH = max(shelfH, o.h);
-    }
-    int H = curY + shelfH;
-    int side = max(S, H);
-    printf("%d %d\n", side, side);
+    printf("%d %d\n", S, S);
     for(int i = 0; i < n; i++){
-        int X = get<0>(place[i]);
-        int Y = get<1>(place[i]);
-        int R = get<2>(place[i]);
-        int F = get<3>(place[i]);
+        int X = get<0>(placements[i]);
+        int Y = get<1>(placements[i]);
+        int R = get<2>(placements[i]);
+        int F = get<3>(placements[i]);
         printf("%d %d %d %d\n", X, Y, R, F);
     }
     return 0;
