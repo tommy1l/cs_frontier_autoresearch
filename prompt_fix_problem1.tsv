@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+e6b4c57	99.613333	keep	initial solution
+b4b4d60	100	keep	simulated annealing on multi-greedy start
+12068b6	99.46	discard	quantized 2D DP with binary expansion
+f2fecd5	99.613333	discard	multi-restart deterministic local search
+d81c90c	95.006667	discard	Lagrangian dual variable grid search
+c120159	98.893333	discard	genetic algorithm
+4ded898	0	crash	Pareto-frontier DP (TLE from O(N^2) pruning)
+fbc1891	0	crash	tabu search
+9be7ad7	93.813333	discard	beam search
+4ed46e6	99.613333	discard	iterated local search
+31be0bf	99.613333	discard	pair-enumeration + greedy fill
+9efed09	99.613333	discard	large neighborhood search
+18ca8ec	96.066667	discard	branch and bound with LP upper bound
+3ac7c99	99.613333	discard	GRASP
+9de76a3	32.32	discard	differential evolution
