@@ -582,41 +582,75 @@ int main()
                         occ[yy][xx] = 1;
                 }
             }
-            vector<pair<int, int>> holes;
-            for (int y = 0; y < H0; y++)
-                for (int x = 0; x < Wmax; x++)
-                    if (!occ[y][x])
-                        holes.push_back({y, x});
-            sort(holes.begin(), holes.end());
-            vector<int> monoIdxs;
+            const int KMAX = 3;
+            vector<int> smallIdxs;
             for (int i = 0; i < (int)bestR.pl.size(); i++)
-                if (ps[bestR.pl[i].idx].k == 1)
-                    monoIdxs.push_back(i);
-            sort(monoIdxs.begin(), monoIdxs.end(), [&](int a, int b)
-                 { return bestR.pl[a].y > bestR.pl[b].y; });
-            size_t hi = 0;
-            for (int mi : monoIdxs)
+                if (ps[bestR.pl[i].idx].k <= KMAX)
+                    smallIdxs.push_back(i);
+            sort(smallIdxs.begin(), smallIdxs.end(), [&](int a, int b)
+                 {
+                auto &pa = bestR.pl[a]; auto &pb = bestR.pl[b];
+                auto &ta = ps[pa.idx].t[pa.ti]; auto &tb = ps[pb.idx].t[pb.ti];
+                int ya = 0; for (auto &c : ta.c) ya = max(ya, pa.y + c.second);
+                int yb = 0; for (auto &c : tb.c) yb = max(yb, pb.y + c.second);
+                return ya > yb; });
+            auto tStartPost = chrono::steady_clock::now();
+            double tlPost = 250.0;
+            for (int mi : smallIdxs)
             {
+                auto now = chrono::steady_clock::now();
+                if (chrono::duration<double, milli>(now - tStartPost).count() > tlPost)
+                    break;
                 auto &pp = bestR.pl[mi];
-                auto &tt = ps[pp.idx].t[pp.ti];
-                int curY = pp.y + tt.c[0].second;
-                int curX = pp.x + tt.c[0].first;
-                while (hi < holes.size())
+                auto &pr = ps[pp.idx];
+                auto &tCur = pr.t[pp.ti];
+                for (auto &c : tCur.c)
+                    occ[pp.y + c.second][pp.x + c.first] = 0;
+                int curMaxY = 0;
+                for (auto &c : tCur.c)
+                    curMaxY = max(curMaxY, pp.y + c.second);
+                int bestMY = curMaxY;
+                int bestX = pp.x, bestY = pp.y, bestTi = pp.ti;
+                for (int ti = 0; ti < (int)pr.t.size(); ti++)
                 {
-                    int hy = holes[hi].first, hx = holes[hi].second;
-                    if (hy >= curY)
-                        break;
-                    if (!occ[hy][hx])
+                    auto &tt = pr.t[ti];
+                    if (tt.w > Wmax || tt.h > H0)
+                        continue;
+                    bool found = false;
+                    for (int y0 = 0; y0 + tt.h <= H0 && !found; y0++)
                     {
-                        occ[curY][curX] = 0;
-                        occ[hy][hx] = 1;
-                        pp.x = hx - tt.c[0].first;
-                        pp.y = hy - tt.c[0].second;
-                        hi++;
-                        break;
+                        int newMax = y0 + tt.h - 1;
+                        if (newMax >= bestMY)
+                            break;
+                        for (int x0 = 0; x0 + tt.w <= Wmax; x0++)
+                        {
+                            bool ok = true;
+                            for (auto &c : tt.c)
+                            {
+                                if (occ[y0 + c.second][x0 + c.first])
+                                {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                            {
+                                bestMY = newMax;
+                                bestX = x0;
+                                bestY = y0;
+                                bestTi = ti;
+                                found = true;
+                                break;
+                            }
+                        }
                     }
-                    hi++;
                 }
+                auto &tt = pr.t[bestTi];
+                for (auto &c : tt.c)
+                    occ[bestY + c.second][bestX + c.first] = 1;
+                pp.x = bestX;
+                pp.y = bestY;
+                pp.ti = bestTi;
             }
             int newH = 0, newMaxX = -1;
             for (auto &pp : bestR.pl)
