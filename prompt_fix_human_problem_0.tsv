@@ -1,1 +1,16 @@
 commit	best_unbounded	status	description
+e177220	89.079091	keep	human baseline
+95ba01d	33.308753	discard	force square output W=H=max
+d3fc8c2	87.978022	discard	largest k first ordering
+43d283d	87.822076	discard	multi-orderings per width
+56117b1	50.350085	discard	dsum primary cost
+4db8d9c	88.989516	discard	y0 primary cost (BLF)
+1fcfa72	89.100191	keep	monomino hole-filling post-process
+f21414b	87.697923	discard	2D pieces first ordering
+425b7dd	89.073791	discard	generalize hole-fill k<=3
+8b3061e	89.092453	discard	top-piece iterative relocation
+993dd6e	87.801044	discard	max-dim ascending sort
+91c5036	89.058892	discard	monominos last in ord4
+8538db2	89.081960	discard	domino hole-fill after monomino
+0682758	88.855167	discard	larger k first within min-dim
+af5e572	87.353573	discard	density secondary sort
