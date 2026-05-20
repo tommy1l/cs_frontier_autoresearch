@@ -228,6 +228,36 @@ int main(){
         });
         orderings.push_back(o);
     }
+    // Ordering 4: perimeter (max w+h across orientations) desc
+    auto perim = [&](int i){
+        int m = 0;
+        for(auto& o : ori[i]) m = max(m, o.w + o.h);
+        return m;
+    };
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int pa = perim(a), pb = perim(b);
+            if(pa != pb) return pa > pb;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
+    // Ordering 5: bbox area (max w*h across orientations) desc
+    auto bbox_area = [&](int i){
+        int m = 0;
+        for(auto& o : ori[i]) m = max(m, o.w * o.h);
+        return m;
+    };
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int aa = bbox_area(a), ab = bbox_area(b);
+            if(aa != ab) return aa > ab;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
 
     int Smin = max(10, (int)ceil(sqrt((double)T)));
 
