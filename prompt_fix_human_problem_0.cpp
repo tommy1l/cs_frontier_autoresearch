@@ -176,6 +176,9 @@ int main()
         vector<int> res = idx;
         stable_sort(res.begin(), res.end(), [&](int a, int b)
                     {
+            bool a1 = (ps[a].k == 1);
+            bool b1 = (ps[b].k == 1);
+            if (a1 != b1) return !a1;
             int da = min(ps[a].minW, ps[a].minH);
             int db = min(ps[b].minW, ps[b].minH);
             if (da != db) return da < db;
