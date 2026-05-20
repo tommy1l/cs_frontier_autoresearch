@@ -5,7 +5,7 @@ struct Orient {
     int w, h, R, F;
     int mnx, mny;
     vector<pair<int,int>> cells;
-    vector<int> col_min_y; // for each x in [0,w), minimum cell.y in that column (INT_MAX if none)
+    vector<int> col_min_y;
 };
 
 int main(){
@@ -77,18 +77,7 @@ int main(){
         }
     }
 
-    // Sort pieces by cell count desc, then max dim desc
-    vector<int> order(n);
-    iota(order.begin(), order.end(), 0);
-    sort(order.begin(), order.end(), [&](int a, int b){
-        if(P[a].size() != P[b].size()) return P[a].size() > P[b].size();
-        int ma = 0, mb = 0;
-        for(auto& o : ori[a]) ma = max(ma, max(o.w, o.h));
-        for(auto& o : ori[b]) mb = max(mb, max(o.w, o.h));
-        return ma > mb;
-    });
-
-    auto try_pack = [&](int S, vector<tuple<int,int,int,int>>& placements) -> bool {
+    auto try_pack = [&](const vector<int>& order, int S, vector<tuple<int,int,int,int>>& placements) -> bool {
         vector<int> skyline(S, 0);
         vector<vector<char>> grid(S, vector<char>(S, 0));
         placements.assign(n, make_tuple(0,0,0,0));
@@ -108,6 +97,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
+                    if(Y_lb > best_y) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -122,8 +112,8 @@ int main(){
                         Y++;
                     }
                     if(!found) continue;
+                    if(Y > best_y) continue;
 
-                    // Compute shadow: empty cells trapped beneath this placement, per piece column
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
                         if(o.col_min_y[c] == INT_MAX) continue;
@@ -159,24 +149,87 @@ int main(){
         return true;
     };
 
+    // Build several orderings
+    vector<int> base(n);
+    iota(base.begin(), base.end(), 0);
+
+    auto max_dim = [&](int i){
+        int m = 0;
+        for(auto& o : ori[i]) m = max(m, max(o.w, o.h));
+        return m;
+    };
+    auto min_dim = [&](int i){
+        int m = INT_MAX;
+        for(auto& o : ori[i]) m = min(m, min(o.w, o.h));
+        return m;
+    };
+
+    vector<vector<int>> orderings;
+
+    // Ordering 1: cell count desc, max dim desc
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            if(P[a].size() != P[b].size()) return P[a].size() > P[b].size();
+            return max_dim(a) > max_dim(b);
+        });
+        orderings.push_back(o);
+    }
+    // Ordering 2: max dim desc, cell count desc
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int ma = max_dim(a), mb = max_dim(b);
+            if(ma != mb) return ma > mb;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
+    // Ordering 3: min dim desc (squarest first), cell count desc
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int ma = min_dim(a), mb = min_dim(b);
+            if(ma != mb) return ma > mb;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
+
     int Smin = max(10, (int)ceil(sqrt((double)T)));
-    int S = Smin;
-    vector<tuple<int,int,int,int>> placements;
-    while(true){
-        if(try_pack(S, placements)) break;
-        S++;
-        if(S > Smin * 3 + 20){
-            try_pack(S, placements);
-            break;
+
+    int best_S = INT_MAX;
+    vector<tuple<int,int,int,int>> best_placements;
+    for(const auto& ord : orderings){
+        int S = Smin;
+        vector<tuple<int,int,int,int>> placements;
+        while(true){
+            if(S >= best_S) break;
+            if(try_pack(ord, S, placements)){
+                if(S < best_S){
+                    best_S = S;
+                    best_placements = placements;
+                }
+                break;
+            }
+            S++;
+            if(S > Smin * 3 + 20){
+                try_pack(ord, S, placements);
+                if(S < best_S){
+                    best_S = S;
+                    best_placements = placements;
+                }
+                break;
+            }
         }
     }
 
-    printf("%d %d\n", S, S);
+    printf("%d %d\n", best_S, best_S);
     for(int i = 0; i < n; i++){
-        int X = get<0>(placements[i]);
-        int Y = get<1>(placements[i]);
-        int R = get<2>(placements[i]);
-        int F = get<3>(placements[i]);
+        int X = get<0>(best_placements[i]);
+        int Y = get<1>(best_placements[i]);
+        int R = get<2>(best_placements[i]);
+        int F = get<3>(best_placements[i]);
         printf("%d %d %d %d\n", X, Y, R, F);
     }
     return 0;
