@@ -86,10 +86,6 @@ int main(){
         placements.assign(n, make_tuple(0,0,0,0));
 
         for(int idx : order){
-            int cur_max_top = 0;
-            for(int c = 0; c < S; c++) if(skyline[c] > cur_max_top) cur_max_top = skyline[c];
-
-            int best_eff_max = INT_MAX;
             int best_top = INT_MAX;
             long long best_shadow = LLONG_MAX;
             long long best_jag = LLONG_MAX;
@@ -106,8 +102,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
-                    int lb_eff = max(cur_max_top, Y_lb + o.h);
-                    if(lb_eff > best_eff_max) continue;
+                    if(Y_lb + o.h > best_top) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -123,8 +118,7 @@ int main(){
                     }
                     if(!found) continue;
                     int top = Y + o.h;
-                    int eff_max = max(cur_max_top, top);
-                    if(eff_max > best_eff_max) continue;
+                    if(top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -134,6 +128,7 @@ int main(){
                         if(bottom > sky) shadow += (bottom - sky);
                     }
 
+                    // Compute jaggedness delta in piece footprint + 1 boundary col on each side
                     int lo = (X > 0) ? X - 1 : 0;
                     int hi = (X + o.w < S) ? X + o.w + 1 : S;
                     long long jag_delta = 0;
@@ -153,22 +148,18 @@ int main(){
                     }
 
                     bool better = false;
-                    if(eff_max < best_eff_max) better = true;
-                    else if(eff_max == best_eff_max){
+                    if(top < best_top) better = true;
+                    else if(top == best_top){
                         if(shadow < best_shadow) better = true;
                         else if(shadow == best_shadow){
                             if(jag_delta < best_jag) better = true;
                             else if(jag_delta == best_jag){
-                                if(top < best_top) better = true;
-                                else if(top == best_top){
-                                    if(Y < best_y_chosen) better = true;
-                                    else if(Y == best_y_chosen && X < best_x) better = true;
-                                }
+                                if(Y < best_y_chosen) better = true;
+                                else if(Y == best_y_chosen && X < best_x) better = true;
                             }
                         }
                     }
                     if(better){
-                        best_eff_max = eff_max;
                         best_top = top;
                         best_shadow = shadow;
                         best_jag = jag_delta;
@@ -178,7 +169,7 @@ int main(){
                     }
                 }
             }
-            if(best_eff_max == INT_MAX) return false;
+            if(best_top == INT_MAX) return false;
             const auto& o = ori[idx][best_orient];
             int X = best_x, Y = best_y_chosen;
             for(const auto& cell : o.cells){
