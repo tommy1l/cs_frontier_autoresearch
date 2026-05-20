@@ -282,13 +282,13 @@ int main()
                         if (gg < l)
                             gg = l;
                         bool take = false;
-                        if (gg < bestg2)
+                        if (dsum < bds2)
                             take = true;
-                        else if (gg == bestg2)
+                        else if (dsum == bds2)
                         {
-                            if (dsum < bds2)
+                            if (gg < bestg2)
                                 take = true;
-                            else if (dsum == bds2)
+                            else if (gg == bestg2)
                             {
                                 if (l < bl2)
                                     take = true;
@@ -328,13 +328,13 @@ int main()
                 if (bti2 == -1)
                     continue;
                 bool take = false;
-                if (bestg2 < bestg)
+                if (bds2 < bds)
                     take = true;
-                else if (bestg2 == bestg)
+                else if (bds2 == bds)
                 {
-                    if (bds2 < bds)
+                    if (bestg2 < bestg)
                         take = true;
-                    else if (bds2 == bds)
+                    else if (bestg2 == bestg)
                     {
                         if (bl2 < bl)
                             take = true;
