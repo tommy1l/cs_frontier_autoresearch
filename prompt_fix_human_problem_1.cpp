@@ -34,76 +34,8 @@ ll elapsed_ms() {
         chrono::steady_clock::now() - t_start).count();
 }
 
-// Coordinate descent: for each item, find optimal count given others fixed.
-ll coord_descent(const vector<Item>& items, vector<ll>& cnt, ll deadline_ms) {
-    int n = items.size();
-    ll usedM = 0, usedL = 0, val = 0;
-    for (int i = 0; i < n; ++i) {
-        usedM += cnt[i] * items[i].m;
-        usedL += cnt[i] * items[i].l;
-        val += cnt[i] * items[i].v;
-    }
-    bool improved = true;
-    while (improved && elapsed_ms() < deadline_ms) {
-        improved = false;
-        for (int i = 0; i < n && elapsed_ms() < deadline_ms; ++i) {
-            // Free up item i
-            ll mAvail = MAX_MASS - usedM + cnt[i] * items[i].m;
-            ll vAvail = MAX_VOL - usedL + cnt[i] * items[i].l;
-            ll best = min({items[i].q, mAvail / items[i].m, vAvail / items[i].l});
-            if (best != cnt[i]) {
-                ll delta = (best - cnt[i]);
-                usedM += delta * items[i].m;
-                usedL += delta * items[i].l;
-                val += delta * items[i].v;
-                cnt[i] = best;
-                improved = true;
-            }
-        }
-    }
-    return val;
-}
-
-// 2-opt swap optimization
-ll two_opt(const vector<Item>& items, vector<ll>& cnt, ll deadline_ms) {
-    int n = items.size();
-    ll usedM = 0, usedL = 0, val = 0;
-    for (int i = 0; i < n; ++i) {
-        usedM += cnt[i] * items[i].m;
-        usedL += cnt[i] * items[i].l;
-        val += cnt[i] * items[i].v;
-    }
-    bool improved = true;
-    while (improved && elapsed_ms() < deadline_ms) {
-        improved = false;
-        for (int i = 0; i < n && elapsed_ms() < deadline_ms; ++i) {
-            for (int j = i + 1; j < n; ++j) {
-                ll Mav = MAX_MASS - usedM + cnt[i]*items[i].m + cnt[j]*items[j].m;
-                ll Vav = MAX_VOL - usedL + cnt[i]*items[i].l + cnt[j]*items[j].l;
-                ll maxA = min({items[i].q, Mav / items[i].m, Vav / items[i].l});
-                ll bA = cnt[i], bB = cnt[j];
-                ll bP = cnt[i]*items[i].v + cnt[j]*items[j].v;
-                for (ll a = 0; a <= maxA; ++a) {
-                    ll Mr = Mav - a*items[i].m, Vr = Vav - a*items[i].l;
-                    if (Mr < 0 || Vr < 0) break;
-                    ll b = min({items[j].q, Mr/items[j].m, Vr/items[j].l});
-                    ll v = a*items[i].v + b*items[j].v;
-                    if (v > bP) { bP = v; bA = a; bB = b; }
-                }
-                if (bA != cnt[i] || bB != cnt[j]) {
-                    usedM += (bA - cnt[i])*items[i].m + (bB - cnt[j])*items[j].m;
-                    usedL += (bA - cnt[i])*items[i].l + (bB - cnt[j])*items[j].l;
-                    val += (bA - cnt[i])*items[i].v + (bB - cnt[j])*items[j].v;
-                    cnt[i] = bA; cnt[j] = bB;
-                    improved = true;
-                }
-            }
-        }
-    }
-    return val;
-}
-
-// Iterated local search: start from greedy, then loop: kick + local search.
+// Branch and bound on item counts in density-sorted order.
+// Upper bound via LP relaxation: greedily fill remaining with fractional taking.
 int main() {
     auto data = parseInput();
     vector<Item> items;
@@ -111,42 +43,65 @@ int main() {
         items.push_back({kv.first, kv.second[0], kv.second[1], kv.second[2], kv.second[3]});
     int n = items.size();
 
-    mt19937_64 rng(7777);
-
-    // Initial: greedy by v/(m+l)
+    // Sort items by density v/(m+l)
     vector<int> ord(n);
     iota(ord.begin(), ord.end(), 0);
     sort(ord.begin(), ord.end(), [&](int a, int b) {
         return (double)items[a].v / (items[a].m + items[a].l) >
                (double)items[b].v / (items[b].m + items[b].l);
     });
-    vector<ll> cnt(n, 0);
-    ll usedM = 0, usedL = 0;
-    for (int i : ord) {
-        ll t = min({items[i].q, (MAX_MASS - usedM) / items[i].m,
-                    (MAX_VOL - usedL) / items[i].l});
-        if (t > 0) { cnt[i] = t; usedM += t * items[i].m; usedL += t * items[i].l; }
-    }
 
-    coord_descent(items, cnt, 100);
-    ll bestVal = two_opt(items, cnt, 200);
-    vector<ll> bestCnt = cnt;
-
-    // ILS loop
-    while (elapsed_ms() < TIME_MS) {
-        // Kick: zero out 3 random items
-        cnt = bestCnt;
-        for (int k = 0; k < 3; ++k) {
-            int i = rng() % n;
-            cnt[i] = 0;
+    // Initial lower bound: greedy
+    vector<ll> bestCnt(n, 0);
+    ll bestVal = 0;
+    {
+        ll uM = 0, uL = 0;
+        for (int i : ord) {
+            ll t = min({items[i].q, (MAX_MASS - uM)/items[i].m, (MAX_VOL - uL)/items[i].l});
+            if (t > 0) {
+                bestCnt[i] = t; uM += t*items[i].m; uL += t*items[i].l; bestVal += t*items[i].v;
+            }
         }
-        // Then random fill / coord descent
-        ll dl1 = elapsed_ms() + 30;
-        coord_descent(items, cnt, min((ll)TIME_MS, dl1));
-        ll dl2 = elapsed_ms() + 80;
-        ll v = two_opt(items, cnt, min((ll)TIME_MS, dl2));
-        if (v > bestVal) { bestVal = v; bestCnt = cnt; }
     }
+
+    // LP upper bound (fractional knapsack on remaining)
+    function<double(int, ll, ll)> upperBound = [&](int idx, ll rM, ll rL) -> double {
+        double ub = 0;
+        for (int k = idx; k < n; ++k) {
+            int i = ord[k];
+            double tM = (double)rM / items[i].m;
+            double tL = (double)rL / items[i].l;
+            double t = min({(double)items[i].q, tM, tL});
+            if (t <= 0) continue;
+            ub += t * items[i].v;
+            rM -= (ll)(t * items[i].m);
+            rL -= (ll)(t * items[i].l);
+            if (rM <= 0 || rL <= 0) break;
+        }
+        return ub;
+    };
+
+    // Recursive B&B
+    vector<ll> cur(n, 0);
+    function<void(int, ll, ll, ll)> dfs = [&](int idx, ll rM, ll rL, ll val) {
+        if (elapsed_ms() > TIME_MS) return;
+        if (idx == n) {
+            if (val > bestVal) { bestVal = val; bestCnt = cur; }
+            return;
+        }
+        if (val + upperBound(idx, rM, rL) <= bestVal) return;
+        int i = ord[idx];
+        ll maxT = min({items[i].q, rM/items[i].m, rL/items[i].l});
+        // Branch from maxT down to 0 (try big first for better pruning)
+        for (ll t = maxT; t >= 0; --t) {
+            cur[i] = t;
+            dfs(idx + 1, rM - t*items[i].m, rL - t*items[i].l, val + t*items[i].v);
+            if (elapsed_ms() > TIME_MS) return;
+        }
+        cur[i] = 0;
+    };
+
+    dfs(0, MAX_MASS, MAX_VOL, 0);
 
     cout << "{";
     bool first = true;
