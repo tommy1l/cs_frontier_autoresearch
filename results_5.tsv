@@ -1,1 +1,8 @@
 commit	best_score	best_unbounded	status	description
+ff553d0	66.67	66.67	keep	initial greedy walk with restart
+5415fe5	66.67	66.67	keep	Warnsdorff heuristic with low-indeg starts
+6c942e9	70.00	70.00	keep	bidirectional greedy with backward extension
+c2d31a0	100	100	keep	DAG topological sort + longest-path DP
+b060517	100	100	keep	iterative DFS topo sort variant
+458058c	100	100	keep	forward+backward DP through any vertex
+7383ada	100	100	keep	vector-queue Kahn topo

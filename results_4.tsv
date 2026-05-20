@@ -3,3 +3,14 @@ commit	best_score	best_unbounded	status	description
 b67d388	26.63	26.63	keep	add row-merge + bottomright young + binary search fallback
 61f56c6	26.63	26.63	keep	cap binary search to 50000 queries
 cc92524	26.63	26.63	keep	remove binary search query cap
+8a2a000	29.37	29.37	keep	diagonal sampling tightens binary search bounds
+d069efe	20.18	29.37	discard	diagonal-index binary search with budget guard (worse)
+29f0cd5	49.31	49.31	keep	interpolation search in binary_search_value
+1d48e35	49.31	49.31	keep	lower row_merge threshold to 12n
+7ab7c8e	24.50	49.31	discard	analytical init + pure interpolation (worse)
+942850a	51.27	51.27	keep	seed interpolation counts from analytical rank bounds
+1322286	0	51.27	discard	persistent staircase row-by-row update (broke)
+ce09f91	50.00	51.27	discard	initial probe at diag[sqrt(k)] (slightly worse)
+e07725d	69.29	69.29	keep	quadratic Lagrange interpolation on last 3 points
+ed28295	69.28	69.29	discard	cubic Lagrange interpolation (slightly worse)
+85f0daa	69.29	69.29	keep	lower row_merge threshold to 13n
