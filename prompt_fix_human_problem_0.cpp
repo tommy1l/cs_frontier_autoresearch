@@ -618,6 +618,80 @@ int main()
                     hi++;
                 }
             }
+            auto tStartTop = chrono::steady_clock::now();
+            double tlTop = 200.0;
+            for (int it = 0; it < 50; it++)
+            {
+                auto now = chrono::steady_clock::now();
+                if (chrono::duration<double, milli>(now - tStartTop).count() > tlTop)
+                    break;
+                int bestIdx = -1, bestYMax = -1;
+                for (int i = 0; i < (int)bestR.pl.size(); i++)
+                {
+                    auto &pp = bestR.pl[i];
+                    auto &tt = ps[pp.idx].t[pp.ti];
+                    int ymax = 0;
+                    for (auto &c : tt.c)
+                        ymax = max(ymax, pp.y + c.second);
+                    if (ymax > bestYMax)
+                    {
+                        bestYMax = ymax;
+                        bestIdx = i;
+                    }
+                }
+                if (bestIdx < 0)
+                    break;
+                auto &pp = bestR.pl[bestIdx];
+                auto &pr = ps[pp.idx];
+                auto &tCur = pr.t[pp.ti];
+                for (auto &c : tCur.c)
+                    occ[pp.y + c.second][pp.x + c.first] = 0;
+                int origMaxY = bestYMax;
+                int newMY = origMaxY;
+                int newX = pp.x, newY = pp.y, newTi = pp.ti;
+                for (int ti = 0; ti < (int)pr.t.size(); ti++)
+                {
+                    auto &tt = pr.t[ti];
+                    if (tt.w > Wmax || tt.h > H0)
+                        continue;
+                    bool found = false;
+                    for (int y0 = 0; y0 + tt.h <= H0 && !found; y0++)
+                    {
+                        int ymax_cand = y0 + tt.h - 1;
+                        if (ymax_cand >= newMY)
+                            break;
+                        for (int x0 = 0; x0 + tt.w <= Wmax; x0++)
+                        {
+                            bool ok = true;
+                            for (auto &c : tt.c)
+                            {
+                                if (occ[y0 + c.second][x0 + c.first])
+                                {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                            {
+                                newMY = ymax_cand;
+                                newX = x0;
+                                newY = y0;
+                                newTi = ti;
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                auto &tt = pr.t[newTi];
+                for (auto &c : tt.c)
+                    occ[newY + c.second][newX + c.first] = 1;
+                pp.x = newX;
+                pp.y = newY;
+                pp.ti = newTi;
+                if (newMY == origMaxY)
+                    break;
+            }
             int newH = 0, newMaxX = -1;
             for (auto &pp : bestR.pl)
             {
