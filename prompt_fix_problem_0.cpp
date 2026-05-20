@@ -5,7 +5,7 @@ struct Orient {
     int w, h, R, F;
     int mnx, mny;
     vector<pair<int,int>> cells;
-    vector<int> col_min_y; // for each x in [0,w), minimum cell.y in that column (INT_MAX if none)
+    vector<int> col_min_y;
 };
 
 int main(){
@@ -77,7 +77,6 @@ int main(){
         }
     }
 
-    // Sort pieces by cell count desc, then max dim desc
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b){
@@ -88,90 +87,110 @@ int main(){
         return ma > mb;
     });
 
-    auto try_pack = [&](int S, vector<tuple<int,int,int,int>>& placements) -> bool {
-        vector<int> skyline(S, 0);
-        vector<vector<char>> grid(S, vector<char>(S, 0));
-        placements.assign(n, make_tuple(0,0,0,0));
+    int S_max = (int)ceil(sqrt(2.5 * (double)T)) + 25;
+    if(S_max < 32) S_max = 32;
 
-        for(int idx : order){
-            int best_y = INT_MAX;
-            long long best_shadow = LLONG_MAX;
-            int best_x = 0, best_orient = 0;
-            for(int oi = 0; oi < (int)ori[idx].size(); oi++){
-                const auto& o = ori[idx][oi];
-                if(o.w > S || o.h > S) continue;
-                for(int X = 0; X + o.w <= S; X++){
-                    int Y_lb = 0;
-                    for(const auto& cell : o.cells){
-                        int req = skyline[X + cell.first] - cell.second;
-                        if(req > Y_lb) Y_lb = req;
-                    }
-                    if(Y_lb < 0) Y_lb = 0;
-                    if(Y_lb + o.h > S) continue;
+    vector<int> skyline(S_max, 0);
+    vector<vector<char>> grid(S_max, vector<char>(S_max, 0));
+    int cur_max_x = 0, cur_max_y = 0;
+    vector<tuple<int,int,int,int>> placements(n);
 
-                    int Y = Y_lb;
-                    bool found = false;
-                    while(Y + o.h <= S){
-                        bool ok = true;
-                        for(const auto& cell : o.cells){
-                            if(grid[X + cell.first][Y + cell.second]){
-                                ok = false; break;
-                            }
+    for(int idx : order){
+        int best_new_side = INT_MAX;
+        long long best_shadow = LLONG_MAX;
+        int best_Y = INT_MAX, best_X = 0, best_oi = 0;
+
+        for(int oi = 0; oi < (int)ori[idx].size(); oi++){
+            const auto& o = ori[idx][oi];
+            if(o.w > S_max || o.h > S_max) continue;
+
+            int X_limit = S_max - o.w;
+            if(best_new_side != INT_MAX){
+                int xlim2 = best_new_side - o.w;
+                if(xlim2 < X_limit) X_limit = xlim2;
+            }
+            for(int X = 0; X <= X_limit; X++){
+                int Y_lb = 0;
+                for(const auto& c : o.cells){
+                    int req = skyline[X + c.first] - c.second;
+                    if(req > Y_lb) Y_lb = req;
+                }
+                if(Y_lb < 0) Y_lb = 0;
+                if(Y_lb + o.h > S_max) continue;
+
+                if(best_new_side != INT_MAX){
+                    int ymax_min = Y_lb + o.h;
+                    int ny_lb = max(cur_max_y, ymax_min);
+                    int nx = max(cur_max_x, X + o.w);
+                    int ns_lb = max(nx, ny_lb);
+                    if(ns_lb > best_new_side) continue;
+                }
+
+                int Y = Y_lb;
+                bool found = false;
+                while(Y + o.h <= S_max){
+                    bool ok = true;
+                    for(const auto& c : o.cells){
+                        if(grid[X + c.first][Y + c.second]){
+                            ok = false; break;
                         }
-                        if(ok){ found = true; break; }
-                        Y++;
                     }
-                    if(!found) continue;
+                    if(ok){ found = true; break; }
+                    Y++;
+                }
+                if(!found) continue;
 
-                    // Compute shadow: empty cells trapped beneath this placement, per piece column
-                    long long shadow = 0;
-                    for(int c = 0; c < o.w; c++){
-                        if(o.col_min_y[c] == INT_MAX) continue;
-                        int bottom = Y + o.col_min_y[c];
-                        int sky = skyline[X + c];
-                        if(bottom > sky) shadow += (bottom - sky);
-                    }
+                int new_max_x = max(cur_max_x, X + o.w);
+                int new_max_y = max(cur_max_y, Y + o.h);
+                int new_side = max(new_max_x, new_max_y);
+                if(new_side > best_new_side) continue;
 
-                    bool better = false;
-                    if(Y < best_y) better = true;
-                    else if(Y == best_y){
-                        if(shadow < best_shadow) better = true;
-                        else if(shadow == best_shadow && X < best_x) better = true;
-                    }
-                    if(better){
-                        best_y = Y;
-                        best_shadow = shadow;
-                        best_x = X;
-                        best_orient = oi;
+                long long shadow = 0;
+                for(int c = 0; c < o.w; c++){
+                    if(o.col_min_y[c] == INT_MAX) continue;
+                    int bottom = Y + o.col_min_y[c];
+                    int sky = skyline[X + c];
+                    if(bottom > sky) shadow += (bottom - sky);
+                }
+
+                bool better = false;
+                if(new_side < best_new_side) better = true;
+                else if(new_side == best_new_side){
+                    if(shadow < best_shadow) better = true;
+                    else if(shadow == best_shadow){
+                        if(Y < best_Y) better = true;
+                        else if(Y == best_Y && X < best_X) better = true;
                     }
                 }
+                if(better){
+                    best_new_side = new_side;
+                    best_shadow = shadow;
+                    best_Y = Y; best_X = X; best_oi = oi;
+                }
             }
-            if(best_y == INT_MAX) return false;
-            const auto& o = ori[idx][best_orient];
-            int X = best_x, Y = best_y;
-            for(const auto& cell : o.cells){
-                grid[X + cell.first][Y + cell.second] = 1;
-                int top = Y + cell.second + 1;
-                if(top > skyline[X + cell.first]) skyline[X + cell.first] = top;
-            }
-            placements[idx] = make_tuple(X - o.mnx, Y - o.mny, o.R, o.F);
         }
-        return true;
-    };
 
-    int Smin = max(10, (int)ceil(sqrt((double)T)));
-    int S = Smin;
-    vector<tuple<int,int,int,int>> placements;
-    while(true){
-        if(try_pack(S, placements)) break;
-        S++;
-        if(S > Smin * 3 + 20){
-            try_pack(S, placements);
-            break;
+        if(best_new_side == INT_MAX){
+            // Fall back: place at (0, top of all skylines) - shouldn't normally happen
+            int Y = 0;
+            for(int x = 0; x < S_max; x++) Y = max(Y, skyline[x]);
+            best_oi = 0; best_X = 0; best_Y = Y;
         }
+
+        const auto& o = ori[idx][best_oi];
+        int X = best_X, Y = best_Y;
+        for(const auto& c : o.cells){
+            grid[X + c.first][Y + c.second] = 1;
+            int top = Y + c.second + 1;
+            if(top > skyline[X + c.first]) skyline[X + c.first] = top;
+        }
+        if(X + o.w > cur_max_x) cur_max_x = X + o.w;
+        if(Y + o.h > cur_max_y) cur_max_y = Y + o.h;
+        placements[idx] = make_tuple(X - o.mnx, Y - o.mny, o.R, o.F);
     }
 
-    printf("%d %d\n", S, S);
+    int side = max(cur_max_x, cur_max_y);
+    printf("%d %d\n", side, side);
     for(int i = 0; i < n; i++){
         int X = get<0>(placements[i]);
         int Y = get<1>(placements[i]);
