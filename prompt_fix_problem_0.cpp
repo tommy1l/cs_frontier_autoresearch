@@ -83,8 +83,9 @@ int main(){
         placements.assign(n, make_tuple(0,0,0,0));
 
         for(int idx : order){
-            int best_y = INT_MAX;
+            int best_top = INT_MAX;
             long long best_shadow = LLONG_MAX;
+            int best_y_chosen = INT_MAX;
             int best_x = 0, best_orient = 0;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
                 const auto& o = ori[idx][oi];
@@ -97,7 +98,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
-                    if(Y_lb > best_y) continue;
+                    if(Y_lb + o.h > best_top) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -112,7 +113,8 @@ int main(){
                         Y++;
                     }
                     if(!found) continue;
-                    if(Y > best_y) continue;
+                    int top = Y + o.h;
+                    if(top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -123,22 +125,26 @@ int main(){
                     }
 
                     bool better = false;
-                    if(Y < best_y) better = true;
-                    else if(Y == best_y){
+                    if(top < best_top) better = true;
+                    else if(top == best_top){
                         if(shadow < best_shadow) better = true;
-                        else if(shadow == best_shadow && X < best_x) better = true;
+                        else if(shadow == best_shadow){
+                            if(Y < best_y_chosen) better = true;
+                            else if(Y == best_y_chosen && X < best_x) better = true;
+                        }
                     }
                     if(better){
-                        best_y = Y;
+                        best_top = top;
                         best_shadow = shadow;
+                        best_y_chosen = Y;
                         best_x = X;
                         best_orient = oi;
                     }
                 }
             }
-            if(best_y == INT_MAX) return false;
+            if(best_top == INT_MAX) return false;
             const auto& o = ori[idx][best_orient];
-            int X = best_x, Y = best_y;
+            int X = best_x, Y = best_y_chosen;
             for(const auto& cell : o.cells){
                 grid[X + cell.first][Y + cell.second] = 1;
                 int top = Y + cell.second + 1;
