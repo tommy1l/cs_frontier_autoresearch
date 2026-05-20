@@ -87,7 +87,6 @@ int main(){
 
         for(int idx : order){
             int best_top = INT_MAX;
-            int best_adj_top = INT_MAX;
             long long best_shadow = LLONG_MAX;
             long long best_jag = LLONG_MAX;
             int best_y_chosen = INT_MAX;
@@ -103,7 +102,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
-                    if(Y_lb + o.h - 1 > best_adj_top) continue;
+                    if(Y_lb + o.h > best_top) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -119,6 +118,7 @@ int main(){
                     }
                     if(!found) continue;
                     int top = Y + o.h;
+                    if(top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -147,11 +147,9 @@ int main(){
                         jag_delta += (long long)abs(a1 - a2) - abs(b1 - b2);
                     }
 
-                    // Perfect-fit bonus: shadow=0 placements get adjusted top lowered by 1
-                    int adj_top = (shadow == 0) ? top - 1 : top;
                     bool better = false;
-                    if(adj_top < best_adj_top) better = true;
-                    else if(adj_top == best_adj_top){
+                    if(top < best_top) better = true;
+                    else if(top == best_top){
                         if(shadow < best_shadow) better = true;
                         else if(shadow == best_shadow){
                             if(jag_delta < best_jag) better = true;
@@ -162,7 +160,6 @@ int main(){
                         }
                     }
                     if(better){
-                        best_adj_top = adj_top;
                         best_top = top;
                         best_shadow = shadow;
                         best_jag = jag_delta;
