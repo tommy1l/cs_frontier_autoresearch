@@ -182,9 +182,12 @@ int main(){
         return true;
     };
 
-    // Build several orderings
-    vector<int> base(n);
-    iota(base.begin(), base.end(), 0);
+    // Separate monominoes (1-cell pieces) from multi-cell pieces
+    vector<int> mono_ids, multi_ids;
+    for(int i = 0; i < n; i++){
+        if(P[i].size() == 1) mono_ids.push_back(i);
+        else multi_ids.push_back(i);
+    }
 
     auto max_dim = [&](int i){
         int m = 0;
@@ -201,7 +204,7 @@ int main(){
 
     // Ordering 1: cell count desc, max dim desc
     {
-        auto o = base;
+        auto o = multi_ids;
         sort(o.begin(), o.end(), [&](int a, int b){
             if(P[a].size() != P[b].size()) return P[a].size() > P[b].size();
             return max_dim(a) > max_dim(b);
@@ -210,7 +213,7 @@ int main(){
     }
     // Ordering 2: max dim desc, cell count desc
     {
-        auto o = base;
+        auto o = multi_ids;
         sort(o.begin(), o.end(), [&](int a, int b){
             int ma = max_dim(a), mb = max_dim(b);
             if(ma != mb) return ma > mb;
@@ -220,7 +223,7 @@ int main(){
     }
     // Ordering 3: min dim desc (squarest first), cell count desc
     {
-        auto o = base;
+        auto o = multi_ids;
         sort(o.begin(), o.end(), [&](int a, int b){
             int ma = min_dim(a), mb = min_dim(b);
             if(ma != mb) return ma > mb;
@@ -231,6 +234,42 @@ int main(){
 
     int Smin = max(10, (int)ceil(sqrt((double)T)));
 
+    auto find_oi = [&](int idx, int R, int F) -> int {
+        for(int i = 0; i < (int)ori[idx].size(); i++){
+            if(ori[idx][i].R == R && ori[idx][i].F == F) return i;
+        }
+        return 0;
+    };
+
+    auto place_monos = [&](int S, vector<tuple<int,int,int,int>>& placements) -> bool {
+        // Reconstruct grid from multi placements
+        vector<vector<char>> grid(S, vector<char>(S, 0));
+        for(int idx : multi_ids){
+            auto p = placements[idx];
+            int Xs = get<0>(p), Ys = get<1>(p), R = get<2>(p), F = get<3>(p);
+            int oi = find_oi(idx, R, F);
+            const auto& o = ori[idx][oi];
+            int X_grid = Xs + o.mnx, Y_grid = Ys + o.mny;
+            for(const auto& c : o.cells){
+                grid[X_grid + c.first][Y_grid + c.second] = 1;
+            }
+        }
+        // Find empty cells
+        size_t need = mono_ids.size();
+        size_t mi = 0;
+        for(int x = 0; x < S && mi < need; x++){
+            for(int y = 0; y < S && mi < need; y++){
+                if(!grid[x][y]){
+                    int idx = mono_ids[mi++];
+                    const auto& o = ori[idx][0]; // R=0, F=0
+                    placements[idx] = make_tuple(x - o.mnx, y - o.mny, 0, 0);
+                    grid[x][y] = 1;
+                }
+            }
+        }
+        return mi == need;
+    };
+
     int best_S = INT_MAX;
     vector<tuple<int,int,int,int>> best_placements;
     for(const auto& ord : orderings){
@@ -238,7 +277,7 @@ int main(){
         vector<tuple<int,int,int,int>> placements;
         while(true){
             if(S >= best_S) break;
-            if(try_pack(ord, S, placements)){
+            if(try_pack(ord, S, placements) && place_monos(S, placements)){
                 if(S < best_S){
                     best_S = S;
                     best_placements = placements;
@@ -248,6 +287,7 @@ int main(){
             S++;
             if(S > Smin * 3 + 20){
                 try_pack(ord, S, placements);
+                place_monos(S, placements);
                 if(S < best_S){
                     best_S = S;
                     best_placements = placements;
