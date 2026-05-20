@@ -82,7 +82,6 @@ int main(){
 
     auto try_pack = [&](const vector<int>& order, int S, vector<tuple<int,int,int,int>>& placements) -> bool {
         vector<int> skyline(S, 0);
-        vector<vector<char>> grid(S, vector<char>(S, 0));
         placements.assign(n, make_tuple(0,0,0,0));
 
         for(int idx : order){
@@ -102,23 +101,10 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
-                    if(Y_lb + o.h > best_top) continue;
+                    int top = Y_lb + o.h;
+                    if(top > best_top) continue;
 
                     int Y = Y_lb;
-                    bool found = false;
-                    while(Y + o.h <= S){
-                        bool ok = true;
-                        for(const auto& cell : o.cells){
-                            if(grid[X + cell.first][Y + cell.second]){
-                                ok = false; break;
-                            }
-                        }
-                        if(ok){ found = true; break; }
-                        Y++;
-                    }
-                    if(!found) continue;
-                    int top = Y + o.h;
-                    if(top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -173,7 +159,6 @@ int main(){
             const auto& o = ori[idx][best_orient];
             int X = best_x, Y = best_y_chosen;
             for(const auto& cell : o.cells){
-                grid[X + cell.first][Y + cell.second] = 1;
                 int top = Y + cell.second + 1;
                 if(top > skyline[X + cell.first]) skyline[X + cell.first] = top;
             }
@@ -224,6 +209,21 @@ int main(){
         sort(o.begin(), o.end(), [&](int a, int b){
             int ma = min_dim(a), mb = min_dim(b);
             if(ma != mb) return ma > mb;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
+    // Ordering 4: perimeter (max w+h) desc, cell count desc
+    auto perim = [&](int i){
+        int m = 0;
+        for(auto& o : ori[i]) m = max(m, o.w + o.h);
+        return m;
+    };
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int pa = perim(a), pb = perim(b);
+            if(pa != pb) return pa > pb;
             return P[a].size() > P[b].size();
         });
         orderings.push_back(o);
