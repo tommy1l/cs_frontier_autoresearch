@@ -179,9 +179,6 @@ int main()
             int da = min(ps[a].minW, ps[a].minH);
             int db = min(ps[b].minW, ps[b].minH);
             if (da != db) return da < db;
-            int densA = (ps[a].minA > 0) ? (ps[a].k * 1000 / ps[a].minA) : 0;
-            int densB = (ps[b].minA > 0) ? (ps[b].k * 1000 / ps[b].minA) : 0;
-            if (densA != densB) return densA > densB;
             if (ps[a].k != ps[b].k) return ps[a].k < ps[b].k;
             return ps[a].id > ps[b].id; });
         return res;
