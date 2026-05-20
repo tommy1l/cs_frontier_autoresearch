@@ -5,6 +5,7 @@ struct Orient {
     int w, h, R, F;
     int mnx, mny;
     vector<pair<int,int>> cells;
+    vector<int> col_min_y; // for each x in [0,w), minimum cell.y in that column (INT_MAX if none)
 };
 
 int main(){
@@ -66,31 +67,36 @@ int main(){
                 Orient o;
                 o.w = w; o.h = h; o.R = R; o.F = F;
                 o.mnx = mx; o.mny = my;
-                o.cells = move(c);
+                o.cells = c;
+                o.col_min_y.assign(w, INT_MAX);
+                for(auto& pr : c){
+                    if(pr.second < o.col_min_y[pr.first]) o.col_min_y[pr.first] = pr.second;
+                }
                 ori[i].push_back(o);
             }
         }
     }
 
-    // Sort pieces by maximum dimension desc, then cell count desc
+    // Sort pieces by cell count desc, then max dim desc
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b){
+        if(P[a].size() != P[b].size()) return P[a].size() > P[b].size();
         int ma = 0, mb = 0;
         for(auto& o : ori[a]) ma = max(ma, max(o.w, o.h));
         for(auto& o : ori[b]) mb = max(mb, max(o.w, o.h));
-        if(ma != mb) return ma > mb;
-        return P[a].size() > P[b].size();
+        return ma > mb;
     });
 
-    // Bottom-left packing using skyline + bitmap.
     auto try_pack = [&](int S, vector<tuple<int,int,int,int>>& placements) -> bool {
         vector<int> skyline(S, 0);
         vector<vector<char>> grid(S, vector<char>(S, 0));
         placements.assign(n, make_tuple(0,0,0,0));
 
         for(int idx : order){
-            int best_y = INT_MAX, best_x = 0, best_orient = 0;
+            int best_y = INT_MAX;
+            long long best_shadow = LLONG_MAX;
+            int best_x = 0, best_orient = 0;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
                 const auto& o = ori[idx][oi];
                 if(o.w > S || o.h > S) continue;
@@ -117,8 +123,24 @@ int main(){
                     }
                     if(!found) continue;
 
-                    if(Y < best_y || (Y == best_y && X < best_x)){
+                    // Compute shadow: empty cells trapped beneath this placement, per piece column
+                    long long shadow = 0;
+                    for(int c = 0; c < o.w; c++){
+                        if(o.col_min_y[c] == INT_MAX) continue;
+                        int bottom = Y + o.col_min_y[c];
+                        int sky = skyline[X + c];
+                        if(bottom > sky) shadow += (bottom - sky);
+                    }
+
+                    bool better = false;
+                    if(Y < best_y) better = true;
+                    else if(Y == best_y){
+                        if(shadow < best_shadow) better = true;
+                        else if(shadow == best_shadow && X < best_x) better = true;
+                    }
+                    if(better){
                         best_y = Y;
+                        best_shadow = shadow;
                         best_x = X;
                         best_orient = oi;
                     }
@@ -143,7 +165,7 @@ int main(){
     while(true){
         if(try_pack(S, placements)) break;
         S++;
-        if(S > Smin * 3 + 20){ // safety
+        if(S > Smin * 3 + 20){
             try_pack(S, placements);
             break;
         }
