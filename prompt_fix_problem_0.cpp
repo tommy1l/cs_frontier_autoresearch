@@ -6,6 +6,7 @@ struct Orient {
     int mnx, mny;
     vector<pair<int,int>> cells;
     vector<int> col_min_y;
+    vector<int> col_max_y; // -1 if no cell in column
 };
 
 int main(){
@@ -69,8 +70,10 @@ int main(){
                 o.mnx = mx; o.mny = my;
                 o.cells = c;
                 o.col_min_y.assign(w, INT_MAX);
+                o.col_max_y.assign(w, -1);
                 for(auto& pr : c){
                     if(pr.second < o.col_min_y[pr.first]) o.col_min_y[pr.first] = pr.second;
+                    if(pr.second > o.col_max_y[pr.first]) o.col_max_y[pr.first] = pr.second;
                 }
                 ori[i].push_back(o);
             }
@@ -85,6 +88,7 @@ int main(){
         for(int idx : order){
             int best_top = INT_MAX;
             long long best_shadow = LLONG_MAX;
+            long long best_jag = LLONG_MAX;
             int best_y_chosen = INT_MAX;
             int best_x = 0, best_orient = 0;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
@@ -124,18 +128,41 @@ int main(){
                         if(bottom > sky) shadow += (bottom - sky);
                     }
 
+                    // Compute jaggedness delta in piece footprint + 1 boundary col on each side
+                    int lo = (X > 0) ? X - 1 : 0;
+                    int hi = (X + o.w < S) ? X + o.w + 1 : S;
+                    long long jag_delta = 0;
+                    for(int c = lo; c + 1 < hi; c++){
+                        int b1 = skyline[c];
+                        int b2 = skyline[c + 1];
+                        int a1 = b1, a2 = b2;
+                        if(c >= X && c < X + o.w && o.col_max_y[c - X] >= 0){
+                            int t = Y + o.col_max_y[c - X] + 1;
+                            if(t > a1) a1 = t;
+                        }
+                        if(c + 1 >= X && c + 1 < X + o.w && o.col_max_y[c + 1 - X] >= 0){
+                            int t = Y + o.col_max_y[c + 1 - X] + 1;
+                            if(t > a2) a2 = t;
+                        }
+                        jag_delta += (long long)abs(a1 - a2) - abs(b1 - b2);
+                    }
+
                     bool better = false;
                     if(top < best_top) better = true;
                     else if(top == best_top){
                         if(shadow < best_shadow) better = true;
                         else if(shadow == best_shadow){
-                            if(Y < best_y_chosen) better = true;
-                            else if(Y == best_y_chosen && X < best_x) better = true;
+                            if(jag_delta < best_jag) better = true;
+                            else if(jag_delta == best_jag){
+                                if(Y < best_y_chosen) better = true;
+                                else if(Y == best_y_chosen && X < best_x) better = true;
+                            }
                         }
                     }
                     if(better){
                         best_top = top;
                         best_shadow = shadow;
+                        best_jag = jag_delta;
                         best_y_chosen = Y;
                         best_x = X;
                         best_orient = oi;
