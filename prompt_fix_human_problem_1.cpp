@@ -34,101 +34,55 @@ ll elapsed_ms() {
         chrono::steady_clock::now() - t_start).count();
 }
 
-// Cross-entropy method: maintain per-item count distribution (Gaussian-like
-// using a "fraction" of max), sample candidates, update toward elite.
-int main() {
-    auto data = parseInput();
-    vector<Item> items;
-    for (auto& kv : data)
-        items.push_back({kv.first, kv.second[0], kv.second[1], kv.second[2], kv.second[3]});
+// Coordinate descent: for each item, find optimal count given others fixed.
+ll coord_descent(const vector<Item>& items, vector<ll>& cnt, ll deadline_ms) {
     int n = items.size();
-
-    mt19937_64 rng(2024);
-
-    // Max feasible count per item
-    vector<ll> maxc(n);
+    ll usedM = 0, usedL = 0, val = 0;
     for (int i = 0; i < n; ++i) {
-        maxc[i] = min({items[i].q, MAX_MASS / items[i].m, MAX_VOL / items[i].l});
+        usedM += cnt[i] * items[i].m;
+        usedL += cnt[i] * items[i].l;
+        val += cnt[i] * items[i].v;
     }
-
-    // Distribution: mean[i] in [0,1] fraction, std[i] in [0,1]
-    vector<double> mean(n, 0.5), sigma(n, 0.3);
-
-    const int SAMPLES = 200;
-    const int ELITE = 30;
-
-    vector<ll> bestCnt(n, 0);
-    ll bestVal = 0;
-
-    while (elapsed_ms() < TIME_MS - 100) {
-        vector<pair<ll, vector<ll>>> samples;
-        for (int s = 0; s < SAMPLES && elapsed_ms() < TIME_MS - 100; ++s) {
-            vector<ll> cnt(n, 0);
-            for (int i = 0; i < n; ++i) {
-                double f = mean[i] + sigma[i] * (((double)rng() / rng.max()) * 2 - 1);
-                f = clamp(f, 0.0, 1.0);
-                cnt[i] = (ll)round(f * maxc[i]);
+    bool improved = true;
+    while (improved && elapsed_ms() < deadline_ms) {
+        improved = false;
+        for (int i = 0; i < n && elapsed_ms() < deadline_ms; ++i) {
+            // Free up item i
+            ll mAvail = MAX_MASS - usedM + cnt[i] * items[i].m;
+            ll vAvail = MAX_VOL - usedL + cnt[i] * items[i].l;
+            ll best = min({items[i].q, mAvail / items[i].m, vAvail / items[i].l});
+            if (best != cnt[i]) {
+                ll delta = (best - cnt[i]);
+                usedM += delta * items[i].m;
+                usedL += delta * items[i].l;
+                val += delta * items[i].v;
+                cnt[i] = best;
+                improved = true;
             }
-            // Repair
-            ll uM = 0, uL = 0;
-            for (int i = 0; i < n; ++i) { uM += cnt[i]*items[i].m; uL += cnt[i]*items[i].l; }
-            // If infeasible, reduce by density-low items
-            while (uM > MAX_MASS || uL > MAX_VOL) {
-                int worst = -1;
-                double ws = 1e30;
-                for (int i = 0; i < n; ++i) {
-                    if (cnt[i] > 0) {
-                        double sc = (double)items[i].v / (items[i].m + items[i].l);
-                        if (sc < ws) { ws = sc; worst = i; }
-                    }
-                }
-                if (worst < 0) break;
-                --cnt[worst];
-                uM -= items[worst].m;
-                uL -= items[worst].l;
-            }
-            // Top-up greedy
-            for (int i = 0; i < n; ++i) {
-                ll add = min({items[i].q - cnt[i], (MAX_MASS - uM)/items[i].m, (MAX_VOL - uL)/items[i].l});
-                if (add > 0) { cnt[i] += add; uM += add*items[i].m; uL += add*items[i].l; }
-            }
-            ll val = 0;
-            for (int i = 0; i < n; ++i) val += cnt[i]*items[i].v;
-            samples.push_back({val, cnt});
-            if (val > bestVal) { bestVal = val; bestCnt = cnt; }
-        }
-        // Sort and take elite
-        sort(samples.begin(), samples.end(), [](const auto& a, const auto& b) {
-            return a.first > b.first;
-        });
-        if ((int)samples.size() < ELITE) break;
-        // Update distribution
-        for (int i = 0; i < n; ++i) {
-            double sum = 0, sumSq = 0;
-            for (int k = 0; k < ELITE; ++k) {
-                double f = maxc[i] > 0 ? (double)samples[k].second[i] / maxc[i] : 0;
-                sum += f; sumSq += f*f;
-            }
-            double newMean = sum / ELITE;
-            double newVar = max(0.0, sumSq / ELITE - newMean*newMean);
-            mean[i] = 0.7 * newMean + 0.3 * mean[i];
-            sigma[i] = max(0.05, 0.7 * sqrt(newVar) + 0.3 * sigma[i]);
         }
     }
+    return val;
+}
 
-    // Final 2-opt polish
-    ll uM = 0, uL = 0;
-    for (int i = 0; i < n; ++i) { uM += bestCnt[i]*items[i].m; uL += bestCnt[i]*items[i].l; }
-    bool imp = true;
-    while (imp && elapsed_ms() < TIME_MS) {
-        imp = false;
-        for (int i = 0; i < n && elapsed_ms() < TIME_MS; ++i) {
+// 2-opt swap optimization
+ll two_opt(const vector<Item>& items, vector<ll>& cnt, ll deadline_ms) {
+    int n = items.size();
+    ll usedM = 0, usedL = 0, val = 0;
+    for (int i = 0; i < n; ++i) {
+        usedM += cnt[i] * items[i].m;
+        usedL += cnt[i] * items[i].l;
+        val += cnt[i] * items[i].v;
+    }
+    bool improved = true;
+    while (improved && elapsed_ms() < deadline_ms) {
+        improved = false;
+        for (int i = 0; i < n && elapsed_ms() < deadline_ms; ++i) {
             for (int j = i + 1; j < n; ++j) {
-                ll Mav = MAX_MASS - uM + bestCnt[i]*items[i].m + bestCnt[j]*items[j].m;
-                ll Vav = MAX_VOL - uL + bestCnt[i]*items[i].l + bestCnt[j]*items[j].l;
-                ll maxA = min({items[i].q, Mav/items[i].m, Vav/items[i].l});
-                ll bA = bestCnt[i], bB = bestCnt[j];
-                ll bP = bestCnt[i]*items[i].v + bestCnt[j]*items[j].v;
+                ll Mav = MAX_MASS - usedM + cnt[i]*items[i].m + cnt[j]*items[j].m;
+                ll Vav = MAX_VOL - usedL + cnt[i]*items[i].l + cnt[j]*items[j].l;
+                ll maxA = min({items[i].q, Mav / items[i].m, Vav / items[i].l});
+                ll bA = cnt[i], bB = cnt[j];
+                ll bP = cnt[i]*items[i].v + cnt[j]*items[j].v;
                 for (ll a = 0; a <= maxA; ++a) {
                     ll Mr = Mav - a*items[i].m, Vr = Vav - a*items[i].l;
                     if (Mr < 0 || Vr < 0) break;
@@ -136,15 +90,62 @@ int main() {
                     ll v = a*items[i].v + b*items[j].v;
                     if (v > bP) { bP = v; bA = a; bB = b; }
                 }
-                if (bA != bestCnt[i] || bB != bestCnt[j]) {
-                    uM += (bA - bestCnt[i])*items[i].m + (bB - bestCnt[j])*items[j].m;
-                    uL += (bA - bestCnt[i])*items[i].l + (bB - bestCnt[j])*items[j].l;
-                    bestVal += (bA - bestCnt[i])*items[i].v + (bB - bestCnt[j])*items[j].v;
-                    bestCnt[i] = bA; bestCnt[j] = bB;
-                    imp = true;
+                if (bA != cnt[i] || bB != cnt[j]) {
+                    usedM += (bA - cnt[i])*items[i].m + (bB - cnt[j])*items[j].m;
+                    usedL += (bA - cnt[i])*items[i].l + (bB - cnt[j])*items[j].l;
+                    val += (bA - cnt[i])*items[i].v + (bB - cnt[j])*items[j].v;
+                    cnt[i] = bA; cnt[j] = bB;
+                    improved = true;
                 }
             }
         }
+    }
+    return val;
+}
+
+// Iterated local search: start from greedy, then loop: kick + local search.
+int main() {
+    auto data = parseInput();
+    vector<Item> items;
+    for (auto& kv : data)
+        items.push_back({kv.first, kv.second[0], kv.second[1], kv.second[2], kv.second[3]});
+    int n = items.size();
+
+    mt19937_64 rng(7777);
+
+    // Initial: greedy by v/(m+l)
+    vector<int> ord(n);
+    iota(ord.begin(), ord.end(), 0);
+    sort(ord.begin(), ord.end(), [&](int a, int b) {
+        return (double)items[a].v / (items[a].m + items[a].l) >
+               (double)items[b].v / (items[b].m + items[b].l);
+    });
+    vector<ll> cnt(n, 0);
+    ll usedM = 0, usedL = 0;
+    for (int i : ord) {
+        ll t = min({items[i].q, (MAX_MASS - usedM) / items[i].m,
+                    (MAX_VOL - usedL) / items[i].l});
+        if (t > 0) { cnt[i] = t; usedM += t * items[i].m; usedL += t * items[i].l; }
+    }
+
+    coord_descent(items, cnt, 100);
+    ll bestVal = two_opt(items, cnt, 200);
+    vector<ll> bestCnt = cnt;
+
+    // ILS loop
+    while (elapsed_ms() < TIME_MS) {
+        // Kick: zero out 3 random items
+        cnt = bestCnt;
+        for (int k = 0; k < 3; ++k) {
+            int i = rng() % n;
+            cnt[i] = 0;
+        }
+        // Then random fill / coord descent
+        ll dl1 = elapsed_ms() + 30;
+        coord_descent(items, cnt, min((ll)TIME_MS, dl1));
+        ll dl2 = elapsed_ms() + 80;
+        ll v = two_opt(items, cnt, min((ll)TIME_MS, dl2));
+        if (v > bestVal) { bestVal = v; bestCnt = cnt; }
     }
 
     cout << "{";
