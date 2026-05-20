@@ -87,7 +87,8 @@ int main(){
 
         for(int idx : order){
             int best_top = INT_MAX;
-            long long best_combined = LLONG_MAX;
+            long long best_shadow = LLONG_MAX;
+            long long best_jag = LLONG_MAX;
             int best_y_chosen = INT_MAX;
             int best_x = 0, best_orient = 0;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
@@ -146,19 +147,22 @@ int main(){
                         jag_delta += (long long)abs(a1 - a2) - abs(b1 - b2);
                     }
 
-                    long long combined = shadow + jag_delta;
                     bool better = false;
                     if(top < best_top) better = true;
                     else if(top == best_top){
-                        if(combined < best_combined) better = true;
-                        else if(combined == best_combined){
-                            if(Y < best_y_chosen) better = true;
-                            else if(Y == best_y_chosen && X < best_x) better = true;
+                        if(shadow < best_shadow) better = true;
+                        else if(shadow == best_shadow){
+                            if(jag_delta < best_jag) better = true;
+                            else if(jag_delta == best_jag){
+                                if(Y < best_y_chosen) better = true;
+                                else if(Y == best_y_chosen && X < best_x) better = true;
+                            }
                         }
                     }
                     if(better){
                         best_top = top;
-                        best_combined = combined;
+                        best_shadow = shadow;
+                        best_jag = jag_delta;
                         best_y_chosen = Y;
                         best_x = X;
                         best_orient = oi;
