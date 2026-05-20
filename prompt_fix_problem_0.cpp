@@ -228,33 +228,57 @@ int main(){
         });
         orderings.push_back(o);
     }
+    // Ordering 4: perimeter (max w+h across orientations) desc
+    auto perim = [&](int i){
+        int m = 0;
+        for(auto& o : ori[i]) m = max(m, o.w + o.h);
+        return m;
+    };
+    {
+        auto o = base;
+        sort(o.begin(), o.end(), [&](int a, int b){
+            int pa = perim(a), pb = perim(b);
+            if(pa != pb) return pa > pb;
+            return P[a].size() > P[b].size();
+        });
+        orderings.push_back(o);
+    }
 
     int Smin = max(10, (int)ceil(sqrt((double)T)));
 
-    int best_S = INT_MAX;
-    vector<tuple<int,int,int,int>> best_placements;
-    for(const auto& ord : orderings){
-        int S = Smin;
-        vector<tuple<int,int,int,int>> placements;
-        while(true){
-            if(S >= best_S) break;
-            if(try_pack(ord, S, placements)){
-                if(S < best_S){
-                    best_S = S;
-                    best_placements = placements;
-                }
-                break;
-            }
-            S++;
-            if(S > Smin * 3 + 20){
-                try_pack(ord, S, placements);
-                if(S < best_S){
-                    best_S = S;
-                    best_placements = placements;
-                }
-                break;
+    auto find_min_S = [&](const vector<int>& ord, int low, int high, vector<tuple<int,int,int,int>>& out_p) -> int {
+        int best = -1;
+        while(low <= high){
+            int mid = (low + high) / 2;
+            vector<tuple<int,int,int,int>> p;
+            if(try_pack(ord, mid, p)){
+                best = mid;
+                out_p = p;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
             }
         }
+        return best;
+    };
+
+    int best_S = INT_MAX;
+    vector<tuple<int,int,int,int>> best_placements;
+    int initial_high = Smin * 3 / 2 + 30;
+    for(const auto& ord : orderings){
+        int high = (best_S == INT_MAX) ? initial_high : best_S - 1;
+        if(high < Smin) continue;
+        vector<tuple<int,int,int,int>> p;
+        int s = find_min_S(ord, Smin, high, p);
+        if(s != -1 && s < best_S){
+            best_S = s;
+            best_placements = p;
+        }
+    }
+    if(best_S == INT_MAX){
+        // Fallback: try a very large S with the first ordering
+        best_S = initial_high * 2;
+        try_pack(orderings[0], best_S, best_placements);
     }
 
     printf("%d %d\n", best_S, best_S);
