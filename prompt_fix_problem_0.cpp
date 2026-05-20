@@ -91,6 +91,7 @@ int main(){
             long long best_jag = LLONG_MAX;
             int best_y_chosen = INT_MAX;
             int best_x = 0, best_orient = 0;
+            bool small_piece = (int)P[idx].size() <= 3;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
                 const auto& o = ori[idx][oi];
                 if(o.w > S || o.h > S) continue;
@@ -102,7 +103,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
-                    if(Y_lb + o.h > best_top) continue;
+                    if(!small_piece && Y_lb + o.h > best_top) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -118,7 +119,7 @@ int main(){
                     }
                     if(!found) continue;
                     int top = Y + o.h;
-                    if(top > best_top) continue;
+                    if(!small_piece && top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -148,14 +149,29 @@ int main(){
                     }
 
                     bool better = false;
-                    if(top < best_top) better = true;
-                    else if(top == best_top){
+                    if(small_piece){
+                        // For small pieces: shadow primary (snug fit), then top
                         if(shadow < best_shadow) better = true;
                         else if(shadow == best_shadow){
-                            if(jag_delta < best_jag) better = true;
-                            else if(jag_delta == best_jag){
-                                if(Y < best_y_chosen) better = true;
-                                else if(Y == best_y_chosen && X < best_x) better = true;
+                            if(top < best_top) better = true;
+                            else if(top == best_top){
+                                if(jag_delta < best_jag) better = true;
+                                else if(jag_delta == best_jag){
+                                    if(Y < best_y_chosen) better = true;
+                                    else if(Y == best_y_chosen && X < best_x) better = true;
+                                }
+                            }
+                        }
+                    } else {
+                        if(top < best_top) better = true;
+                        else if(top == best_top){
+                            if(shadow < best_shadow) better = true;
+                            else if(shadow == best_shadow){
+                                if(jag_delta < best_jag) better = true;
+                                else if(jag_delta == best_jag){
+                                    if(Y < best_y_chosen) better = true;
+                                    else if(Y == best_y_chosen && X < best_x) better = true;
+                                }
                             }
                         }
                     }
