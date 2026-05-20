@@ -599,7 +599,8 @@ int main()
         int Fi = t.f;
         ans[p.idx] = {Xi, Yi, Ri, Fi};
     }
-    cout << bestR.W << " " << bestR.H << "\n";
+    int sq = max(bestR.W, bestR.H);
+    cout << sq << " " << sq << "\n";
     for (int i = 0; i < n; i++)
     {
         cout << ans[i][0] << " " << ans[i][1] << " " << ans[i][2] << " " << ans[i][3] << "\n";
