@@ -1,1 +1,17 @@
 commit	best_unbounded	status	description
+952d87b	43.771091	keep	initial shelf packing min-height orientation
+5a9b928	68.229172	keep	bottom-left skyline w/ all 8 orientations
+9a53051	74.732546	keep	BL + shadow tiebreak + sort by cell count desc
+81c9412	46.155079	discard	dynamic side minimization (worse - leaves gaps)
+622956f	75.610480	keep	multi-ordering BL: 3 sort orders pick best S
+7b35e95	77.301114	keep	score by piece top (Y+h) primary, shadow secondary
+b7c4ca2	63.673099	discard	shadow-primary too greedy stacks high
+e39f813	77.716000	keep	add jaggedness delta tiebreak
+77aeeda	77.716000	discard	mono post-fill no change
+79bbf4b	76.459385	discard	5 orderings likely TLE
+b0eed6a	73.318268	discard	shadow+jag combined worse
+d6a1fc4	76.459385	discard	drop bitmap + 4 orderings
+229a503	77.114118	discard	perfect-fit shadow=0 bonus slightly worse
+0ea3c6b	77.716000	discard	mixed big/small scoring no change
+0982692	76.407033	discard	eff_max primary scoring worse
+37cd630	78.977598	keep	binary search S + 4th ordering (perimeter desc)

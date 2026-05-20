@@ -2,7 +2,7 @@
 
 You are an autonomous competitive programming researcher.
 
-Your goal is to maximize the score on **Frontier-CS algorithmic problem 1** by iteratively improving `solutions_1.cpp`.
+Your goal is to maximize the score on **Frontier-CS algorithmic problem 0** by iteratively improving `prompt_fix_problem_0.cpp`.
 
 ---
 
@@ -10,12 +10,12 @@ Your goal is to maximize the score on **Frontier-CS algorithmic problem 1** by i
 
 Before starting, check how many iterations are already logged:
 
-    f="results_1.tsv"
+    f="prompt_fix_problem0.tsv"
     if [ -f "$f" ]; then
       count=$(tail -n +2 "$f" | grep -c .)
-      echo "Problem 1: $count iterations logged"
+      echo "Problem 0: $count iterations logged"
     else
-      echo "Problem 1: 0 iterations logged (file not found)"
+      echo "Problem 0: 0 iterations logged (file not found)"
     fi
 
 - If already **15 iterations logged** → stop, you are done.
@@ -30,33 +30,33 @@ Before starting, check how many iterations are already logged:
 
 1.  Read the problem statement carefully:
 
-        cat Frontier-CS/algorithmic/problems/1/statement.txt
+        cat Frontier-CS/algorithmic/problems/0/statement.txt
 
-2.  Write a complete, working `solutions_1.cpp` from scratch based on the problem statement. This should be a full solution attempt — not an empty file.
+2.  Write a complete, working `prompt_fix_problem_0.cpp` from scratch based on the problem statement. This should be a full solution attempt — not an empty file.
 
 3.  Create the log file with a header row:
 
-        printf "commit\tbest_unbounded\tstatus\tdescription\n" > results_1.tsv
+        printf "commit\tbest_unbounded\tstatus\tdescription\n" > prompt_fix_problem0.tsv
 
-4.  Evaluate the new `solutions_1.cpp` to establish a baseline:
+4.  Evaluate the new `prompt_fix_problem_0.cpp` to establish a baseline:
 
-uv --directory Frontier-CS run python3 -c "
-from frontier_cs import SingleEvaluator
-evaluator = SingleEvaluator()
-result = evaluator.evaluate('algorithmic', problem_id=1, code=open('../solutions_1.cpp').read())
-print(f'Score (unbounded): {result.score_unbounded}')
-"
+        uv --directory Frontier-CS run python3 -c "
+        from frontier_cs import SingleEvaluator
+        evaluator = SingleEvaluator()
+        result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../prompt_fix_problem_0.cpp').read())
+        print(f'Score (unbounded): {result.score_unbounded}')
+        "
 
 5.  Commit and log as iteration 0:
 
-        git add solutions_1.cpp
-        git commit -m "p1 score=<score> initial solution"
+        git add prompt_fix_problem_0.cpp
+        git commit -m "p0 score=<score> initial solution"
         git push origin HEAD
         git rev-parse --short HEAD
 
     Then append using the hash printed above — run this as a separate standalone command:
 
-        printf "<hash>\t<score>\tkeep\tinitial solution\n" >> results_1.tsv
+        printf "<hash>\t<score>\tkeep\tinitial solution\n" >> prompt_fix_problem0.tsv
 
 This counts as iteration 0. Then continue the loop for 15 more iterations.
 
@@ -64,16 +64,16 @@ This counts as iteration 0. Then continue the loop for 15 more iterations.
 
 ## Files
 
-| Solution file     | Log file        |
-| ----------------- | --------------- |
-| `solutions_1.cpp` | `results_1.tsv` |
+| Solution file              | Log file                  |
+| -------------------------- | ------------------------- |
+| `prompt_fix_problem_0.cpp` | `prompt_fix_problem0.tsv` |
 
 The evaluation command is:
 
     uv --directory Frontier-CS run python3 -c "
     from frontier_cs import SingleEvaluator
     evaluator = SingleEvaluator()
-    result = evaluator.evaluate('algorithmic', problem_id=1, code=open('../solutions_1.cpp').read())
+    result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../prompt_fix_problem_0.cpp').read())
     print(f'Score (unbounded): {result.score_unbounded}')
     "
 
@@ -94,22 +94,22 @@ Complete **exactly 15 iterations**, then stop.
 
 Read:
 
-- `Frontier-CS/algorithmic/problems/1/statement.txt`
-- `results_1.tsv`
-- `solutions_1.cpp`
+- `Frontier-CS/algorithmic/problems/0/statement.txt`
+- `prompt_fix_problem0.tsv`
+- `prompt_fix_problem_0.cpp`
 
-Optionally review the iteration log and past solutions from the current run. Use commit hashes listed in `results_1.tsv`:
+Optionally review past git history:
 
-    cat results_1.tsv
-    git show <commit-from-results-tsv>:solutions_1.cpp | cat
-
-Do not run `git log` or inspect commits whose hashes do not appear in `results_1.tsv`.
+    git log --oneline
+    git show <commit>:prompt_fix_problem_0.cpp | cat
 
 ---
 
-### 2. Edit `solutions_1.cpp`
+### 2. Edit `prompt_fix_problem_0.cpp`
 
 Make one meaningful algorithmic change per iteration.
+
+Each iteration should explore a fundamentally different algorithmic approach, not refine the current one.
 
 Do not edit:
 
@@ -122,12 +122,12 @@ Do not edit:
 
 ### 3. Evaluate
 
-uv --directory Frontier-CS run python3 -c "
-from frontier_cs import SingleEvaluator
-evaluator = SingleEvaluator()
-result = evaluator.evaluate('algorithmic', problem_id=1, code=open('../solutions_1.cpp').read())
-print(f'Score (unbounded): {result.score_unbounded}')
-"
+    uv --directory Frontier-CS run python3 -c "
+    from frontier_cs import SingleEvaluator
+    evaluator = SingleEvaluator()
+    result = evaluator.evaluate('algorithmic', problem_id=0, code=open('../prompt_fix_problem_0.cpp').read())
+    print(f'Score (unbounded): {result.score_unbounded}')
+    "
 
 Find the output line:
 
@@ -141,9 +141,9 @@ If score is `0.0`, rerun once, inspect output, fix if needed, evaluate again.
 
 Run each of these as a separate standalone command:
 
-    git add solutions_1.cpp
+    git add prompt_fix_problem_0.cpp
 
-    git commit -m "p1 score=<score> <short description>"
+    git commit -m "p0 score=<score> <short description>"
 
     git push origin HEAD
 
@@ -159,20 +159,20 @@ First get the commit hash:
 
     git rev-parse --short HEAD
 
-Then append to `results_1.tsv` using the hash printed above:
+Then append to `prompt_fix_problem0.tsv` using the hash printed above:
 
-    printf "<hash>\t<best_unbounded>\t<status>\t<description>\n" >> results_1.tsv
+    printf "<hash>\t<best_unbounded>\t<status>\t<description>\n" >> prompt_fix_problem0.tsv
 
 Status values:
 
 - `keep` — score improved; keep the change
 - `discard` — score equal or worse; log first, then revert by running each command separately:
 
-      git show HEAD~1:solutions_1.cpp > solutions_1.cpp
+      git show HEAD~1:prompt_fix_problem_0.cpp > prompt_fix_problem_0.cpp
 
-      git add solutions_1.cpp
+      git add prompt_fix_problem_0.cpp
 
-      git commit -m "p1 revert to previous"
+      git commit -m "p0 revert to previous"
 
       git push origin HEAD
 
@@ -180,7 +180,7 @@ Status values:
 
 ---
 
-## results_1.tsv Format
+## prompt_fix_problem0.tsv Format
 
     commit   best_unbounded  status   description
     a1b2c3d  67.109247       keep     initial solution
@@ -191,16 +191,16 @@ Status values:
 
 ## Safety Rules
 
-- Always read `Frontier-CS/algorithmic/problems/1/statement.txt` before writing a solution
-- Only edit `solutions_1.cpp`
-- Never read files inside `Frontier-CS/` except for `Frontier-CS/algorithmic/problems/1/statement.txt`
+- Always read `Frontier-CS/algorithmic/problems/0/statement.txt` before writing a solution
+- Only edit `prompt_fix_problem_0.cpp`
+- Never read files inside `Frontier-CS/` except for `Frontier-CS/algorithmic/problems/0/statement.txt`
 - Never edit or create any file inside `Frontier-CS/`
 - Never change the evaluation command structure
 - Never run `g++`, `clang++`, `gcc`, `make`, or any manual compile command
 - Always evaluate before committing
 - Always log the exact printed score
 - **Never use `$()`, `$var`, or `&&` chaining in any bash command. Every command must be run as a completely separate, standalone line with no variable substitution.**
-- Never read or copy from `reference_problem1.cpp` or any other existing solution file
+- Never read or copy from `reference_problem0.cpp` or any other existing solution file
 
 ---
 
