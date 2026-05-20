@@ -83,9 +83,8 @@ int main(){
         placements.assign(n, make_tuple(0,0,0,0));
 
         for(int idx : order){
-            // Score: (shadow, top, Y, X) — minimize wasted area per placement
-            long long best_shadow = LLONG_MAX;
             int best_top = INT_MAX;
+            long long best_shadow = LLONG_MAX;
             int best_y_chosen = INT_MAX;
             int best_x = 0, best_orient = 0;
             for(int oi = 0; oi < (int)ori[idx].size(); oi++){
@@ -99,6 +98,7 @@ int main(){
                     }
                     if(Y_lb < 0) Y_lb = 0;
                     if(Y_lb + o.h > S) continue;
+                    if(Y_lb + o.h > best_top) continue;
 
                     int Y = Y_lb;
                     bool found = false;
@@ -114,6 +114,7 @@ int main(){
                     }
                     if(!found) continue;
                     int top = Y + o.h;
+                    if(top > best_top) continue;
 
                     long long shadow = 0;
                     for(int c = 0; c < o.w; c++){
@@ -124,10 +125,10 @@ int main(){
                     }
 
                     bool better = false;
-                    if(shadow < best_shadow) better = true;
-                    else if(shadow == best_shadow){
-                        if(top < best_top) better = true;
-                        else if(top == best_top){
+                    if(top < best_top) better = true;
+                    else if(top == best_top){
+                        if(shadow < best_shadow) better = true;
+                        else if(shadow == best_shadow){
                             if(Y < best_y_chosen) better = true;
                             else if(Y == best_y_chosen && X < best_x) better = true;
                         }
