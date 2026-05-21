@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+50448b9	100	keep	human baseline
+db349a1	98.98666666666665	discard	lagrangian sweep + 2-opt
+7982aa8	97.35666666666667	discard	simulated annealing on counts
+b718a3a	96.42333333333333	discard	beam search + 2-opt
+3dab093	55.87333333333334	discard	genetic algorithm
+3230e57	100	keep	iterated local search (simpler, equal score)
+d547a3a	4.71	discard	tabu search
+dff12cd	86.52000000000001	discard	pair-enum + multi-lambda greedy
+f3d6645	100	discard	variable neighborhood search (equal)
+2d80e9a	100	discard	cross-entropy method (equal)
+97a0365	98.98666666666665	discard	subset enumeration + 2-opt
+45e28d3	100	discard	3-opt local search (equal)
+550ec5a	28.076666666666668	discard	branch and bound with LP upper bound
+dab9612	98.98666666666665	discard	GRASP with restricted candidate list
+1c86799	99.61333333333333	discard	portfolio of greedy + shuffled restarts
