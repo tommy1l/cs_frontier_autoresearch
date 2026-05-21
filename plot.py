@@ -1,6 +1,7 @@
 import sys
 import os
 import csv
+import re
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -15,10 +16,24 @@ COLORS = {
     "best":    "#2980b9",
 }
 
-# Max rows to load per file (None = all). Override per filename below.
+# Max rows to load per file (None = all)
 ROW_LIMITS = {
     "results_5": 4,
 }
+
+# Per-file model name overrides
+MODEL_NAMES = {}
+DEFAULT_MODEL = "Opus 4.7"
+
+# Files where title says "Prompt Fix Human Starting Point"
+PROMPT_FIX_FILES = {"prompt_fix_problem0", "prompt_fix_problem1"}
+
+# Files where title says "Human Starting Point"
+HUMAN_FILES = {"results_reference_0", "results_reference_1"}
+
+# Files where y-axis says "Score (unbounded)"
+UNBOUNDED_FILES = {"prompt_fix_problem0", "prompt_fix_problem1",
+                   "results_reference_0", "results_reference_1"}
 
 def load_tsv(path):
     name = os.path.splitext(os.path.basename(path))[0]
@@ -56,31 +71,26 @@ def running_best(rows):
     return bests
 
 def problem_number_from_name(name):
-    # e.g. "results_0" -> "0"
-    parts = name.rsplit("_", 1)
-    return parts[-1] if len(parts) == 2 else name
-
-# Override the model name in the title per file
-MODEL_NAMES = {
-    "results_0": "Sonnet 4.6",
-}
-DEFAULT_MODEL = "Opus 4.7"
+    m = re.search(r'(\d+)$', name)
+    return m.group(1) if m else name
 
 def plot_one(ax, rows, name):
     problem_num = problem_number_from_name(name)
-    model = MODEL_NAMES.get(name, DEFAULT_MODEL)
+
+    if name in PROMPT_FIX_FILES:
+        title = f"Frontier-CS Algorithmic Problem {problem_num} — Prompt Fix Human Starting Point"
+    elif name in HUMAN_FILES:
+        title = f"Frontier-CS Algorithmic Problem {problem_num} — Human Starting Point"
+    else:
+        title = f"Frontier-CS Algorithmic Problem {problem_num} — {MODEL_NAMES.get(name, DEFAULT_MODEL)} Starting Point"
+
+    ylabel = "Score (unbounded)" if name in UNBOUNDED_FILES else "Score (bounded)"
 
     iterations = [r["iteration"] for r in rows]
     scores     = [r["score"]     for r in rows]
     statuses   = [r["status"]    for r in rows]
     bests      = running_best(rows)
     valid      = [s for s in scores if s is not None]
-
-    if valid:
-        best_val = max(valid)
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch {model} Starting Point"
-    else:
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch {model} Starting Point"
 
     # Best-so-far line
     ax.plot(iterations, bests, color=COLORS["best"], linewidth=2,
@@ -93,22 +103,20 @@ def plot_one(ax, rows, name):
         color = COLORS.get(st, COLORS["discard"])
         ax.scatter(it, sc, color=color, s=70, zorder=3, linewidths=0)
 
-
     ax.set_title(title, fontsize=13, fontweight="bold", pad=10)
     ax.set_xlabel("Iteration", fontsize=11)
-    ax.set_ylabel("Score (bounded)", fontsize=11)
+    ax.set_ylabel(ylabel, fontsize=11)
     ax.grid(True, linestyle="--", linewidth=0.5, color="#cccccc", alpha=0.8)
     ax.set_facecolor("white")
 
-    # Always show 0-15 on x-axis
     ax.set_xlim(0.5, 15.5)
     ax.set_xticks(range(1, 16))
     ax.set_ylim(0, 105)
 
-    # Legend outside plot area (top-right, outside)
     legend_handles = [
         mpatches.Patch(color=COLORS["keep"],    label="keep"),
         mpatches.Patch(color=COLORS["discard"], label="discard"),
+        mpatches.Patch(color=COLORS["crash"],   label="crash"),
         plt.Line2D([0], [0], color=COLORS["best"], linewidth=2, label="best score"),
     ]
     ax.legend(handles=legend_handles, fontsize=9,
@@ -117,7 +125,6 @@ def plot_one(ax, rows, name):
 
     if valid:
         best_val = max(valid)
-        # Move to bottom-left if data is clustered near the top
         first_score = valid[0] if valid else 0
         high_points = sum(1 for s in valid if s > 80)
         if first_score > 80 or high_points > len(valid) * 0.7:
