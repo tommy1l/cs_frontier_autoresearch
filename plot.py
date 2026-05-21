@@ -113,7 +113,7 @@ def plot_one(ax, rows, name):
 def main():
     paths = sys.argv[1:]
     if not paths:
-        paths = ["results_0.tsv", "results_1.tsv"]
+        paths = [f"results_{i}.tsv" for i in range(11)]
 
     datasets = []
     for p in paths:
