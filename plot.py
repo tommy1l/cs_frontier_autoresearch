@@ -15,15 +15,27 @@ COLORS = {
     "best":    "#2980b9",
 }
 
+# Max rows to load per file (None = all). Override per filename below.
+ROW_LIMITS = {
+    "results_5": 4,
+}
+
 def load_tsv(path):
+    name = os.path.splitext(os.path.basename(path))[0]
+    limit = ROW_LIMITS.get(name, None)
     rows = []
     with open(path, newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for i, row in enumerate(reader):
+            if limit is not None and i >= limit:
+                break
             try:
                 score = float(row["best_unbounded"])
             except (ValueError, KeyError):
-                score = None
+                try:
+                    score = float(row["best_score"])
+                except (ValueError, KeyError):
+                    score = None
             rows.append({
                 "iteration": i + 1,
                 "commit":      row.get("commit", ""),
@@ -48,8 +60,15 @@ def problem_number_from_name(name):
     parts = name.rsplit("_", 1)
     return parts[-1] if len(parts) == 2 else name
 
+# Override the model name in the title per file
+MODEL_NAMES = {
+    "results_0": "Sonnet 4.6",
+}
+DEFAULT_MODEL = "Opus 4.7"
+
 def plot_one(ax, rows, name):
     problem_num = problem_number_from_name(name)
+    model = MODEL_NAMES.get(name, DEFAULT_MODEL)
 
     iterations = [r["iteration"] for r in rows]
     scores     = [r["score"]     for r in rows]
@@ -59,9 +78,9 @@ def plot_one(ax, rows, name):
 
     if valid:
         best_val = max(valid)
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch Opus 4.7 Starting Point"
+        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch {model} Starting Point"
     else:
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch Opus 4.7 Starting Point"
+        title = f"Frontier-CS Algorithmic Problem {problem_num} — Autoresearch {model} Starting Point"
 
     # Best-so-far line
     ax.plot(iterations, bests, color=COLORS["best"], linewidth=2,
@@ -98,9 +117,10 @@ def plot_one(ax, rows, name):
 
     if valid:
         best_val = max(valid)
-        # If most data is in the top 30% of the chart, put label bottom-left
-        high_points = sum(1 for s in valid if s > 70)
-        if high_points > len(valid) * 0.6:
+        # Move to bottom-left if data is clustered near the top
+        first_score = valid[0] if valid else 0
+        high_points = sum(1 for s in valid if s > 80)
+        if first_score > 80 or high_points > len(valid) * 0.7:
             y_pos, va = 0.03, "bottom"
         else:
             y_pos, va = 0.97, "top"
