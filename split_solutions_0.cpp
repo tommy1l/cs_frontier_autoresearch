@@ -136,10 +136,10 @@ int main() {
                     bool better = false;
                     if (newMax < bestNewMax) better = true;
                     else if (newMax == bestNewMax) {
-                        if (totalGap < bestGap) better = true;
-                        else if (totalGap == bestGap) {
-                            if (top < bestTop) better = true;
-                            else if (top == bestTop) {
+                        if (top < bestTop) better = true;
+                        else if (top == bestTop) {
+                            if (totalGap < bestGap) better = true;
+                            else if (totalGap == bestGap) {
                                 if (Y < bestY) better = true;
                                 else if (Y == bestY) {
                                     if (X < bestX) better = true;
