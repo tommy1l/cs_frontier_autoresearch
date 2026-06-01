@@ -84,16 +84,20 @@ int main() {
     }
 
     vector<int> maxDim(n, 0);
+    vector<int> minOrientHeight(n, INT_MAX);
     for (int i = 0; i < n; i++) {
         for (auto& o : orientations[i]) {
             maxDim[i] = max(maxDim[i], max(o.width, o.height));
+            if (o.height < minOrientHeight[i]) minOrientHeight[i] = o.height;
         }
     }
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
+        if (polys[a].size() != polys[b].size()) return polys[a].size() > polys[b].size();
+        if (minOrientHeight[a] != minOrientHeight[b]) return minOrientHeight[a] > minOrientHeight[b];
         if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
-        return polys[a].size() > polys[b].size();
+        return a < b;
     });
 
     int L = max(1, (int)ceil(sqrt((double)totalArea * 1.10)));
