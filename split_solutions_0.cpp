@@ -89,13 +89,9 @@ int main() {
             maxDim[i] = max(maxDim[i], max(o.width, o.height));
         }
     }
-    vector<int> largeOrder;
-    vector<int> smallOrder;
-    for (int i = 0; i < n; i++) {
-        if ((int)polys[i].size() >= 3) largeOrder.push_back(i);
-        else smallOrder.push_back(i);
-    }
-    sort(largeOrder.begin(), largeOrder.end(), [&](int a, int b) {
+    vector<int> order(n);
+    iota(order.begin(), order.end(), 0);
+    sort(order.begin(), order.end(), [&](int a, int b) {
         if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
         return polys[a].size() > polys[b].size();
     });
@@ -106,11 +102,9 @@ int main() {
 
     while (true) {
         vector<int> skyline(L, 0);
-        vector<vector<uint8_t>> grid(L, vector<uint8_t>(L, 0));
-        placements.assign(n, make_tuple(0, 0, 0, 0));
         bool failed = false;
 
-        for (int idx : largeOrder) {
+        for (int idx : order) {
             int bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestSupport = -1;
             int numO = (int)orientations[idx].size();
             for (int oi = 0; oi < numO; oi++) {
@@ -145,60 +139,29 @@ int main() {
                         }
                     }
                     if (better) {
-                        bestY = Y; bestX = X; bestO = oi; bestSupport = support;
+                        bestY = Y;
+                        bestX = X;
+                        bestO = oi;
+                        bestSupport = support;
                     }
                 }
             }
+
             if (bestO == -1) { failed = true; break; }
+
             auto& o = orientations[idx][bestO];
             for (int dx = 0; dx < o.width; dx++) {
                 if (o.maxDy[dx] == INT_MIN) continue;
                 int nh = bestY + o.maxDy[dx] + 1;
                 if (nh > skyline[bestX + dx]) skyline[bestX + dx] = nh;
             }
-            for (auto& c : o.cells) {
-                grid[bestX + c.first][bestY + c.second] = 1;
-            }
             int Tx = bestX - o.shiftX;
             int Ty = bestY - o.shiftY;
             placements[idx] = make_tuple(Tx, Ty, o.R, o.F);
         }
 
-        if (failed) { L++; continue; }
-
-        bool smallFailed = false;
-        for (int idx : smallOrder) {
-            int chosenO = -1, chosenX = -1, chosenY = -1;
-            int numO = (int)orientations[idx].size();
-            for (int Y = 0; Y < L && chosenO == -1; Y++) {
-                for (int X = 0; X < L && chosenO == -1; X++) {
-                    for (int oi = 0; oi < numO; oi++) {
-                        auto& o = orientations[idx][oi];
-                        if (X + o.width > L) continue;
-                        if (Y + o.height > L) continue;
-                        bool ok = true;
-                        for (auto& c : o.cells) {
-                            if (grid[X + c.first][Y + c.second]) { ok = false; break; }
-                        }
-                        if (ok) {
-                            chosenO = oi; chosenX = X; chosenY = Y;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (chosenO == -1) { smallFailed = true; break; }
-            auto& o = orientations[idx][chosenO];
-            for (auto& c : o.cells) {
-                grid[chosenX + c.first][chosenY + c.second] = 1;
-            }
-            int Tx = chosenX - o.shiftX;
-            int Ty = chosenY - o.shiftY;
-            placements[idx] = make_tuple(Tx, Ty, o.R, o.F);
-        }
-
-        if (smallFailed) { L++; continue; }
-        break;
+        if (!failed) break;
+        L++;
     }
 
     cout << L << " " << L << "\n";
