@@ -100,11 +100,10 @@ int main() {
 
     vector<tuple<int,int,int,int>> placements(n);
 
-    auto runGreedy = [&](int L, vector<tuple<int,int,int,int>>& outPlacements, int& outMaxX, int& outMaxY) -> bool {
+    while (true) {
         vector<int> skyline(L, 0);
-        outPlacements.assign(n, make_tuple(0, 0, 0, 0));
-        outMaxX = -1;
-        outMaxY = -1;
+        bool failed = false;
+
         for (int idx : order) {
             int bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestSupport = -1;
             int numO = (int)orientations[idx].size();
@@ -140,62 +139,32 @@ int main() {
                         }
                     }
                     if (better) {
-                        bestY = Y; bestX = X; bestO = oi; bestSupport = support;
+                        bestY = Y;
+                        bestX = X;
+                        bestO = oi;
+                        bestSupport = support;
                     }
                 }
             }
-            if (bestO == -1) return false;
+
+            if (bestO == -1) { failed = true; break; }
+
             auto& o = orientations[idx][bestO];
             for (int dx = 0; dx < o.width; dx++) {
                 if (o.maxDy[dx] == INT_MIN) continue;
                 int nh = bestY + o.maxDy[dx] + 1;
                 if (nh > skyline[bestX + dx]) skyline[bestX + dx] = nh;
             }
-            for (auto& c : o.cells) {
-                int wx = bestX + c.first;
-                int wy = bestY + c.second;
-                if (wx > outMaxX) outMaxX = wx;
-                if (wy > outMaxY) outMaxY = wy;
-            }
             int Tx = bestX - o.shiftX;
             int Ty = bestY - o.shiftY;
-            outPlacements[idx] = make_tuple(Tx, Ty, o.R, o.F);
+            placements[idx] = make_tuple(Tx, Ty, o.R, o.F);
         }
-        return true;
-    };
 
-    int finalMaxX = -1, finalMaxY = -1;
-    while (true) {
-        vector<tuple<int,int,int,int>> tryP;
-        int mx, my;
-        if (runGreedy(L, tryP, mx, my)) {
-            placements = std::move(tryP);
-            finalMaxX = mx;
-            finalMaxY = my;
-            break;
-        }
+        if (!failed) break;
         L++;
     }
 
-    int shrinkAttempts = 0;
-    while (shrinkAttempts < 4) {
-        int Lnew = max(finalMaxX + 1, finalMaxY + 1);
-        if (Lnew >= L) break;
-        vector<tuple<int,int,int,int>> tryP;
-        int mx, my;
-        if (runGreedy(Lnew, tryP, mx, my)) {
-            placements = std::move(tryP);
-            L = Lnew;
-            finalMaxX = mx;
-            finalMaxY = my;
-            shrinkAttempts++;
-        } else {
-            break;
-        }
-    }
-
-    int outL = max(finalMaxX + 1, finalMaxY + 1);
-    cout << outL << " " << outL << "\n";
+    cout << L << " " << L << "\n";
     for (int i = 0; i < n; i++) {
         int X, Y, R, F;
         tie(X, Y, R, F) = placements[i];
