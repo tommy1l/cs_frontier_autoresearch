@@ -105,7 +105,7 @@ int main() {
         bool failed = false;
 
         for (int idx : order) {
-            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
+            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestSupport = -1;
             int numO = (int)orientations[idx].size();
             for (int oi = 0; oi < numO; oi++) {
                 auto& o = orientations[idx][oi];
@@ -124,10 +124,25 @@ int main() {
                         if (Y + o.maxDy[dx] >= L) { fits = false; break; }
                     }
                     if (!fits) continue;
-                    if (Y < bestY || (Y == bestY && X < bestX) || (Y == bestY && X == bestX && oi < bestO)) {
+                    int support = 0;
+                    for (int dx = 0; dx < o.width; dx++) {
+                        if (o.minDy[dx] == INT_MAX) continue;
+                        if (Y + o.minDy[dx] == skyline[X + dx]) support++;
+                    }
+                    bool better = false;
+                    if (Y < bestY) better = true;
+                    else if (Y == bestY) {
+                        if (support > bestSupport) better = true;
+                        else if (support == bestSupport) {
+                            if (X < bestX) better = true;
+                            else if (X == bestX && oi < bestO) better = true;
+                        }
+                    }
+                    if (better) {
                         bestY = Y;
                         bestX = X;
                         bestO = oi;
+                        bestSupport = support;
                     }
                 }
             }
