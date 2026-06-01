@@ -107,7 +107,7 @@ int main() {
         for (int idx : order) {
             int curMax = 0;
             for (int v : skyline) if (v > curMax) curMax = v;
-            int bestNewMax = INT_MAX, bestGap = INT_MAX, bestMaxGap = INT_MAX, bestTop = INT_MAX, bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
+            int bestNewMax = INT_MAX, bestGap = INT_MAX, bestTop = INT_MAX, bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
             int numO = (int)orientations[idx].size();
             for (int oi = 0; oi < numO; oi++) {
                 auto& o = orientations[idx][oi];
@@ -127,12 +127,9 @@ int main() {
                     }
                     if (!fits) continue;
                     int totalGap = 0;
-                    int maxGap = 0;
                     for (int dx = 0; dx < o.width; dx++) {
                         if (o.minDy[dx] == INT_MAX) continue;
-                        int gap = (Y + o.minDy[dx]) - skyline[X + dx];
-                        totalGap += gap;
-                        if (gap > maxGap) maxGap = gap;
+                        totalGap += (Y + o.minDy[dx]) - skyline[X + dx];
                     }
                     int top = Y + (o.height - 1);
                     int newMax = max(curMax, top + 1);
@@ -141,15 +138,12 @@ int main() {
                     else if (newMax == bestNewMax) {
                         if (totalGap < bestGap) better = true;
                         else if (totalGap == bestGap) {
-                            if (maxGap < bestMaxGap) better = true;
-                            else if (maxGap == bestMaxGap) {
-                                if (top < bestTop) better = true;
-                                else if (top == bestTop) {
-                                    if (Y < bestY) better = true;
-                                    else if (Y == bestY) {
-                                        if (X < bestX) better = true;
-                                        else if (X == bestX && oi < bestO) better = true;
-                                    }
+                            if (top < bestTop) better = true;
+                            else if (top == bestTop) {
+                                if (Y < bestY) better = true;
+                                else if (Y == bestY) {
+                                    if (X < bestX) better = true;
+                                    else if (X == bestX && oi < bestO) better = true;
                                 }
                             }
                         }
@@ -157,7 +151,6 @@ int main() {
                     if (better) {
                         bestNewMax = newMax;
                         bestGap = totalGap;
-                        bestMaxGap = maxGap;
                         bestTop = top;
                         bestY = Y;
                         bestX = X;
