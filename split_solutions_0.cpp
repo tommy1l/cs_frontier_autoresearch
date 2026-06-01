@@ -105,7 +105,7 @@ int main() {
         bool failed = false;
 
         for (int idx : order) {
-            int bestTop = INT_MAX, bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestSupport = -1;
+            int bestTop = INT_MAX, bestGap = INT_MAX, bestY = INT_MAX, bestX = INT_MAX, bestO = -1;
             int numO = (int)orientations[idx].size();
             for (int oi = 0; oi < numO; oi++) {
                 auto& o = orientations[idx][oi];
@@ -124,19 +124,19 @@ int main() {
                         if (Y + o.maxDy[dx] >= L) { fits = false; break; }
                     }
                     if (!fits) continue;
-                    int support = 0;
+                    int totalGap = 0;
                     for (int dx = 0; dx < o.width; dx++) {
                         if (o.minDy[dx] == INT_MAX) continue;
-                        if (Y + o.minDy[dx] == skyline[X + dx]) support++;
+                        totalGap += (Y + o.minDy[dx]) - skyline[X + dx];
                     }
                     int top = Y + (o.height - 1);
                     bool better = false;
                     if (top < bestTop) better = true;
                     else if (top == bestTop) {
-                        if (Y < bestY) better = true;
-                        else if (Y == bestY) {
-                            if (support > bestSupport) better = true;
-                            else if (support == bestSupport) {
+                        if (totalGap < bestGap) better = true;
+                        else if (totalGap == bestGap) {
+                            if (Y < bestY) better = true;
+                            else if (Y == bestY) {
                                 if (X < bestX) better = true;
                                 else if (X == bestX && oi < bestO) better = true;
                             }
@@ -144,10 +144,10 @@ int main() {
                     }
                     if (better) {
                         bestTop = top;
+                        bestGap = totalGap;
                         bestY = Y;
                         bestX = X;
                         bestO = oi;
-                        bestSupport = support;
                     }
                 }
             }
