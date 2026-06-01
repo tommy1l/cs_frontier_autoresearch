@@ -102,10 +102,11 @@ int main() {
 
     while (true) {
         vector<int> skyline(L, 0);
+        vector<vector<uint8_t>> grid(L, vector<uint8_t>(L, 0));
         bool failed = false;
 
         for (int idx : order) {
-            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestSupport = -1;
+            int bestY = INT_MAX, bestX = INT_MAX, bestO = -1, bestContact = -1;
             int numO = (int)orientations[idx].size();
             for (int oi = 0; oi < numO; oi++) {
                 auto& o = orientations[idx][oi];
@@ -124,16 +125,22 @@ int main() {
                         if (Y + o.maxDy[dx] >= L) { fits = false; break; }
                     }
                     if (!fits) continue;
-                    int support = 0;
-                    for (int dx = 0; dx < o.width; dx++) {
-                        if (o.minDy[dx] == INT_MAX) continue;
-                        if (Y + o.minDy[dx] == skyline[X + dx]) support++;
+                    int contact = 0;
+                    for (auto& c : o.cells) {
+                        int wx = X + c.first;
+                        int wy = Y + c.second;
+                        if (wx == 0) contact++;
+                        if (wx == L - 1) contact++;
+                        if (wy == 0) contact++;
+                        if (wx - 1 >= 0 && grid[wx - 1][wy]) contact++;
+                        if (wx + 1 < L && grid[wx + 1][wy]) contact++;
+                        if (wy - 1 >= 0 && grid[wx][wy - 1]) contact++;
                     }
                     bool better = false;
                     if (Y < bestY) better = true;
                     else if (Y == bestY) {
-                        if (support > bestSupport) better = true;
-                        else if (support == bestSupport) {
+                        if (contact > bestContact) better = true;
+                        else if (contact == bestContact) {
                             if (X < bestX) better = true;
                             else if (X == bestX && oi < bestO) better = true;
                         }
@@ -142,7 +149,7 @@ int main() {
                         bestY = Y;
                         bestX = X;
                         bestO = oi;
-                        bestSupport = support;
+                        bestContact = contact;
                     }
                 }
             }
@@ -154,6 +161,9 @@ int main() {
                 if (o.maxDy[dx] == INT_MIN) continue;
                 int nh = bestY + o.maxDy[dx] + 1;
                 if (nh > skyline[bestX + dx]) skyline[bestX + dx] = nh;
+            }
+            for (auto& c : o.cells) {
+                grid[bestX + c.first][bestY + c.second] = 1;
             }
             int Tx = bestX - o.shiftX;
             int Ty = bestY - o.shiftY;
