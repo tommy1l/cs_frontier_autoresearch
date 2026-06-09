@@ -9,7 +9,7 @@ int main(){
     cin >> n;
     
     if(n == 1){
-        cout << "1 1" << endl;
+        cout << "1 1" << '\n';
         cout.flush();
         return 0;
     }
@@ -26,25 +26,30 @@ int main(){
         cout.flush();
         int a;
         cin >> a;
-        if(a == 0) p1 = i;
-        else if(a == 2) p2 = i;
-        if(p1 != -1 && p2 != -1) break;
+        if(a == 0){
+            p1 = i;
+            break;
+        } else if(a == 2){
+            p2 = i;
+        }
     }
     
     hidden[p1] = 1;
-    hidden[p2] = 2;
+    if(p2 != -1) hidden[p2] = 2;
     
     vector<int> U;
     for(int i = 1; i <= n; i++){
-        if(i != p1 && i != p2) U.push_back(i);
+        if(i != p1 && (p2 == -1 || i != p2)) U.push_back(i);
     }
     
-    for(int v = 3; v <= n-1; v++){
+    int vstart = (p2 != -1) ? 3 : 2;
+    
+    for(int v = vstart; v <= n-1; v++){
         while(U.size() > 1){
             int sz = U.size();
             int half = (sz + 1) / 2;
             vector<int> L(U.begin(), U.begin() + half);
-            set<int> Lset(L.begin(), L.end());
+            unordered_set<int> Lset(L.begin(), L.end());
             
             vector<int> q(n+1, 1);
             for(int j : L) q[j] = v;
@@ -68,24 +73,20 @@ int main(){
         }
         int pos = U[0];
         hidden[pos] = v;
-        U.clear();
+        U.erase(U.begin());
     }
     
-    // Wait - need to rebuild U each iteration. Let me reread.
-    // Actually U should persist across iterations, removing found positions.
-    
-    // Restart with correct logic
-    for(int i = 1; i <= n; i++) hidden[i] = 0;
-    hidden[p1] = 1;
-    hidden[p2] = 2;
-    U.clear();
     for(int i = 1; i <= n; i++){
-        if(i != p1 && i != p2) U.push_back(i);
+        if(hidden[i] == 0){
+            hidden[i] = n;
+            break;
+        }
     }
     
-    // We already used queries above incorrectly. Hmm, but interactor already responded.
-    // Let me restructure - remove the wrong loop. I'll redo this cleanly.
-    
+    cout << 1;
+    for(int i = 1; i <= n; i++) cout << ' ' << hidden[i];
+    cout << '\n';
     cout.flush();
+    
     return 0;
 }
