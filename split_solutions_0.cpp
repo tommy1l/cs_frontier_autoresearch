@@ -84,12 +84,15 @@ int main(){
         vector<int> tX(n), tY(n), tR(n), tF(n);
         
         for(int pi : order){
-            int bestScore1 = INT_MAX, bestScore2 = INT_MAX, bestScore3 = INT_MAX;
+            int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
             int bestOri=-1, bestX0=-1, bestY0=-1;
             for(int oi=0; oi<8; oi++){
                 Orient& o = orients[pi][oi];
                 if(o.w > W) continue;
                 if(o.h > W) continue;
+                // build piece-cell lookup
+                vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
+                for(auto& c : o.cells) pmask[c.first][c.second] = 1;
                 for(int x0=0; x0<=W-o.w; x0++){
                     int y0 = 0;
                     for(int dx : o.cols){
@@ -102,15 +105,33 @@ int main(){
                         if(occ[x0+c.first][y0+c.second]) { good=false; break; }
                     }
                     if(!good) continue;
+                    // compute contact count
+                    int C = 0;
+                    const int ddx[4] = {1,-1,0,0};
+                    const int ddy[4] = {0,0,1,-1};
+                    for(auto& c : o.cells){
+                        int cx = c.first, cy = c.second;
+                        for(int k=0;k<4;k++){
+                            int nx = cx + ddx[k], ny = cy + ddy[k];
+                            // check if neighbor is part of piece
+                            if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
+                            int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
+                            if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
+                            else if(occ[gx][gy]) C++;
+                        }
+                    }
                     int s1 = y0+o.h, s2=y0, s3=x0;
                     bool better = false;
-                    if(s1 < bestScore1) better = true;
-                    else if(s1 == bestScore1){
-                        if(s2 < bestScore2) better = true;
-                        else if(s2 == bestScore2 && s3 < bestScore3) better = true;
+                    if(s1 < bestS1) better = true;
+                    else if(s1 == bestS1){
+                        if(C > bestC) better = true;
+                        else if(C == bestC){
+                            if(s2 < bestS2) better = true;
+                            else if(s2 == bestS2 && s3 < bestS3) better = true;
+                        }
                     }
                     if(better){
-                        bestScore1=s1; bestScore2=s2; bestScore3=s3;
+                        bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
                         bestOri=oi; bestX0=x0; bestY0=y0;
                     }
                 }
