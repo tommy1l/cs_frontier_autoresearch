@@ -128,6 +128,105 @@ inline void clearCells(vector<vector<uint64_t>>& col_bits, int pi, int oi, int x
     }
 }
 
+static const int MAX_DEPTH = 2;
+
+struct PackCtx {
+    vector<vector<uint64_t>>* col_bits;
+    vector<PlaceRec>* placement_map;
+    vector<char>* placed;
+    vector<int>* placement_history;
+    vector<int>* tX; vector<int>* tY; vector<int>* tR; vector<int>* tF;
+    int eject_budget;
+};
+
+bool place_with_ejection(int pi, int depth, PackCtx& ctx){
+    auto& col_bits = *ctx.col_bits;
+    auto& placement_map = *ctx.placement_map;
+    auto& placed = *ctx.placed;
+    auto& placement_history = *ctx.placement_history;
+    auto& tX = *ctx.tX; auto& tY = *ctx.tY; auto& tR = *ctx.tR; auto& tF = *ctx.tF;
+    
+    int oi_P, x0_P, y0_P;
+    if(findBest(pi, col_bits, oi_P, x0_P, y0_P)){
+        setCells(col_bits, pi, oi_P, x0_P, y0_P);
+        placed[pi] = 1;
+        placement_map[pi] = {oi_P, x0_P, y0_P};
+        placement_history.push_back(pi);
+        const Orient& o = orients[pi][oi_P];
+        tF[pi] = oi_P/4; tR[pi] = oi_P%4;
+        tX[pi] = x0_P - o.min_tx;
+        tY[pi] = y0_P - o.min_ty;
+        return true;
+    }
+    
+    if(depth >= MAX_DEPTH) return false;
+    if(ctx.eject_budget <= 0) return false;
+    ctx.eject_budget--;
+    
+    int K_eject = (depth == 0) ? 12 : 8;
+    
+    struct Cand { int pi_prime; int oi_P; int x0_P; int y0_P; int cost; int hist_idx; };
+    vector<Cand> cands;
+    
+    int collected = 0;
+    for(int hi = (int)placement_history.size()-1; hi >= 0 && collected < K_eject; hi--){
+        int pi_prime = placement_history[hi];
+        PlaceRec pr = placement_map[pi_prime];
+        clearCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
+        
+        int noi, nx0, ny0;
+        if(findBest(pi, col_bits, noi, nx0, ny0)){
+            int cost = ny0 + orients[pi][noi].h;
+            cands.push_back({pi_prime, noi, nx0, ny0, cost, hi});
+        }
+        setCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
+        collected++;
+    }
+    
+    sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){
+        return a.cost < b.cost;
+    });
+    
+    for(auto& cd : cands){
+        int pi_prime = cd.pi_prime;
+        PlaceRec pr_old = placement_map[pi_prime];
+        int hist_idx = cd.hist_idx;
+        
+        // Remove pi_prime
+        placement_history.erase(placement_history.begin() + hist_idx);
+        placed[pi_prime] = 0;
+        clearCells(col_bits, pi_prime, pr_old.oi, pr_old.x0, pr_old.y0);
+        placement_map[pi_prime] = {-1,-1,-1};
+        
+        // Place pi
+        setCells(col_bits, pi, cd.oi_P, cd.x0_P, cd.y0_P);
+        placed[pi] = 1;
+        placement_map[pi] = {cd.oi_P, cd.x0_P, cd.y0_P};
+        placement_history.push_back(pi);
+        const Orient& o = orients[pi][cd.oi_P];
+        tF[pi] = cd.oi_P/4; tR[pi] = cd.oi_P%4;
+        tX[pi] = cd.x0_P - o.min_tx;
+        tY[pi] = cd.y0_P - o.min_ty;
+        
+        if(place_with_ejection(pi_prime, depth+1, ctx)){
+            return true;
+        }
+        
+        // Roll back
+        clearCells(col_bits, pi, cd.oi_P, cd.x0_P, cd.y0_P);
+        placed[pi] = 0;
+        placement_history.pop_back();
+        placement_map[pi] = {-1,-1,-1};
+        
+        setCells(col_bits, pi_prime, pr_old.oi, pr_old.x0, pr_old.y0);
+        placed[pi_prime] = 1;
+        placement_map[pi_prime] = pr_old;
+        placement_history.insert(placement_history.begin() + hist_idx, pi_prime);
+    }
+    
+    return false;
+}
+
 bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
@@ -136,90 +235,18 @@ bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
     vector<char> placed(n, 0);
     vector<int> placement_history;
     placement_history.reserve(n);
-    int eject_budget = 4 * n;
-    const int K_eject = 12;
+    
+    PackCtx ctx;
+    ctx.col_bits = &col_bits;
+    ctx.placement_map = &placement_map;
+    ctx.placed = &placed;
+    ctx.placement_history = &placement_history;
+    ctx.tX = &tX; ctx.tY = &tY; ctx.tR = &tR; ctx.tF = &tF;
+    ctx.eject_budget = 8 * n;
     
     for(int step=0; step<(int)order.size(); step++){
         int pi = order[step];
-        int oi_P, x0_P, y0_P;
-        if(findBest(pi, col_bits, oi_P, x0_P, y0_P)){
-            setCells(col_bits, pi, oi_P, x0_P, y0_P);
-            placed[pi] = 1;
-            placement_map[pi] = {oi_P, x0_P, y0_P};
-            placement_history.push_back(pi);
-            const Orient& o = orients[pi][oi_P];
-            tF[pi] = oi_P/4; tR[pi] = oi_P%4;
-            tX[pi] = x0_P - o.min_tx;
-            tY[pi] = y0_P - o.min_ty;
-            continue;
-        }
-        
-        // Ejection chain
-        if(eject_budget <= 0) return false;
-        
-        struct Cand { int pi_prime; int oi_P; int x0_P; int y0_P; int cost; int hist_idx; };
-        vector<Cand> cands;
-        
-        int collected = 0;
-        for(int hi = (int)placement_history.size()-1; hi >= 0 && collected < K_eject; hi--){
-            int pi_prime = placement_history[hi];
-            PlaceRec pr = placement_map[pi_prime];
-            clearCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
-            
-            int noi, nx0, ny0;
-            if(findBest(pi, col_bits, noi, nx0, ny0)){
-                int cost = ny0 + orients[pi][noi].h;
-                cands.push_back({pi_prime, noi, nx0, ny0, cost, hi});
-            }
-            setCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
-            collected++;
-        }
-        
-        sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){
-            return a.cost < b.cost;
-        });
-        
-        bool success = false;
-        for(auto& cd : cands){
-            int pi_prime = cd.pi_prime;
-            PlaceRec pr = placement_map[pi_prime];
-            // Clear pi_prime
-            clearCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
-            // Place pi tentatively
-            setCells(col_bits, pi, cd.oi_P, cd.x0_P, cd.y0_P);
-            
-            int noi, nx0, ny0;
-            if(findBest(pi_prime, col_bits, noi, nx0, ny0)){
-                // Commit
-                setCells(col_bits, pi_prime, noi, nx0, ny0);
-                placement_map[pi_prime] = {noi, nx0, ny0};
-                const Orient& op = orients[pi_prime][noi];
-                tF[pi_prime] = noi/4; tR[pi_prime] = noi%4;
-                tX[pi_prime] = nx0 - op.min_tx;
-                tY[pi_prime] = ny0 - op.min_ty;
-                
-                placed[pi] = 1;
-                placement_map[pi] = {cd.oi_P, cd.x0_P, cd.y0_P};
-                placement_history.push_back(pi);
-                const Orient& o = orients[pi][cd.oi_P];
-                tF[pi] = cd.oi_P/4; tR[pi] = cd.oi_P%4;
-                tX[pi] = cd.x0_P - o.min_tx;
-                tY[pi] = cd.y0_P - o.min_ty;
-                
-                eject_budget--;
-                success = true;
-                break;
-            } else {
-                // Restore
-                clearCells(col_bits, pi, cd.oi_P, cd.x0_P, cd.y0_P);
-                setCells(col_bits, pi_prime, pr.oi, pr.x0, pr.y0);
-            }
-        }
-        
-        if(!success) return false;
-        if(eject_budget <= 0 && step+1 < (int)order.size()){
-            // continue but next failure will return false
-        }
+        if(!place_with_ejection(pi, 0, ctx)) return false;
     }
     return true;
 }
