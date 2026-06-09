@@ -17,70 +17,75 @@ vector<int> ks;
 int W;
 int NW;
 
-static const int FREEDOM_CAP = 8;
-static const int K_CANDS = 6;
+struct Cand {
+    int oi, x0, y0, s1, C;
+};
 
-// find best placement for piece pi against col_bits; returns true if found
-bool findBest(int pi, const vector<vector<uint64_t>>& col_bits,
+// compute y0 for a given pi, oi, x0 given current col_bits; returns -1 if infeasible
+static inline int computeY0(int pi, int oi, int x0, const vector<vector<uint64_t>>& col_bits, vector<uint64_t>& total_blocked){
+    Orient& o = orients[pi][oi];
+    fill(total_blocked.begin(), total_blocked.end(), 0ULL);
+    for(int dx : o.cols){
+        const auto& colb = col_bits[x0+dx];
+        for(int dy : o.pattern_dx[dx]){
+            int wshift = dy / 64;
+            int bshift = dy % 64;
+            if(bshift == 0){
+                for(int w=0; w+wshift<NW; w++){
+                    total_blocked[w] |= colb[w+wshift];
+                }
+            } else {
+                for(int w=0; w+wshift<NW; w++){
+                    uint64_t lo = colb[w+wshift] >> bshift;
+                    uint64_t hi = 0;
+                    if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
+                    total_blocked[w] |= (lo | hi);
+                }
+            }
+        }
+    }
+    int maxY0 = W - o.h;
+    int firstBlock = maxY0 + 1;
+    if(firstBlock < 0) return -1;
+    for(int w=0; w<NW; w++){
+        int base = w*64;
+        if(base >= firstBlock){
+            total_blocked[w] = ~0ULL;
+        } else if(base + 64 > firstBlock){
+            int bits = firstBlock - base;
+            uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
+            total_blocked[w] |= mask;
+        }
+    }
+    int y0 = -1;
+    for(int w=0; w<NW; w++){
+        uint64_t v = ~total_blocked[w];
+        if(v != 0){
+            int b = __builtin_ctzll(v);
+            y0 = w*64 + b;
+            break;
+        }
+    }
+    if(y0 < 0 || y0 > maxY0) return -1;
+    return y0;
+}
+
+bool findBest(int pi, int step, const vector<int>& order, vector<char>& placed,
+              vector<vector<uint64_t>>& col_bits,
               int& bestOri, int& bestX0, int& bestY0){
-    int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
-    bestOri=-1; bestX0=-1; bestY0=-1;
+    vector<Cand> cands;
+    vector<uint64_t> total_blocked(NW, 0);
+    
     for(int oi=0; oi<8; oi++){
-        const Orient& o = orients[pi][oi];
+        Orient& o = orients[pi][oi];
         if(o.w > W) continue;
         if(o.h > W) continue;
         vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
         for(auto& c : o.cells) pmask[c.first][c.second] = 1;
         
-        vector<uint64_t> total_blocked(NW, 0);
-        
         for(int x0=0; x0<=W-o.w; x0++){
-            fill(total_blocked.begin(), total_blocked.end(), 0ULL);
-            
-            for(int dx : o.cols){
-                const auto& colb = col_bits[x0+dx];
-                for(int dy : o.pattern_dx[dx]){
-                    int wshift = dy / 64;
-                    int bshift = dy % 64;
-                    if(bshift == 0){
-                        for(int w=0; w+wshift<NW; w++){
-                            total_blocked[w] |= colb[w+wshift];
-                        }
-                    } else {
-                        for(int w=0; w+wshift<NW; w++){
-                            uint64_t lo = colb[w+wshift] >> bshift;
-                            uint64_t hi = 0;
-                            if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
-                            total_blocked[w] |= (lo | hi);
-                        }
-                    }
-                }
-            }
-            
-            int maxY0 = W - o.h;
-            int firstBlock = maxY0 + 1;
-            if(firstBlock < 0) continue;
-            for(int w=0; w<NW; w++){
-                int base = w*64;
-                if(base >= firstBlock){
-                    total_blocked[w] = ~0ULL;
-                } else if(base + 64 > firstBlock){
-                    int bits = firstBlock - base;
-                    uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
-                    total_blocked[w] |= mask;
-                }
-            }
-            
-            int y0 = -1;
-            for(int w=0; w<NW; w++){
-                uint64_t v = ~total_blocked[w];
-                if(v != 0){
-                    int b = __builtin_ctzll(v);
-                    y0 = w*64 + b;
-                    break;
-                }
-            }
-            if(y0 < 0 || y0 > maxY0) continue;
+            int y0 = computeY0(pi, oi, x0, col_bits, total_blocked);
+            if(y0 < 0) continue;
             
             int C = 0;
             const int ddx[4] = {1,-1,0,0};
@@ -97,136 +102,122 @@ bool findBest(int pi, const vector<vector<uint64_t>>& col_bits,
                     }
                 }
             }
-            int s1 = y0+o.h, s2=y0, s3=x0;
-            bool better = false;
-            if(s1 < bestS1) better = true;
-            else if(s1 == bestS1){
-                if(C > bestC) better = true;
-                else if(C == bestC){
-                    if(s2 < bestS2) better = true;
-                    else if(s2 == bestS2 && s3 < bestS3) better = true;
-                }
-            }
-            if(better){
-                bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
-                bestOri=oi; bestX0=x0; bestY0=y0;
-            }
+            Cand cc;
+            cc.oi = oi; cc.x0 = x0; cc.y0 = y0; cc.s1 = y0 + o.h; cc.C = C;
+            cands.push_back(cc);
         }
     }
-    return bestOri >= 0;
-}
-
-// count freedom (capped) for piece pi against col_bits
-int countFreedom(int pi, const vector<vector<uint64_t>>& col_bits){
-    int freedom = 0;
-    for(int oi=0; oi<8; oi++){
-        const Orient& o = orients[pi][oi];
-        if(o.w > W) continue;
-        if(o.h > W) continue;
+    
+    if(cands.empty()) return false;
+    
+    int best_s1 = INT_MAX;
+    for(auto& c : cands) best_s1 = min(best_s1, c.s1);
+    
+    vector<Cand> tie;
+    for(auto& c : cands) if(c.s1 == best_s1) tie.push_back(c);
+    
+    if(tie.size() == 1){
+        bestOri = tie[0].oi; bestX0 = tie[0].x0; bestY0 = tie[0].y0;
+        return true;
+    }
+    
+    sort(tie.begin(), tie.end(), [](const Cand& a, const Cand& b){
+        if(a.C != b.C) return a.C > b.C;
+        if(a.y0 != b.y0) return a.y0 < b.y0;
+        return a.x0 < b.x0;
+    });
+    if((int)tie.size() > 6) tie.resize(6);
+    
+    if(tie.size() == 1){
+        bestOri = tie[0].oi; bestX0 = tie[0].x0; bestY0 = tie[0].y0;
+        return true;
+    }
+    
+    int nSize = (int)order.size();
+    const int L = 3;
+    int end_step = min(step + L, nSize - 1);
+    
+    vector<int> futureBlock(tie.size(), 0);
+    
+    for(size_t idx=0; idx<tie.size(); idx++){
+        Cand& rec = tie[idx];
+        Orient& o = orients[pi][rec.oi];
+        // tentatively set
+        for(auto& c : o.cells){
+            int gx = rec.x0 + c.first, gy = rec.y0 + c.second;
+            col_bits[gx][gy>>6] |= (1ULL << (gy&63));
+        }
         
-        vector<uint64_t> total_blocked(NW, 0);
-        
-        for(int x0=0; x0<=W-o.w; x0++){
-            fill(total_blocked.begin(), total_blocked.end(), 0ULL);
-            
-            for(int dx : o.cols){
-                const auto& colb = col_bits[x0+dx];
-                for(int dy : o.pattern_dx[dx]){
-                    int wshift = dy / 64;
-                    int bshift = dy % 64;
-                    if(bshift == 0){
-                        for(int w=0; w+wshift<NW; w++){
-                            total_blocked[w] |= colb[w+wshift];
-                        }
-                    } else {
-                        for(int w=0; w+wshift<NW; w++){
-                            uint64_t lo = colb[w+wshift] >> bshift;
-                            uint64_t hi = 0;
-                            if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
-                            total_blocked[w] |= (lo | hi);
-                        }
+        int fb = 0;
+        vector<uint64_t> tb(NW, 0);
+        for(int step_next = step+1; step_next <= end_step; step_next++){
+            int pi_next = order[step_next];
+            if(placed[pi_next]) continue;
+            bool feasible = false;
+            for(int oi_n=0; oi_n<8 && !feasible; oi_n++){
+                Orient& on = orients[pi_next][oi_n];
+                if(on.w > W) continue;
+                if(on.h > W) continue;
+                for(int x0_n=0; x0_n<=W-on.w; x0_n++){
+                    int y0_n = computeY0(pi_next, oi_n, x0_n, col_bits, tb);
+                    if(y0_n >= 0){
+                        feasible = true;
+                        break;
                     }
                 }
             }
-            
-            int maxY0 = W - o.h;
-            int firstBlock = maxY0 + 1;
-            if(firstBlock < 0) continue;
-            for(int w=0; w<NW; w++){
-                int base = w*64;
-                if(base >= firstBlock){
-                    total_blocked[w] = ~0ULL;
-                } else if(base + 64 > firstBlock){
-                    int bits = firstBlock - base;
-                    uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
-                    total_blocked[w] |= mask;
-                }
-            }
-            
-            int y0 = -1;
-            for(int w=0; w<NW; w++){
-                uint64_t v = ~total_blocked[w];
-                if(v != 0){
-                    int b = __builtin_ctzll(v);
-                    y0 = w*64 + b;
-                    break;
-                }
-            }
-            if(y0 < 0 || y0 > maxY0) continue;
-            
-            freedom++;
-            if(freedom >= FREEDOM_CAP) return freedom;
+            if(!feasible) fb++;
         }
-        if(freedom >= FREEDOM_CAP) return freedom;
+        futureBlock[idx] = fb;
+        
+        // clear tentative
+        for(auto& c : o.cells){
+            int gx = rec.x0 + c.first, gy = rec.y0 + c.second;
+            col_bits[gx][gy>>6] &= ~(1ULL << (gy&63));
+        }
     }
-    return freedom;
+    
+    int bestIdx = 0;
+    for(size_t idx=1; idx<tie.size(); idx++){
+        bool better = false;
+        if(futureBlock[idx] < futureBlock[bestIdx]) better = true;
+        else if(futureBlock[idx] == futureBlock[bestIdx]){
+            if(tie[idx].C > tie[bestIdx].C) better = true;
+            else if(tie[idx].C == tie[bestIdx].C){
+                if(tie[idx].y0 < tie[bestIdx].y0) better = true;
+                else if(tie[idx].y0 == tie[bestIdx].y0 && tie[idx].x0 < tie[bestIdx].x0) better = true;
+            }
+        }
+        if(better) bestIdx = idx;
+    }
+    
+    bestOri = tie[bestIdx].oi;
+    bestX0 = tie[bestIdx].x0;
+    bestY0 = tie[bestIdx].y0;
+    return true;
 }
 
 bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
-    
     vector<char> placed(n, 0);
-    int scanFront = 0;
-    int remaining = n;
     
-    while(remaining > 0){
-        while(scanFront < (int)order.size() && placed[order[scanFront]]) scanFront++;
-        
-        vector<int> cands;
-        for(int i = scanFront; i < (int)order.size() && (int)cands.size() < K_CANDS; i++){
-            if(!placed[order[i]]) cands.push_back(order[i]);
+    for(int step=0; step<(int)order.size(); step++){
+        int pi = order[step];
+        int bestOri=-1, bestX0=-1, bestY0=-1;
+        if(!findBest(pi, step, order, placed, col_bits, bestOri, bestX0, bestY0)){
+            return false;
         }
-        if(cands.empty()) return true;
-        
-        vector<int> freedom(cands.size(), 0);
-        bool anyInfeasible = false;
-        for(int i = 0; i < (int)cands.size(); i++){
-            freedom[i] = countFreedom(cands[i], col_bits);
-            if(freedom[i] == 0) anyInfeasible = true;
-        }
-        if(anyInfeasible) return false;
-        
-        int pickIdx = 0;
-        for(int i = 1; i < (int)cands.size(); i++){
-            if(freedom[i] < freedom[pickIdx]) pickIdx = i;
-        }
-        int piStar = cands[pickIdx];
-        
-        int bestOri, bestX0, bestY0;
-        if(!findBest(piStar, col_bits, bestOri, bestX0, bestY0)) return false;
-        
-        Orient& o = orients[piStar][bestOri];
+        Orient& o = orients[pi][bestOri];
         for(auto& c : o.cells){
             int gx = bestX0+c.first, gy = bestY0+c.second;
             col_bits[gx][gy>>6] |= (1ULL << (gy&63));
         }
+        placed[pi] = 1;
         int f = bestOri/4, r = bestOri%4;
-        tF[piStar] = f; tR[piStar] = r;
-        tX[piStar] = bestX0 - o.min_tx;
-        tY[piStar] = bestY0 - o.min_ty;
-        placed[piStar] = 1;
-        remaining--;
+        tF[pi] = f; tR[pi] = r;
+        tX[pi] = bestX0 - o.min_tx;
+        tY[pi] = bestY0 - o.min_ty;
     }
     return true;
 }
