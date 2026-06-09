@@ -15,9 +15,13 @@ int main(){
     }
     
     vector<int> hidden(n+1, 0);
-    int p1 = -1, p2 = -1;
+    int p_anchor = -1, v_anchor = -1;
     
-    for(int i = 1; i <= n; i++){
+    for(int k = 1; k <= n; k++){
+        int i;
+        if(k % 2 == 1) i = (k + 1) / 2;
+        else i = n + 1 - (k / 2);
+        
         vector<int> q(n+1, 1);
         q[i] = 2;
         cout << 0;
@@ -27,31 +31,35 @@ int main(){
         int a;
         cin >> a;
         if(a == 0){
-            p1 = i;
+            p_anchor = i;
+            v_anchor = 1;
             break;
         } else if(a == 2){
-            p2 = i;
+            p_anchor = i;
+            v_anchor = 2;
+            break;
         }
     }
     
-    hidden[p1] = 1;
-    if(p2 != -1) hidden[p2] = 2;
+    hidden[p_anchor] = v_anchor;
     
-    vector<int> U;
+    vector<int> G;
     for(int i = 1; i <= n; i++){
-        if(i != p1 && (p2 == -1 || i != p2)) U.push_back(i);
+        if(i != p_anchor) G.push_back(i);
     }
     
-    int vstart = (p2 != -1) ? 3 : 2;
-    
-    for(int v = vstart; v <= n-1; v++){
-        while(U.size() > 1){
-            int sz = U.size();
+    for(int v = 1; v <= n-1; v++){
+        if(v == v_anchor) continue;
+        
+        vector<int> C = G;
+        
+        while(C.size() > 1){
+            int sz = C.size();
             int half = (sz + 1) / 2;
-            vector<int> L(U.begin(), U.begin() + half);
+            vector<int> L(C.begin(), C.begin() + half);
             unordered_set<int> Lset(L.begin(), L.end());
             
-            vector<int> q(n+1, 1);
+            vector<int> q(n+1, v_anchor);
             for(int j : L) q[j] = v;
             
             cout << 0;
@@ -64,16 +72,16 @@ int main(){
             int indicator = a - 1;
             
             if(indicator == 1){
-                U = L;
+                C = L;
             } else {
-                vector<int> newU;
-                for(int x : U) if(!Lset.count(x)) newU.push_back(x);
-                U = newU;
+                vector<int> newC;
+                for(int x : C) if(!Lset.count(x)) newC.push_back(x);
+                C = newC;
             }
         }
-        int pos = U[0];
+        int pos = C[0];
         hidden[pos] = v;
-        U.erase(U.begin());
+        G.erase(remove(G.begin(), G.end(), pos), G.end());
     }
     
     for(int i = 1; i <= n; i++){
