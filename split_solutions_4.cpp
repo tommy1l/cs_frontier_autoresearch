@@ -52,6 +52,48 @@ int main() {
         cout.flush();
         return 0;
     }
+    
+    // Diagonal precomputation
+    vector<long long> diag(n + 1, 0);
+    diag[1] = lo;
+    diag[n] = hi;
+    for (int i = 2; i <= n - 1; i++) {
+        diag[i] = query(i, i);
+    }
+    
+    // Find i_hi: smallest i in [1,n] with i*i >= k
+    long long target_hi = k;
+    int i_hi = -1;
+    for (int i = 1; i <= n; i++) {
+        if ((long long)i * i >= target_hi) {
+            i_hi = i;
+            break;
+        }
+    }
+    if (i_hi != -1) {
+        hi = diag[i_hi];
+    }
+    
+    // Find i_lo: largest i in [1,n] with (n-i+1)*(n-i+1) >= n*n - k + 1
+    long long target_lo = (long long)n * n - k + 1;
+    int i_lo = -1;
+    for (int i = n; i >= 1; i--) {
+        long long m = n - i + 1;
+        if (m * m >= target_lo) {
+            i_lo = i;
+            break;
+        }
+    }
+    if (i_lo != -1) {
+        lo = diag[i_lo];
+    }
+    
+    if (lo == hi) {
+        cout << "DONE " << lo << "\n";
+        cout.flush();
+        return 0;
+    }
+    
     while (lo < hi) {
         long long mid = lo + (hi - lo) / 2;
         if (countLE(mid) >= k) hi = mid;
