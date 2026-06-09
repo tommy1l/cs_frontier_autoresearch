@@ -17,21 +17,14 @@ vector<int> ks;
 int W;
 int NW;
 
-struct Rec {
-    int oi, x0, y0, s1, C;
-};
+static const int FREEDOM_CAP = 8;
+static const int K_CANDS = 6;
 
-static const int K_TOP = 4;
-
-vector<Rec> findTopK(int pi, const vector<vector<uint64_t>>& col_bits){
-    vector<Rec> top;
-    auto cmpLex = [](const Rec& a, const Rec& b){
-        if(a.s1 != b.s1) return a.s1 < b.s1;
-        if(a.C != b.C) return a.C > b.C;
-        if(a.y0 != b.y0) return a.y0 < b.y0;
-        return a.x0 < b.x0;
-    };
-    
+// find best placement for piece pi against col_bits; returns true if found
+bool findBest(int pi, const vector<vector<uint64_t>>& col_bits,
+              int& bestOri, int& bestX0, int& bestY0){
+    int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
+    bestOri=-1; bestX0=-1; bestY0=-1;
     for(int oi=0; oi<8; oi++){
         const Orient& o = orients[pi][oi];
         if(o.w > W) continue;
@@ -104,81 +97,136 @@ vector<Rec> findTopK(int pi, const vector<vector<uint64_t>>& col_bits){
                     }
                 }
             }
-            Rec r{oi, x0, y0, y0+o.h, C};
-            top.push_back(r);
+            int s1 = y0+o.h, s2=y0, s3=x0;
+            bool better = false;
+            if(s1 < bestS1) better = true;
+            else if(s1 == bestS1){
+                if(C > bestC) better = true;
+                else if(C == bestC){
+                    if(s2 < bestS2) better = true;
+                    else if(s2 == bestS2 && s3 < bestS3) better = true;
+                }
+            }
+            if(better){
+                bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
+                bestOri=oi; bestX0=x0; bestY0=y0;
+            }
         }
     }
-    
-    sort(top.begin(), top.end(), cmpLex);
-    if((int)top.size() > K_TOP) top.resize(K_TOP);
-    return top;
+    return bestOri >= 0;
 }
 
-int bt_count;
-int MAX_BT;
+// count freedom (capped) for piece pi against col_bits
+int countFreedom(int pi, const vector<vector<uint64_t>>& col_bits){
+    int freedom = 0;
+    for(int oi=0; oi<8; oi++){
+        const Orient& o = orients[pi][oi];
+        if(o.w > W) continue;
+        if(o.h > W) continue;
+        
+        vector<uint64_t> total_blocked(NW, 0);
+        
+        for(int x0=0; x0<=W-o.w; x0++){
+            fill(total_blocked.begin(), total_blocked.end(), 0ULL);
+            
+            for(int dx : o.cols){
+                const auto& colb = col_bits[x0+dx];
+                for(int dy : o.pattern_dx[dx]){
+                    int wshift = dy / 64;
+                    int bshift = dy % 64;
+                    if(bshift == 0){
+                        for(int w=0; w+wshift<NW; w++){
+                            total_blocked[w] |= colb[w+wshift];
+                        }
+                    } else {
+                        for(int w=0; w+wshift<NW; w++){
+                            uint64_t lo = colb[w+wshift] >> bshift;
+                            uint64_t hi = 0;
+                            if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
+                            total_blocked[w] |= (lo | hi);
+                        }
+                    }
+                }
+            }
+            
+            int maxY0 = W - o.h;
+            int firstBlock = maxY0 + 1;
+            if(firstBlock < 0) continue;
+            for(int w=0; w<NW; w++){
+                int base = w*64;
+                if(base >= firstBlock){
+                    total_blocked[w] = ~0ULL;
+                } else if(base + 64 > firstBlock){
+                    int bits = firstBlock - base;
+                    uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
+                    total_blocked[w] |= mask;
+                }
+            }
+            
+            int y0 = -1;
+            for(int w=0; w<NW; w++){
+                uint64_t v = ~total_blocked[w];
+                if(v != 0){
+                    int b = __builtin_ctzll(v);
+                    y0 = w*64 + b;
+                    break;
+                }
+            }
+            if(y0 < 0 || y0 > maxY0) continue;
+            
+            freedom++;
+            if(freedom >= FREEDOM_CAP) return freedom;
+        }
+        if(freedom >= FREEDOM_CAP) return freedom;
+    }
+    return freedom;
+}
 
 bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
     
-    bt_count = 0;
-    MAX_BT = 4 * n;
+    vector<char> placed(n, 0);
+    int scanFront = 0;
+    int remaining = n;
     
-    vector<vector<Rec>> lastList(n);
-    vector<int> choice(n, 0);
-    
-    auto applyRec = [&](int pi, const Rec& r){
-        const Orient& o = orients[pi][r.oi];
+    while(remaining > 0){
+        while(scanFront < (int)order.size() && placed[order[scanFront]]) scanFront++;
+        
+        vector<int> cands;
+        for(int i = scanFront; i < (int)order.size() && (int)cands.size() < K_CANDS; i++){
+            if(!placed[order[i]]) cands.push_back(order[i]);
+        }
+        if(cands.empty()) return true;
+        
+        vector<int> freedom(cands.size(), 0);
+        bool anyInfeasible = false;
+        for(int i = 0; i < (int)cands.size(); i++){
+            freedom[i] = countFreedom(cands[i], col_bits);
+            if(freedom[i] == 0) anyInfeasible = true;
+        }
+        if(anyInfeasible) return false;
+        
+        int pickIdx = 0;
+        for(int i = 1; i < (int)cands.size(); i++){
+            if(freedom[i] < freedom[pickIdx]) pickIdx = i;
+        }
+        int piStar = cands[pickIdx];
+        
+        int bestOri, bestX0, bestY0;
+        if(!findBest(piStar, col_bits, bestOri, bestX0, bestY0)) return false;
+        
+        Orient& o = orients[piStar][bestOri];
         for(auto& c : o.cells){
-            int gx = r.x0+c.first, gy = r.y0+c.second;
+            int gx = bestX0+c.first, gy = bestY0+c.second;
             col_bits[gx][gy>>6] |= (1ULL << (gy&63));
         }
-        int f = r.oi/4, rr = r.oi%4;
-        tF[pi] = f; tR[pi] = rr;
-        tX[pi] = r.x0 - o.min_tx;
-        tY[pi] = r.y0 - o.min_ty;
-    };
-    
-    auto clearRec = [&](int pi, const Rec& r){
-        const Orient& o = orients[pi][r.oi];
-        for(auto& c : o.cells){
-            int gx = r.x0+c.first, gy = r.y0+c.second;
-            col_bits[gx][gy>>6] &= ~(1ULL << (gy&63));
-        }
-    };
-    
-    int step = 0;
-    while(step < n){
-        int pi = order[step];
-        lastList[step] = findTopK(pi, col_bits);
-        choice[step] = 0;
-        
-        if(lastList[step].empty()){
-            // backtrack
-            bool ok = false;
-            while(true){
-                bt_count++;
-                if(bt_count > MAX_BT) return false;
-                if(step == 0) return false;
-                int prevStep = step - 1;
-                int prevPi = order[prevStep];
-                clearRec(prevPi, lastList[prevStep][choice[prevStep]]);
-                choice[prevStep]++;
-                if(choice[prevStep] < (int)lastList[prevStep].size()){
-                    applyRec(prevPi, lastList[prevStep][choice[prevStep]]);
-                    step = prevStep + 1;
-                    ok = true;
-                    break;
-                } else {
-                    step = prevStep;
-                }
-            }
-            if(!ok) return false;
-            continue;
-        }
-        
-        applyRec(pi, lastList[step][0]);
-        step++;
+        int f = bestOri/4, r = bestOri%4;
+        tF[piStar] = f; tR[piStar] = r;
+        tX[piStar] = bestX0 - o.min_tx;
+        tY[piStar] = bestY0 - o.min_ty;
+        placed[piStar] = 1;
+        remaining--;
     }
     return true;
 }
