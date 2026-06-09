@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+b7c88c1	70.41395302999999	keep	skyline bottom-left greedy fill (square bounding box)
+c3eb555	76.26202991285716	keep	skyline BL with support-count tiebreaker
+11b8bbd	76.25213213142857	discard	skyline BL with 2D grid and contact-perimeter tiebreaker
+378398e	75.48636014	discard	multi-sort-order skyline BL with support-count tiebreaker
+8faf6af	76.26202991285716	discard	skyline BL with iterative L shrink after success
+a9fc21c	76.22553521428573	discard	deferred small-piece placement in empty cells
+d830986	77.02882741714285	keep	skyline BL with min-top-of-piece primary criterion
+365390f	75.7105888514286	discard	skyline BL min-top with k_i / min-orient-height sort
+31d0e29	77.75724590000002	keep	skyline BL min-top with total-gap tiebreaker
+914f541	77.63456166142856	discard	skyline BL min-top min-gap with support tiebreaker
+94c9c55	78.04231376857146	keep	skyline BL with new-max-skyline primary key
+0c6accb	78.04231376857146	discard	new-max-skyline BL with iterative L shrink
+bbb4f88	77.75724590000002	discard	new-max-skyline BL with top before gap tiebreak
+51d3847	76.56519700142857	discard	new-max-skyline BL sorted by bbox area
+4820516	77.8881341557143	discard	new-max-skyline BL with max-gap-per-column tiebreak
