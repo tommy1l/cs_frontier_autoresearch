@@ -18,11 +18,13 @@ int W;
 int NW;
 
 bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
+             vector<int>& hh,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
+    fill(hh.begin(), hh.end(), 0);
     
     for(int pi : order){
-        int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
+        int bestS1 = INT_MAX, bestFM = INT_MIN, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
         int bestOri=-1, bestX0=-1, bestY0=-1;
         for(int oi=0; oi<8; oi++){
             Orient& o = orients[pi][oi];
@@ -96,18 +98,27 @@ bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
                         }
                     }
                 }
+                
+                int FM = 0;
+                for(int dx : o.cols){
+                    if(y0 + o.min_dy[dx] == hh[x0+dx]) FM++;
+                }
+                
                 int s1 = y0+o.h, s2=y0, s3=x0;
                 bool better = false;
                 if(s1 < bestS1) better = true;
                 else if(s1 == bestS1){
-                    if(C > bestC) better = true;
-                    else if(C == bestC){
-                        if(s2 < bestS2) better = true;
-                        else if(s2 == bestS2 && s3 < bestS3) better = true;
+                    if(FM > bestFM) better = true;
+                    else if(FM == bestFM){
+                        if(C > bestC) better = true;
+                        else if(C == bestC){
+                            if(s2 < bestS2) better = true;
+                            else if(s2 == bestS2 && s3 < bestS3) better = true;
+                        }
                     }
                 }
                 if(better){
-                    bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
+                    bestS1=s1; bestFM=FM; bestC=C; bestS2=s2; bestS3=s3;
                     bestOri=oi; bestX0=x0; bestY0=y0;
                 }
             }
@@ -117,6 +128,10 @@ bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
         for(auto& c : o.cells){
             int gx = bestX0+c.first, gy = bestY0+c.second;
             col_bits[gx][gy>>6] |= (1ULL << (gy&63));
+        }
+        for(int dx : o.cols){
+            int nh = bestY0 + o.max_dy[dx] + 1;
+            if(nh > hh[bestX0+dx]) hh[bestX0+dx] = nh;
         }
         int f = bestOri/4, r = bestOri%4;
         tF[pi] = f; tR[pi] = r;
@@ -184,7 +199,7 @@ int main(){
         }
     }
     
-    vector<int> order1(n), order2(n);
+    vector<int> order1(n), order2(n), order3(n);
     iota(order1.begin(), order1.end(), 0);
     sort(order1.begin(), order1.end(), [&](int a, int b){
         if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
@@ -196,6 +211,12 @@ int main(){
         if(ks[a] != ks[b]) return ks[a] > ks[b];
         return maxArea[a] > maxArea[b];
     });
+    iota(order3.begin(), order3.end(), 0);
+    sort(order3.begin(), order3.end(), [&](int a, int b){
+        if(ks[a] != ks[b]) return ks[a] > ks[b];
+        if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
+        return maxDim[a] > maxDim[b];
+    });
     
     W = (int)ceil(sqrt((double)T));
     if(W<1) W=1;
@@ -205,13 +226,18 @@ int main(){
     while(true){
         NW = (W + 63) / 64;
         vector<vector<uint64_t>> col_bits(W, vector<uint64_t>(NW, 0));
+        vector<int> hh(W, 0);
         vector<int> tX(n), tY(n), tR(n), tF(n);
         
-        if(tryPack(order1, col_bits, tX, tY, tR, tF)){
+        if(tryPack(order1, col_bits, hh, tX, tY, tR, tF)){
             outX=tX; outY=tY; outR=tR; outF=tF;
             break;
         }
-        if(tryPack(order2, col_bits, tX, tY, tR, tF)){
+        if(tryPack(order2, col_bits, hh, tX, tY, tR, tF)){
+            outX=tX; outY=tY; outR=tR; outF=tF;
+            break;
+        }
+        if(tryPack(order3, col_bits, hh, tX, tY, tR, tF)){
             outX=tX; outY=tY; outR=tR; outF=tF;
             break;
         }
