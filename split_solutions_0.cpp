@@ -17,169 +17,111 @@ vector<int> ks;
 int W;
 int NW;
 
-struct BestRes {
-    int s1, C, s2, s3;
-    int ori, x0, y0;
-    bool valid;
-};
-
-BestRes findBest(int pi, vector<vector<uint64_t>>& col_bits){
-    BestRes res;
-    res.valid = false;
-    res.s1 = INT_MAX; res.C = INT_MIN; res.s2 = INT_MAX; res.s3 = INT_MAX;
-    res.ori = -1; res.x0 = -1; res.y0 = -1;
-    
-    for(int oi=0; oi<8; oi++){
-        Orient& o = orients[pi][oi];
-        if(o.w > W) continue;
-        if(o.h > W) continue;
-        vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
-        for(auto& c : o.cells) pmask[c.first][c.second] = 1;
-        
-        vector<uint64_t> total_blocked(NW, 0);
-        
-        for(int x0=0; x0<=W-o.w; x0++){
-            fill(total_blocked.begin(), total_blocked.end(), 0ULL);
-            
-            for(int dx : o.cols){
-                const auto& colb = col_bits[x0+dx];
-                for(int dy : o.pattern_dx[dx]){
-                    int wshift = dy / 64;
-                    int bshift = dy % 64;
-                    if(bshift == 0){
-                        for(int w=0; w+wshift<NW; w++){
-                            total_blocked[w] |= colb[w+wshift];
-                        }
-                    } else {
-                        for(int w=0; w+wshift<NW; w++){
-                            uint64_t lo = colb[w+wshift] >> bshift;
-                            uint64_t hi = 0;
-                            if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
-                            total_blocked[w] |= (lo | hi);
-                        }
-                    }
-                }
-            }
-            
-            int maxY0 = W - o.h;
-            int firstBlock = maxY0 + 1;
-            if(firstBlock < 0) continue;
-            for(int w=0; w<NW; w++){
-                int base = w*64;
-                if(base >= firstBlock){
-                    total_blocked[w] = ~0ULL;
-                } else if(base + 64 > firstBlock){
-                    int bits = firstBlock - base;
-                    uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
-                    total_blocked[w] |= mask;
-                }
-            }
-            
-            int y0 = -1;
-            for(int w=0; w<NW; w++){
-                uint64_t v = ~total_blocked[w];
-                if(v != 0){
-                    int b = __builtin_ctzll(v);
-                    y0 = w*64 + b;
-                    break;
-                }
-            }
-            if(y0 < 0 || y0 > maxY0) continue;
-            
-            int C = 0;
-            const int ddx[4] = {1,-1,0,0};
-            const int ddy[4] = {0,0,1,-1};
-            for(auto& c : o.cells){
-                int cx = c.first, cy = c.second;
-                for(int k=0;k<4;k++){
-                    int nx = cx + ddx[k], ny = cy + ddy[k];
-                    if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
-                    int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
-                    if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
-                    else {
-                        if((col_bits[gx][gy>>6] >> (gy&63)) & 1ULL) C++;
-                    }
-                }
-            }
-            int s1 = y0+o.h, s2=y0, s3=x0;
-            bool better = false;
-            if(s1 < res.s1) better = true;
-            else if(s1 == res.s1){
-                if(C > res.C) better = true;
-                else if(C == res.C){
-                    if(s2 < res.s2) better = true;
-                    else if(s2 == res.s2 && s3 < res.s3) better = true;
-                }
-            }
-            if(better){
-                res.s1=s1; res.C=C; res.s2=s2; res.s3=s3;
-                res.ori=oi; res.x0=x0; res.y0=y0;
-                res.valid = true;
-            }
-        }
-    }
-    return res;
-}
-
 bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
     
-    vector<bool> placed(n, false);
-    int scanFront = 0;
-    int placedCount = 0;
-    const int K = 4;
-    
-    while(placedCount < n){
-        while(scanFront < n && placed[order[scanFront]]) scanFront++;
-        
-        vector<int> cands;
-        int si = scanFront;
-        while(si < n && (int)cands.size() < K){
-            if(!placed[order[si]]) cands.push_back(order[si]);
-            si++;
-        }
-        
-        int chosenIdx = -1;
-        BestRes chosenRes;
-        chosenRes.valid = false;
-        chosenRes.s1 = INT_MAX; chosenRes.C = INT_MIN; chosenRes.s2 = INT_MAX; chosenRes.s3 = INT_MAX;
-        
-        for(int ci=0; ci<(int)cands.size(); ci++){
-            int pi = cands[ci];
-            BestRes r = findBest(pi, col_bits);
-            if(!r.valid) continue;
-            bool better = false;
-            if(chosenIdx < 0) better = true;
-            else {
-                if(r.s1 < chosenRes.s1) better = true;
-                else if(r.s1 == chosenRes.s1){
-                    if(r.C > chosenRes.C) better = true;
-                    else if(r.C == chosenRes.C){
-                        if(r.s2 < chosenRes.s2) better = true;
-                        else if(r.s2 == chosenRes.s2 && r.s3 < chosenRes.s3) better = true;
+    for(int pi : order){
+        int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
+        int bestOri=-1, bestX0=-1, bestY0=-1;
+        for(int oi=0; oi<8; oi++){
+            Orient& o = orients[pi][oi];
+            if(o.w > W) continue;
+            if(o.h > W) continue;
+            vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
+            for(auto& c : o.cells) pmask[c.first][c.second] = 1;
+            
+            vector<uint64_t> total_blocked(NW, 0);
+            
+            for(int x0=0; x0<=W-o.w; x0++){
+                fill(total_blocked.begin(), total_blocked.end(), 0ULL);
+                
+                for(int dx : o.cols){
+                    const auto& colb = col_bits[x0+dx];
+                    for(int dy : o.pattern_dx[dx]){
+                        int wshift = dy / 64;
+                        int bshift = dy % 64;
+                        if(bshift == 0){
+                            for(int w=0; w+wshift<NW; w++){
+                                total_blocked[w] |= colb[w+wshift];
+                            }
+                        } else {
+                            for(int w=0; w+wshift<NW; w++){
+                                uint64_t lo = colb[w+wshift] >> bshift;
+                                uint64_t hi = 0;
+                                if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
+                                total_blocked[w] |= (lo | hi);
+                            }
+                        }
                     }
                 }
-            }
-            if(better){
-                chosenRes = r;
-                chosenIdx = pi;
+                
+                int maxY0 = W - o.h;
+                int firstBlock = maxY0 + 1;
+                if(firstBlock < 0) continue;
+                for(int w=0; w<NW; w++){
+                    int base = w*64;
+                    if(base >= firstBlock){
+                        total_blocked[w] = ~0ULL;
+                    } else if(base + 64 > firstBlock){
+                        int bits = firstBlock - base;
+                        uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
+                        total_blocked[w] |= mask;
+                    }
+                }
+                
+                int y0 = -1;
+                for(int w=0; w<NW; w++){
+                    uint64_t v = ~total_blocked[w];
+                    if(v != 0){
+                        int b = __builtin_ctzll(v);
+                        y0 = w*64 + b;
+                        break;
+                    }
+                }
+                if(y0 < 0 || y0 > maxY0) continue;
+                
+                int C = 0;
+                const int ddx[4] = {1,-1,0,0};
+                const int ddy[4] = {0,0,1,-1};
+                for(auto& c : o.cells){
+                    int cx = c.first, cy = c.second;
+                    for(int k=0;k<4;k++){
+                        int nx = cx + ddx[k], ny = cy + ddy[k];
+                        if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
+                        int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
+                        if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
+                        else {
+                            if((col_bits[gx][gy>>6] >> (gy&63)) & 1ULL) C++;
+                        }
+                    }
+                }
+                int s1 = y0+o.h, s2=y0, s3=x0;
+                bool better = false;
+                if(s1 < bestS1) better = true;
+                else if(s1 == bestS1){
+                    if(C > bestC) better = true;
+                    else if(C == bestC){
+                        if(s2 < bestS2) better = true;
+                        else if(s2 == bestS2 && s3 < bestS3) better = true;
+                    }
+                }
+                if(better){
+                    bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
+                    bestOri=oi; bestX0=x0; bestY0=y0;
+                }
             }
         }
-        
-        if(chosenIdx < 0) return false;
-        
-        Orient& o = orients[chosenIdx][chosenRes.ori];
+        if(bestOri<0){ return false; }
+        Orient& o = orients[pi][bestOri];
         for(auto& c : o.cells){
-            int gx = chosenRes.x0+c.first, gy = chosenRes.y0+c.second;
+            int gx = bestX0+c.first, gy = bestY0+c.second;
             col_bits[gx][gy>>6] |= (1ULL << (gy&63));
         }
-        int f = chosenRes.ori/4, r = chosenRes.ori%4;
-        tF[chosenIdx] = f; tR[chosenIdx] = r;
-        tX[chosenIdx] = chosenRes.x0 - o.min_tx;
-        tY[chosenIdx] = chosenRes.y0 - o.min_ty;
-        placed[chosenIdx] = true;
-        placedCount++;
+        int f = bestOri/4, r = bestOri%4;
+        tF[pi] = f; tR[pi] = r;
+        tX[pi] = bestX0 - o.min_tx;
+        tY[pi] = bestY0 - o.min_ty;
     }
     return true;
 }
@@ -255,6 +197,34 @@ int main(){
         return maxArea[a] > maxArea[b];
     });
     
+    // Build tier groups based on maxArea of order1 pieces
+    vector<pair<int,int>> tier_groups; // [start, end)
+    {
+        int i = 0;
+        while(i < n){
+            int j = i+1;
+            int curArea = maxArea[order1[i]];
+            while(j < n && maxArea[order1[j]] == curArea) j++;
+            tier_groups.push_back({i, j});
+            i = j;
+        }
+    }
+    
+    mt19937 rng(0xC0FFEE);
+    
+    auto makeShuffled = [&](mt19937& r) -> vector<int> {
+        vector<int> res = order1;
+        for(auto& g : tier_groups){
+            int s = g.first, e = g.second;
+            int len = e - s;
+            for(int k = len-1; k > 0; k--){
+                int idx = uniform_int_distribution<int>(0, k)(r);
+                swap(res[s+k], res[s+idx]);
+            }
+        }
+        return res;
+    };
+    
     W = (int)ceil(sqrt((double)T));
     if(W<1) W=1;
     
@@ -265,14 +235,26 @@ int main(){
         vector<vector<uint64_t>> col_bits(W, vector<uint64_t>(NW, 0));
         vector<int> tX(n), tY(n), tR(n), tF(n);
         
+        bool done = false;
         if(tryPack(order1, col_bits, tX, tY, tR, tF)){
             outX=tX; outY=tY; outR=tR; outF=tF;
-            break;
+            done = true;
         }
-        if(tryPack(order2, col_bits, tX, tY, tR, tF)){
+        if(!done && tryPack(order2, col_bits, tX, tY, tR, tF)){
             outX=tX; outY=tY; outR=tR; outF=tF;
-            break;
+            done = true;
         }
+        if(!done){
+            for(int r=0; r<8; r++){
+                vector<int> shuffled = makeShuffled(rng);
+                if(tryPack(shuffled, col_bits, tX, tY, tR, tF)){
+                    outX=tX; outY=tY; outR=tR; outF=tF;
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if(done) break;
         W++;
     }
     
