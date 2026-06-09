@@ -30,27 +30,86 @@ int main(){
     int p_anchor = -1;
     v_anchor = -1;
     
-    for(int k = 1; k <= n; k++){
-        int i;
-        if(k % 2 == 1) i = (k + 1) / 2;
-        else i = n + 1 - (k / 2);
+    auto fallbackScan = [&](){
+        for(int k = 1; k <= n; k++){
+            int i;
+            if(k % 2 == 1) i = (k + 1) / 2;
+            else i = n + 1 - (k / 2);
+            
+            vector<int> q(n+1, 1);
+            q[i] = 2;
+            int a = doQuery(q);
+            if(a == 0){
+                p_anchor = i;
+                v_anchor = 1;
+                return;
+            } else if(a == 2){
+                p_anchor = i;
+                v_anchor = 2;
+                return;
+            }
+        }
+    };
+    
+    if(n < 30){
+        fallbackScan();
+    } else {
+        int k = max(2, (int)floor(sqrt((double)n)));
+        vector<int> found_chunk;
+        bool found = false;
+        for(int start = 1; start <= n; start += k){
+            int end = min(n, start + k - 1);
+            vector<int> C;
+            for(int j = start; j <= end; j++) C.push_back(j);
+            
+            vector<int> q(n+1, 1);
+            for(int j : C) q[j] = 2;
+            int a = doQuery(q);
+            if(a == 0){
+                found_chunk = C;
+                v_anchor = 1;
+                found = true;
+                break;
+            } else if(a == 2){
+                found_chunk = C;
+                v_anchor = 2;
+                found = true;
+                break;
+            }
+        }
         
-        vector<int> q(n+1, 1);
-        q[i] = 2;
-        cout << 0;
-        for(int j = 1; j <= n; j++) cout << ' ' << q[j];
-        cout << '\n';
-        cout.flush();
-        int a;
-        cin >> a;
-        if(a == 0){
-            p_anchor = i;
-            v_anchor = 1;
-            break;
-        } else if(a == 2){
-            p_anchor = i;
-            v_anchor = 2;
-            break;
+        if(!found){
+            fallbackScan();
+        } else {
+            vector<int> C = found_chunk;
+            if(v_anchor == 1){
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    
+                    vector<int> q(n+1, 1);
+                    for(int j : R) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 1) C = L;
+                    else C = R;
+                }
+            } else {
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    
+                    vector<int> q(n+1, 1);
+                    for(int j : L) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 2) C = L;
+                    else C = R;
+                }
+            }
+            p_anchor = C[0];
         }
     }
     
@@ -74,7 +133,6 @@ int main(){
         vector<int> Ca = G;
         vector<int> Cb = G;
         
-        // Phase A: Ca == Cb
         while(Ca == Cb && Ca.size() > 1){
             int sz = Ca.size();
             int m = (sz + 1) / 2;
@@ -95,7 +153,6 @@ int main(){
                 Ca = Sa;
                 Cb = Sb;
             } else {
-                // ambiguous
                 vector<int> q2(n+1, v_anchor);
                 for(int j : Sa) q2[j] = a;
                 int r2 = doQuery(q2);
@@ -110,7 +167,6 @@ int main(){
             }
         }
         
-        // Phase B: disjoint
         while(Ca.size() > 1 || Cb.size() > 1){
             vector<int> Sa, Sb;
             if(Ca.size() > 1){
@@ -137,7 +193,6 @@ int main(){
             };
             
             if(Sa.empty()){
-                // sum is indicator pos(b) in Sb
                 if(sum == 1) Cb = Sb;
                 else Cb = setMinus(Cb, Sb);
             } else if(Sb.empty()){
@@ -170,7 +225,6 @@ int main(){
         G.erase(remove_if(G.begin(), G.end(), [&](int x){ return x == pa || x == pb; }), G.end());
     }
     
-    // odd remaining
     if(idx < V.size()){
         int v = V[idx];
         vector<int> C = G;
