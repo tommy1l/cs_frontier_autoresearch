@@ -16,119 +16,116 @@ vector<vector<Orient>> orients;
 vector<int> ks;
 int W;
 int NW;
-vector<int> priorityOrder;
-vector<int> min_w_orient, min_h_orient;
 
-bool tryPack(vector<vector<uint64_t>>& col_bits,
+bool tryPack(const vector<int>& order, vector<vector<uint64_t>>& col_bits,
              vector<int>& tX, vector<int>& tY, vector<int>& tR, vector<int>& tF){
     for(auto& cb : col_bits) fill(cb.begin(), cb.end(), 0ULL);
+    fill(tX.begin(), tX.end(), 0);
+    fill(tY.begin(), tY.end(), 0);
+    fill(tR.begin(), tR.end(), 0);
+    fill(tF.begin(), tF.end(), 0);
     
-    vector<int> skyline(W, 0);
-    vector<char> placed(n, 0);
-    int remaining = n;
-    const int K = 24;
-    
-    while(remaining > 0){
-        int min_h = INT_MAX;
-        for(int c=0;c<W;c++) min_h = min(min_h, skyline[c]);
-        int lo = 0;
-        while(lo < W && skyline[lo] != min_h) lo++;
-        int hi = lo+1;
-        while(hi < W && skyline[hi] == min_h) hi++;
-        int w_gap = hi - lo;
-        int h_left = (lo==0) ? INT_MAX : skyline[lo-1];
-        int h_right = (hi==W) ? INT_MAX : skyline[hi];
-        
-        // build candidate pool
-        vector<int> pool;
-        for(int pi : priorityOrder){
-            if(placed[pi]) continue;
-            if(min_w_orient[pi] > w_gap) continue;
-            if(min_h + min_h_orient[pi] > W) continue;
-            pool.push_back(pi);
-            if((int)pool.size() >= K) break;
-        }
-        
-        int bestWaste = INT_MAX, bestC = INT_MIN, bestTop = INT_MAX, bestX0 = INT_MAX;
-        int bestPi=-1, bestOri=-1, bestY0=-1;
-        
-        const int ddx[4] = {1,-1,0,0};
-        const int ddy[4] = {0,0,1,-1};
-        
-        for(int pi : pool){
-            for(int oi=0; oi<8; oi++){
-                Orient& o = orients[pi][oi];
-                if(o.w > w_gap) continue;
-                if(min_h + o.h > W) continue;
+    for(int pi : order){
+        int bestS1 = INT_MAX, bestC = INT_MIN, bestS2 = INT_MAX, bestS3 = INT_MAX;
+        int bestOri=-1, bestX0=-1, bestY0=-1;
+        for(int oi=0; oi<8; oi++){
+            Orient& o = orients[pi][oi];
+            if(o.w > W) continue;
+            if(o.h > W) continue;
+            vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
+            for(auto& c : o.cells) pmask[c.first][c.second] = 1;
+            
+            vector<uint64_t> total_blocked(NW, 0);
+            
+            for(int x0=0; x0<=W-o.w; x0++){
+                fill(total_blocked.begin(), total_blocked.end(), 0ULL);
                 
-                int y0 = min_h;
-                
-                // pmask
-                // small; build on the fly
-                static vector<vector<char>> pmask;
-                pmask.assign(o.w, vector<char>(o.h, 0));
-                for(auto& c : o.cells) pmask[c.first][c.second] = 1;
-                
-                for(int x0 = lo; x0 <= hi - o.w; x0++){
-                    int waste = (x0 - lo) + (hi - x0 - o.w);
-                    int top = y0 + o.h;
-                    if(waste > bestWaste) continue;
-                    
-                    int C = 0;
-                    for(auto& c : o.cells){
-                        int cx = c.first, cy = c.second;
-                        for(int k=0;k<4;k++){
-                            int nx = cx + ddx[k], ny = cy + ddy[k];
-                            if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
-                            int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
-                            if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
-                            else {
-                                if((col_bits[gx][gy>>6] >> (gy&63)) & 1ULL) C++;
+                for(int dx : o.cols){
+                    const auto& colb = col_bits[x0+dx];
+                    for(int dy : o.pattern_dx[dx]){
+                        int wshift = dy / 64;
+                        int bshift = dy % 64;
+                        if(bshift == 0){
+                            for(int w=0; w+wshift<NW; w++){
+                                total_blocked[w] |= colb[w+wshift];
+                            }
+                        } else {
+                            for(int w=0; w+wshift<NW; w++){
+                                uint64_t lo = colb[w+wshift] >> bshift;
+                                uint64_t hi = 0;
+                                if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
+                                total_blocked[w] |= (lo | hi);
                             }
                         }
                     }
-                    
-                    bool better = false;
-                    if(waste < bestWaste) better = true;
-                    else if(waste == bestWaste){
-                        if(C > bestC) better = true;
-                        else if(C == bestC){
-                            if(top < bestTop) better = true;
-                            else if(top == bestTop && x0 < bestX0) better = true;
+                }
+                
+                int maxY0 = W - o.h;
+                int firstBlock = maxY0 + 1;
+                if(firstBlock < 0) continue;
+                for(int w=0; w<NW; w++){
+                    int base = w*64;
+                    if(base >= firstBlock){
+                        total_blocked[w] = ~0ULL;
+                    } else if(base + 64 > firstBlock){
+                        int bits = firstBlock - base;
+                        uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
+                        total_blocked[w] |= mask;
+                    }
+                }
+                
+                int y0 = -1;
+                for(int w=0; w<NW; w++){
+                    uint64_t v = ~total_blocked[w];
+                    if(v != 0){
+                        int b = __builtin_ctzll(v);
+                        y0 = w*64 + b;
+                        break;
+                    }
+                }
+                if(y0 < 0 || y0 > maxY0) continue;
+                
+                int C = 0;
+                const int ddx[4] = {1,-1,0,0};
+                const int ddy[4] = {0,0,1,-1};
+                for(auto& c : o.cells){
+                    int cx = c.first, cy = c.second;
+                    for(int k=0;k<4;k++){
+                        int nx = cx + ddx[k], ny = cy + ddy[k];
+                        if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
+                        int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
+                        if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
+                        else {
+                            if((col_bits[gx][gy>>6] >> (gy&63)) & 1ULL) C++;
                         }
                     }
-                    if(better){
-                        bestWaste=waste; bestC=C; bestTop=top; bestX0=x0;
-                        bestPi=pi; bestOri=oi; bestY0=y0;
+                }
+                int s1 = y0+o.h, s2=y0, s3=x0;
+                bool better = false;
+                if(s1 < bestS1) better = true;
+                else if(s1 == bestS1){
+                    if(C > bestC) better = true;
+                    else if(C == bestC){
+                        if(s2 < bestS2) better = true;
+                        else if(s2 == bestS2 && s3 < bestS3) better = true;
                     }
                 }
-            }
-        }
-        
-        if(bestPi >= 0){
-            Orient& o = orients[bestPi][bestOri];
-            for(auto& c : o.cells){
-                int gx = bestX0+c.first, gy = bestY0+c.second;
-                col_bits[gx][gy>>6] |= (1ULL << (gy&63));
-            }
-            placed[bestPi] = 1;
-            remaining--;
-            for(int gx = bestX0; gx < bestX0 + o.w; gx++){
-                int dx = gx - bestX0;
-                if(o.max_dy[dx] >= 0){
-                    int v = bestY0 + o.max_dy[dx] + 1;
-                    if(v > skyline[gx]) skyline[gx] = v;
+                if(better){
+                    bestS1=s1; bestC=C; bestS2=s2; bestS3=s3;
+                    bestOri=oi; bestX0=x0; bestY0=y0;
                 }
             }
-            int f = bestOri/4, r = bestOri%4;
-            tF[bestPi] = f; tR[bestPi] = r;
-            tX[bestPi] = bestX0 - o.min_tx;
-            tY[bestPi] = bestY0 - o.min_ty;
-        } else {
-            int new_h = min(h_left, h_right);
-            if(new_h == INT_MAX || new_h >= W) return false;
-            for(int c=lo;c<hi;c++) skyline[c] = new_h;
         }
+        if(bestOri<0){ return false; }
+        Orient& o = orients[pi][bestOri];
+        for(auto& c : o.cells){
+            int gx = bestX0+c.first, gy = bestY0+c.second;
+            col_bits[gx][gy>>6] |= (1ULL << (gy&63));
+        }
+        int f = bestOri/4, r = bestOri%4;
+        tF[pi] = f; tR[pi] = r;
+        tX[pi] = bestX0 - o.min_tx;
+        tY[pi] = bestY0 - o.min_ty;
     }
     return true;
 }
@@ -149,8 +146,10 @@ int main(){
     
     orients.assign(n, vector<Orient>(8));
     vector<int> maxArea(n, 0);
-    min_w_orient.assign(n, INT_MAX);
-    min_h_orient.assign(n, INT_MAX);
+    vector<int> maxDim(n, 0);
+    vector<int> maxOrientW(n, 0);
+    vector<int> maxOrientH(n, 0);
+    vector<int> minBboxArea(n, INT_MAX);
     for(int i=0;i<n;i++){
         for(int f=0;f<2;f++){
             for(int r=0;r<4;r++){
@@ -187,15 +186,43 @@ int main(){
                 }
                 for(int c=0;c<o.w;c++) if(o.max_dy[c]>=0) o.cols.push_back(c);
                 maxArea[i] = max(maxArea[i], o.w*o.h);
-                min_w_orient[i] = min(min_w_orient[i], o.w);
-                min_h_orient[i] = min(min_h_orient[i], o.h);
+                maxDim[i] = max(maxDim[i], max(o.w, o.h));
+                maxOrientW[i] = max(maxOrientW[i], o.w);
+                maxOrientH[i] = max(maxOrientH[i], o.h);
+                minBboxArea[i] = min(minBboxArea[i], o.w*o.h);
             }
         }
     }
     
-    priorityOrder.resize(n);
-    iota(priorityOrder.begin(), priorityOrder.end(), 0);
-    sort(priorityOrder.begin(), priorityOrder.end(), [&](int a, int b){
+    vector<int> order1(n), order2(n), order3(n), order4(n), order5(n);
+    iota(order1.begin(), order1.end(), 0);
+    sort(order1.begin(), order1.end(), [&](int a, int b){
+        if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
+        return ks[a] > ks[b];
+    });
+    iota(order2.begin(), order2.end(), 0);
+    sort(order2.begin(), order2.end(), [&](int a, int b){
+        if(maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
+        if(ks[a] != ks[b]) return ks[a] > ks[b];
+        return maxArea[a] > maxArea[b];
+    });
+    vector<int> perim(n);
+    for(int i=0;i<n;i++) perim[i] = 2*(maxOrientW[i]+maxOrientH[i]);
+    iota(order3.begin(), order3.end(), 0);
+    sort(order3.begin(), order3.end(), [&](int a, int b){
+        if(perim[a] != perim[b]) return perim[a] > perim[b];
+        if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
+        return ks[a] > ks[b];
+    });
+    iota(order4.begin(), order4.end(), 0);
+    sort(order4.begin(), order4.end(), [&](int a, int b){
+        if(ks[a] != ks[b]) return ks[a] > ks[b];
+        if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
+        return maxDim[a] > maxDim[b];
+    });
+    iota(order5.begin(), order5.end(), 0);
+    sort(order5.begin(), order5.end(), [&](int a, int b){
+        if(minBboxArea[a] != minBboxArea[b]) return minBboxArea[a] > minBboxArea[b];
         if(maxArea[a] != maxArea[b]) return maxArea[a] > maxArea[b];
         return ks[a] > ks[b];
     });
@@ -210,10 +237,15 @@ int main(){
         vector<vector<uint64_t>> col_bits(W, vector<uint64_t>(NW, 0));
         vector<int> tX(n), tY(n), tR(n), tF(n);
         
-        if(tryPack(col_bits, tX, tY, tR, tF)){
-            outX=tX; outY=tY; outR=tR; outF=tF;
-            break;
+        bool ok = false;
+        for(const vector<int>* ord : {&order1, &order2, &order3, &order4, &order5}){
+            if(tryPack(*ord, col_bits, tX, tY, tR, tF)){
+                outX=tX; outY=tY; outR=tR; outF=tF;
+                ok = true;
+                break;
+            }
         }
+        if(ok) break;
         W++;
     }
     
