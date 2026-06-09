@@ -8,6 +8,7 @@ struct Orient {
     vector<int> min_dy;
     vector<int> max_dy;
     int min_tx, min_ty;
+    vector<vector<int>> pattern_dx; // for each dx in [0,w), list of dys
 };
 
 int main(){
@@ -55,9 +56,11 @@ int main(){
                 }
                 o.min_dy.assign(o.w, INT_MAX);
                 o.max_dy.assign(o.w, -1);
+                o.pattern_dx.assign(o.w, {});
                 for(auto& c: o.cells){
                     o.min_dy[c.first] = min(o.min_dy[c.first], c.second);
                     o.max_dy[c.first] = max(o.max_dy[c.first], c.second);
+                    o.pattern_dx[c.first].push_back(c.second);
                 }
                 for(int c=0;c<o.w;c++) if(o.max_dy[c]>=0) o.cols.push_back(c);
                 maxArea[i] = max(maxArea[i], o.w*o.h);
@@ -78,8 +81,8 @@ int main(){
     vector<int> outX(n), outY(n), outR(n), outF(n);
     
     while(true){
-        vector<int> skyline(W, 0);
-        vector<vector<int>> occ(W, vector<int>(W, 0));
+        int NW = (W + 63) / 64;
+        vector<vector<uint64_t>> col_bits(W, vector<uint64_t>(NW, 0));
         bool ok = true;
         vector<int> tX(n), tY(n), tR(n), tF(n);
         
@@ -90,22 +93,65 @@ int main(){
                 Orient& o = orients[pi][oi];
                 if(o.w > W) continue;
                 if(o.h > W) continue;
-                // build piece-cell lookup
                 vector<vector<char>> pmask(o.w, vector<char>(o.h, 0));
                 for(auto& c : o.cells) pmask[c.first][c.second] = 1;
+                
+                vector<uint64_t> total_blocked(NW, 0);
+                vector<uint64_t> shifted(NW, 0);
+                
                 for(int x0=0; x0<=W-o.w; x0++){
-                    int y0 = 0;
+                    fill(total_blocked.begin(), total_blocked.end(), 0ULL);
+                    
                     for(int dx : o.cols){
-                        int cand = skyline[x0+dx] - o.min_dy[dx];
-                        if(cand > y0) y0 = cand;
+                        const auto& colb = col_bits[x0+dx];
+                        for(int dy : o.pattern_dx[dx]){
+                            // shift colb right by dy bits
+                            int wshift = dy / 64;
+                            int bshift = dy % 64;
+                            if(bshift == 0){
+                                for(int w=0; w+wshift<NW; w++){
+                                    total_blocked[w] |= colb[w+wshift];
+                                }
+                            } else {
+                                for(int w=0; w+wshift<NW; w++){
+                                    uint64_t lo = colb[w+wshift] >> bshift;
+                                    uint64_t hi = 0;
+                                    if(w+wshift+1 < NW) hi = colb[w+wshift+1] << (64-bshift);
+                                    total_blocked[w] |= (lo | hi);
+                                }
+                            }
+                        }
                     }
-                    if(y0 + o.h > W) continue;
-                    bool good = true;
-                    for(auto& c : o.cells){
-                        if(occ[x0+c.first][y0+c.second]) { good=false; break; }
+                    
+                    // mask out positions y0 > W - h, i.e., y0 >= W - h + 1
+                    int maxY0 = W - o.h; // inclusive
+                    int firstBlock = maxY0 + 1;
+                    if(firstBlock < 0) continue;
+                    for(int w=0; w<NW; w++){
+                        int base = w*64;
+                        if(base >= firstBlock){
+                            total_blocked[w] = ~0ULL;
+                        } else if(base + 64 > firstBlock){
+                            int bits = firstBlock - base;
+                            uint64_t mask = (bits>=64)?0ULL:(~((1ULL<<bits)-1));
+                            total_blocked[w] |= mask;
+                        }
                     }
-                    if(!good) continue;
-                    // compute contact count
+                    // also mask any bits beyond W
+                    // (already covered since firstBlock <= W)
+                    
+                    // find lowest 0 bit
+                    int y0 = -1;
+                    for(int w=0; w<NW; w++){
+                        uint64_t v = ~total_blocked[w];
+                        if(v != 0){
+                            int b = __builtin_ctzll(v);
+                            y0 = w*64 + b;
+                            break;
+                        }
+                    }
+                    if(y0 < 0 || y0 > maxY0) continue;
+                    
                     int C = 0;
                     const int ddx[4] = {1,-1,0,0};
                     const int ddy[4] = {0,0,1,-1};
@@ -113,11 +159,12 @@ int main(){
                         int cx = c.first, cy = c.second;
                         for(int k=0;k<4;k++){
                             int nx = cx + ddx[k], ny = cy + ddy[k];
-                            // check if neighbor is part of piece
                             if(nx>=0 && nx<o.w && ny>=0 && ny<o.h && pmask[nx][ny]) continue;
                             int gx = x0+cx+ddx[k], gy = y0+cy+ddy[k];
                             if(gx<0 || gx>=W || gy<0 || gy>=W) C++;
-                            else if(occ[gx][gy]) C++;
+                            else {
+                                if((col_bits[gx][gy>>6] >> (gy&63)) & 1ULL) C++;
+                            }
                         }
                     }
                     int s1 = y0+o.h, s2=y0, s3=x0;
@@ -139,11 +186,8 @@ int main(){
             if(bestOri<0){ ok=false; break; }
             Orient& o = orients[pi][bestOri];
             for(auto& c : o.cells){
-                occ[bestX0+c.first][bestY0+c.second] = 1;
-            }
-            for(int dx : o.cols){
-                int ns = bestY0 + o.max_dy[dx] + 1;
-                if(ns > skyline[bestX0+dx]) skyline[bestX0+dx] = ns;
+                int gx = bestX0+c.first, gy = bestY0+c.second;
+                col_bits[gx][gy>>6] |= (1ULL << (gy&63));
             }
             int f = bestOri/4, r = bestOri%4;
             tF[pi] = f; tR[pi] = r;
