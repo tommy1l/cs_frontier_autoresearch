@@ -14,6 +14,13 @@ int doQuery(const vector<int>& q){
     return r;
 }
 
+static vector<int> setMinus(const vector<int>& A, const vector<int>& B){
+    set<int> Bs(B.begin(), B.end());
+    vector<int> res;
+    for(int x : A) if(!Bs.count(x)) res.push_back(x);
+    return res;
+}
+
 int main(){
     ios_base::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -125,7 +132,111 @@ int main(){
         if(v != v_anchor) V.push_back(v);
     }
     
+    auto singleBinarySearch = [&](int v, vector<int> C) -> int {
+        while(C.size() > 1){
+            int sz = C.size();
+            int half = (sz + 1) / 2;
+            vector<int> L(C.begin(), C.begin() + half);
+            
+            vector<int> q(n+1, v_anchor);
+            for(int j : L) q[j] = v;
+            
+            int r = doQuery(q);
+            int indicator = r - 1;
+            
+            if(indicator == 1){
+                C = L;
+            } else {
+                C = setMinus(C, L);
+            }
+        }
+        return C[0];
+    };
+    
     size_t idx = 0;
+    
+    while(idx + 2 < V.size()){
+        int a = V[idx], b = V[idx+1], c = V[idx+2];
+        idx += 3;
+        
+        vector<int> Ca = G;
+        vector<int> Cb = G;
+        vector<int> Cc = G;
+        
+        // Phase A: single query
+        int sz = Ca.size();
+        if(sz < 3){
+            // fallback: three independent binary searches
+            int pa = singleBinarySearch(a, Ca);
+            hidden[pa] = a;
+            Cb = setMinus(Cb, {pa});
+            int pb = singleBinarySearch(b, Cb);
+            hidden[pb] = b;
+            Cc = setMinus(Cc, {pa, pb});
+            int pc = singleBinarySearch(c, Cc);
+            hidden[pc] = c;
+            G.erase(remove_if(G.begin(), G.end(), [&](int x){ return x == pa || x == pb || x == pc; }), G.end());
+            continue;
+        }
+        
+        int t1 = sz / 3, t2 = 2 * sz / 3;
+        vector<int> Sa(Ca.begin(), Ca.begin() + t1);
+        vector<int> Sb(Ca.begin() + t1, Ca.begin() + t2);
+        vector<int> Sc(Ca.begin() + t2, Ca.end());
+        
+        vector<int> q(n+1, v_anchor);
+        for(int j : Sa) q[j] = a;
+        for(int j : Sb) q[j] = b;
+        for(int j : Sc) q[j] = c;
+        
+        int r = doQuery(q);
+        int sum = r - 1;
+        
+        if(sum == 3){
+            Ca = Sa;
+            Cb = Sb;
+            Cc = Sc;
+        } else if(sum == 0){
+            Ca = Sb; Ca.insert(Ca.end(), Sc.begin(), Sc.end());
+            Cb = Sa; Cb.insert(Cb.end(), Sc.begin(), Sc.end());
+            Cc = Sa; Cc.insert(Cc.end(), Sb.begin(), Sb.end());
+        } else {
+            // sum 1 or 2: disambiguate
+            vector<int> qA(n+1, v_anchor);
+            for(int j : Sa) qA[j] = a;
+            int rA = doQuery(qA);
+            int ind_a = rA - 1;
+            
+            vector<int> qB(n+1, v_anchor);
+            for(int j : Sb) qB[j] = b;
+            int rB = doQuery(qB);
+            int ind_b = rB - 1;
+            
+            int ind_c = sum - ind_a - ind_b;
+            
+            if(ind_a == 1) Ca = Sa;
+            else { Ca = Sb; Ca.insert(Ca.end(), Sc.begin(), Sc.end()); }
+            
+            if(ind_b == 1) Cb = Sb;
+            else { Cb = Sa; Cb.insert(Cb.end(), Sc.begin(), Sc.end()); }
+            
+            if(ind_c == 1) Cc = Sc;
+            else { Cc = Sa; Cc.insert(Cc.end(), Sb.begin(), Sb.end()); }
+        }
+        
+        // Phase B: three independent binary searches
+        int pa = singleBinarySearch(a, Ca);
+        int pb = singleBinarySearch(b, Cb);
+        int pc = singleBinarySearch(c, Cc);
+        
+        hidden[pa] = a;
+        hidden[pb] = b;
+        hidden[pc] = c;
+        
+        G.erase(remove_if(G.begin(), G.end(), [&](int x){ return x == pa || x == pb || x == pc; }), G.end());
+    }
+    
+    // Trailing remainder of 2: reuse pair joint code
     while(idx + 1 < V.size()){
         int a = V[idx], b = V[idx+1];
         idx += 2;
@@ -185,13 +296,6 @@ int main(){
             int r = doQuery(q);
             int sum = r - 1;
             
-            auto setMinus = [](const vector<int>& A, const vector<int>& B){
-                set<int> Bs(B.begin(), B.end());
-                vector<int> res;
-                for(int x : A) if(!Bs.count(x)) res.push_back(x);
-                return res;
-            };
-            
             if(Sa.empty()){
                 if(sum == 1) Cb = Sb;
                 else Cb = setMinus(Cb, Sb);
@@ -227,28 +331,7 @@ int main(){
     
     if(idx < V.size()){
         int v = V[idx];
-        vector<int> C = G;
-        while(C.size() > 1){
-            int sz = C.size();
-            int half = (sz + 1) / 2;
-            vector<int> L(C.begin(), C.begin() + half);
-            set<int> Lset(L.begin(), L.end());
-            
-            vector<int> q(n+1, v_anchor);
-            for(int j : L) q[j] = v;
-            
-            int a = doQuery(q);
-            int indicator = a - 1;
-            
-            if(indicator == 1){
-                C = L;
-            } else {
-                vector<int> newC;
-                for(int x : C) if(!Lset.count(x)) newC.push_back(x);
-                C = newC;
-            }
-        }
-        int pos = C[0];
+        int pos = singleBinarySearch(v, G);
         hidden[pos] = v;
         G.erase(remove(G.begin(), G.end(), pos), G.end());
     }
