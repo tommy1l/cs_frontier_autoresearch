@@ -21,6 +21,9 @@ long long countLE(long long v) {
     long long cnt = 0;
     int i = 1, j = n;
     while (i <= n && j >= 1) {
+        if (cnt >= k) return cnt;
+        long long upperBound = cnt + (long long)(n - i + 1) * j;
+        if (upperBound < k) return cnt;
         long long x = query(i, j);
         if (x <= v) {
             cnt += j;
@@ -53,7 +56,6 @@ int main() {
         return 0;
     }
     
-    // Find i_hi: smallest i in [1,n] with i*i >= k
     long long target_hi = k;
     int i_hi = -1;
     for (int i = 1; i <= n; i++) {
@@ -66,7 +68,6 @@ int main() {
         hi = query(i_hi, i_hi);
     }
     
-    // Find i_lo: largest i in [1,n] with (n-i+1)*(n-i+1) >= n*n - k + 1
     long long target_lo = (long long)n * n - k + 1;
     int i_lo = -1;
     for (int i = n; i >= 1; i--) {
