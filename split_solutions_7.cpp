@@ -95,13 +95,9 @@ void buildForward(long long L, long long R) {
 }
 
 void printGraph(int nn, vector<vector<pair<int,int>>>& ad, int startId, int endId) {
-    // renumber so startId -> 1, endId stays, others fill in
     vector<int> remap(nn+1, 0);
     remap[startId] = 1;
     int nxt = 2;
-    if (endId != startId) {
-        // keep endId distinct; assign it after others or just give it next available
-    }
     for (int i = 1; i <= nn; i++) {
         if (i == startId) continue;
         remap[i] = nxt++;
@@ -133,7 +129,6 @@ int main() {
     vector<vector<pair<int,int>>> forwardAdj = adj;
     int fwdStart = START_NODE, fwdEnd = END_NODE;
     
-    // Build revAdj
     vector<array<vector<int>,2>> revAdj(nForward+1);
     for (int u = 1; u <= nForward; u++) {
         for (auto& e : forwardAdj[u-1]) {
@@ -141,7 +136,6 @@ int main() {
         }
     }
     
-    // Subset construction for reverse
     auto encodeSet = [](vector<int>& s) {
         string r;
         for (int x : s) { r += to_string(x); r += ','; }
@@ -151,11 +145,19 @@ int main() {
     unordered_map<string,int> subsetId;
     vector<vector<int>> subsets;
     
+    int runningNonAcceptCount = 0;
+    bool anyAccept = false;
+    
     vector<int> initSet = {fwdEnd};
     sort(initSet.begin(), initSet.end());
     string initKey = encodeSet(initSet);
     subsetId[initKey] = 0;
     subsets.push_back(initSet);
+    if (binary_search(initSet.begin(), initSet.end(), fwdStart)) {
+        anyAccept = true;
+    } else {
+        runningNonAcceptCount++;
+    }
     
     struct DRTrans { int from, w, to; };
     vector<DRTrans> drTrans;
@@ -178,13 +180,18 @@ int main() {
             auto it = subsetId.find(k);
             int tid;
             if (it == subsetId.end()) {
-                if ((int)subsets.size() >= nForward) {
-                    bailout = true;
-                    break;
-                }
                 tid = subsets.size();
                 subsetId[k] = tid;
                 subsets.push_back(T);
+                bool isAcc = binary_search(T.begin(), T.end(), fwdStart);
+                if (isAcc) anyAccept = true;
+                else runningNonAcceptCount++;
+                
+                int currentReverseSize = runningNonAcceptCount + (anyAccept ? 1 : 0);
+                if (currentReverseSize > 99 || (int)subsets.size() > 4096) {
+                    bailout = true;
+                    break;
+                }
                 bfs.push(tid);
             } else {
                 tid = it->second;
@@ -193,13 +200,11 @@ int main() {
         }
     }
     
-    if (bailout) {
-        // use forward
+    if (bailout || !anyAccept) {
         printGraph(nForward, forwardAdj, fwdStart, fwdEnd);
         return 0;
     }
     
-    // Build reverse NFA: merge all accept subsets (those containing fwdStart) into one node
     int numSubsets = subsets.size();
     vector<bool> isAccept(numSubsets, false);
     for (int i = 0; i < numSubsets; i++) {
@@ -208,11 +213,9 @@ int main() {
         }
     }
     
-    // NF node ids: merged start = 1, each non-accept subset gets its own id
-    // The NF end is the NF id of subset 0 (initial subset = {fwdEnd})
     vector<int> nfId(numSubsets, 0);
-    int nfCount = 1; // merged start
     int mergedStart = 1;
+    int nfCount = 1;
     for (int i = 0; i < numSubsets; i++) {
         if (isAccept[i]) {
             nfId[i] = mergedStart;
@@ -224,25 +227,13 @@ int main() {
     
     int nReverse = nfCount;
     
-    // Check if any accept subset exists; if not, reverse is invalid - use forward
-    bool anyAccept = false;
-    for (int i = 0; i < numSubsets; i++) if (isAccept[i]) { anyAccept = true; break; }
-    
-    if (!anyAccept) {
-        printGraph(nForward, forwardAdj, fwdStart, fwdEnd);
-        return 0;
-    }
-    
-    // pick fewer; tie -> forward
     if (nForward <= nReverse) {
         printGraph(nForward, forwardAdj, fwdStart, fwdEnd);
         return 0;
     }
     
-    // Build reverse NF adjacency
     vector<vector<pair<int,int>>> nfAdj(nReverse);
     for (auto& tr : drTrans) {
-        // D_R transition S --w--> T becomes NF edge nfId[T] --w--> nfId[S]
         int from = nfId[tr.to];
         int to = nfId[tr.from];
         nfAdj[from-1].push_back({to, tr.w});
@@ -251,7 +242,6 @@ int main() {
     int nfEnd = nfId[0];
     int nfStart = mergedStart;
     
-    // Reset globals to use printGraph
     n = nReverse;
     adj = nfAdj;
     printGraph(nReverse, nfAdj, nfStart, nfEnd);
