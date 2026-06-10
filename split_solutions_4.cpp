@@ -4,7 +4,6 @@ using namespace std;
 int n;
 long long k;
 unordered_map<long long, long long> cache;
-set<long long> cachedVals;
 
 long long query(int i, int j) {
     long long key = (long long)i * 200001LL + j;
@@ -14,25 +13,24 @@ long long query(int i, int j) {
     cout.flush();
     long long v;
     cin >> v;
-    auto res = cache.insert({key, v});
-    if (res.second) cachedVals.insert(v);
+    cache[key] = v;
     return v;
 }
 
+vector<int> rowLowJ, rowHighJ, rowJ;
+
 long long countLE(long long v) {
     long long cnt = 0;
-    int i = 1, j = n;
-    while (i <= n && j >= 1) {
-        long long maxFuture = (long long)(n - i + 1) * j;
-        if (cnt + maxFuture < k) return cnt;
-        long long x = query(i, j);
-        if (x <= v) {
-            cnt += j;
-            if (cnt >= k) return cnt;
-            i++;
-        } else {
-            j--;
+    for (int i = 1; i <= n; i++) {
+        int loJ = rowLowJ[i], hiJ = rowHighJ[i];
+        while (loJ + 1 < hiJ) {
+            int midJ = (loJ + hiJ) / 2;
+            long long x = query(i, midJ);
+            if (x <= v) loJ = midJ;
+            else hiJ = midJ;
         }
+        rowJ[i] = loJ;
+        cnt += loJ;
     }
     return cnt;
 }
@@ -96,22 +94,24 @@ int main() {
         return 0;
     }
     
+    rowLowJ.assign(n + 2, 0);
+    rowHighJ.assign(n + 2, n + 1);
+    rowJ.assign(n + 2, 0);
+    
     while (lo < hi) {
-        long long vlo = lo, vhi = hi;
-        long long mid;
-        auto itLo = cachedVals.upper_bound(vlo);
-        auto itHi = cachedVals.upper_bound(vhi);
-        long long rangeSize = 0;
-        for (auto it = itLo; it != itHi; ++it) rangeSize++;
-        if (rangeSize >= 1) {
-            auto it = itLo;
-            advance(it, rangeSize / 2);
-            mid = *it;
+        long long mid = lo + (hi - lo) / 2;
+        long long c = countLE(mid);
+        if (c >= k) {
+            hi = mid;
+            for (int i = 1; i <= n; i++) {
+                rowHighJ[i] = min(rowHighJ[i], rowJ[i] + 1);
+            }
         } else {
-            mid = vlo + (vhi - vlo) / 2;
+            lo = mid + 1;
+            for (int i = 1; i <= n; i++) {
+                rowLowJ[i] = max(rowLowJ[i], rowJ[i]);
+            }
         }
-        if (countLE(mid) >= k) hi = mid;
-        else lo = mid + 1;
     }
     cout << "DONE " << lo << "\n";
     cout.flush();
