@@ -14,6 +14,20 @@ int doQuery(const vector<int>& q){
     return r;
 }
 
+static vector<int> setMinus(const vector<int>& A, const vector<int>& B){
+    set<int> Bs(B.begin(), B.end());
+    vector<int> res;
+    for(int x : A) if(!Bs.count(x)) res.push_back(x);
+    return res;
+}
+
+static vector<int> setInter(const vector<int>& A, const vector<int>& B){
+    set<int> Bs(B.begin(), B.end());
+    vector<int> res;
+    for(int x : A) if(Bs.count(x)) res.push_back(x);
+    return res;
+}
+
 int main(){
     ios_base::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -54,57 +68,130 @@ int main(){
     if(n < 30){
         fallbackScan();
     } else {
-        int B = 1;
-        while((1 << B) < n) B++;
-        vector<int> determinedBits(B, -1);
-        for(int i = 0; i < B; i++){
+        int k = max(2, (int)floor(sqrt((double)n)));
+        vector<int> found_chunk;
+        bool found = false;
+        for(int start = 1; start <= n; start += k){
+            int end = min(n, start + k - 1);
+            vector<int> C;
+            for(int j = start; j <= end; j++) C.push_back(j);
+            
             vector<int> q(n+1, 1);
-            for(int p = 1; p <= n; p++){
-                if((p - 1) & (1 << i)) q[p] = 2;
-                else q[p] = 1;
-            }
+            for(int j : C) q[j] = 2;
             int a = doQuery(q);
-            if(a == 0) determinedBits[i] = 1;
-            else if(a == 2) determinedBits[i] = 0;
-            else determinedBits[i] = -1;
+            if(a == 0){
+                found_chunk = C;
+                v_anchor = 1;
+                found = true;
+                break;
+            } else if(a == 2){
+                found_chunk = C;
+                v_anchor = 2;
+                found = true;
+                break;
+            }
         }
         
-        vector<int> Cset;
-        for(int p = 1; p <= n; p++){
-            bool ok = true;
-            for(int i = 0; i < B; i++){
-                if(determinedBits[i] != -1){
-                    int b = ((p - 1) >> i) & 1;
-                    if(b != determinedBits[i]){ ok = false; break; }
+        if(!found){
+            int h = k / 2;
+            if(h >= 1){
+                vector<vector<int>> shifted_chunks;
+                {
+                    vector<int> first;
+                    for(int j = 1; j <= h && j <= n; j++) first.push_back(j);
+                    shifted_chunks.push_back(first);
+                    int j = 0;
+                    while(true){
+                        int s = h + j * k + 1;
+                        int e = min(n, h + (j + 1) * k);
+                        if(s > n) break;
+                        vector<int> C;
+                        for(int p = s; p <= e; p++) C.push_back(p);
+                        shifted_chunks.push_back(C);
+                        if(e >= n) break;
+                        j++;
+                    }
+                }
+                
+                for(auto& Cprime : shifted_chunks){
+                    if(Cprime.empty()) continue;
+                    vector<int> q(n+1, 1);
+                    for(int j : Cprime) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 0){
+                        found_chunk = Cprime;
+                        v_anchor = 1;
+                        found = true;
+                        break;
+                    } else if(a == 2){
+                        found_chunk = Cprime;
+                        v_anchor = 2;
+                        found = true;
+                        break;
+                    }
                 }
             }
-            if(ok) Cset.push_back(p);
-        }
-        
-        while(Cset.size() > 1){
-            int sz = Cset.size();
-            int half = (sz + 1) / 2;
-            vector<int> L(Cset.begin(), Cset.begin() + half);
-            unordered_set<int> Lset(L.begin(), L.end());
             
-            vector<int> q(n+1, 2);
-            for(int p = 1; p <= n; p++){
-                if(Lset.count(p)) q[p] = 1;
-                else q[p] = 2;
-            }
-            int r = doQuery(q);
-            int indicator = r - 1;
-            if(indicator == 1){
-                Cset = L;
+            if(!found){
+                fallbackScan();
             } else {
-                vector<int> newC;
-                for(int x : Cset) if(!Lset.count(x)) newC.push_back(x);
-                Cset = newC;
+                vector<int> C = found_chunk;
+                if(v_anchor == 1){
+                    while(C.size() > 1){
+                        int sz = C.size();
+                        int half = (sz + 1) / 2;
+                        vector<int> L(C.begin(), C.begin() + half);
+                        vector<int> R(C.begin() + half, C.end());
+                        vector<int> q(n+1, 1);
+                        for(int j : R) q[j] = 2;
+                        int a = doQuery(q);
+                        if(a == 1) C = L;
+                        else C = R;
+                    }
+                } else {
+                    while(C.size() > 1){
+                        int sz = C.size();
+                        int half = (sz + 1) / 2;
+                        vector<int> L(C.begin(), C.begin() + half);
+                        vector<int> R(C.begin() + half, C.end());
+                        vector<int> q(n+1, 1);
+                        for(int j : L) q[j] = 2;
+                        int a = doQuery(q);
+                        if(a == 2) C = L;
+                        else C = R;
+                    }
+                }
+                p_anchor = C[0];
             }
+        } else {
+            vector<int> C = found_chunk;
+            if(v_anchor == 1){
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    vector<int> q(n+1, 1);
+                    for(int j : R) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 1) C = L;
+                    else C = R;
+                }
+            } else {
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    vector<int> q(n+1, 1);
+                    for(int j : L) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 2) C = L;
+                    else C = R;
+                }
+            }
+            p_anchor = C[0];
         }
-        
-        p_anchor = Cset[0];
-        v_anchor = 1;
     }
     
     hidden[p_anchor] = v_anchor;
@@ -120,76 +207,173 @@ int main(){
     }
     
     size_t idx = 0;
-    while(idx + 1 < V.size()){
-        if(n >= 30 && idx + 2 == V.size() && G.size() == 3){
-            int a = V[idx], b = V[idx+1];
-            int g1 = G[0], g2 = G[1], g3 = G[2];
+    
+    // Process triples
+    while(idx + 2 < V.size() && G.size() >= 3){
+        int a = V[idx], b = V[idx+1], c = V[idx+2];
+        
+        // Partition G into P1, P2, P3
+        int sz = G.size();
+        int s1 = (sz + 2) / 3;
+        int rem = sz - s1;
+        int s2 = (rem + 1) / 2;
+        int s3 = rem - s2;
+        
+        vector<int> P1(G.begin(), G.begin() + s1);
+        vector<int> P2(G.begin() + s1, G.begin() + s1 + s2);
+        vector<int> P3(G.begin() + s1 + s2, G.end());
+        
+        // Round 0 separation
+        vector<int> q(n+1, v_anchor);
+        for(int p : P1) q[p] = a;
+        for(int p : P2) q[p] = b;
+        for(int p : P3) q[p] = c;
+        int r = doQuery(q);
+        int s = r - 1;
+        
+        vector<int> Ca, Cb, Cc;
+        
+        if(s == 3){
+            Ca = P1; Cb = P2; Cc = P3;
+        } else if(s == 0){
+            // None in chosen partition
+            // a not in P1 -> a in P2 or P3
+            // b not in P2 -> b in P1 or P3
+            // c not in P3 -> c in P1 or P2
+            // Query: place a in P2 only
+            vector<int> q2(n+1, v_anchor);
+            for(int p : P2) q2[p] = a;
+            int r2 = doQuery(q2);
+            int ia = r2 - 1; // 1 if a in P2 else a in P3
+            if(ia == 1) Ca = P2; else Ca = P3;
             
-            vector<int> q1(n+1, v_anchor);
-            q1[g1] = a;
-            q1[g2] = b;
-            int r1 = doQuery(q1);
-            int s1 = r1 - 1;
+            // Query: place b in P1 only
+            vector<int> q3(n+1, v_anchor);
+            for(int p : P1) q3[p] = b;
+            int r3 = doQuery(q3);
+            int ib = r3 - 1;
+            if(ib == 1) Cb = P1; else Cb = P3;
             
-            if(s1 == 2){
-                hidden[g1] = a;
-                hidden[g2] = b;
-                hidden[g3] = n;
-                G.clear();
-                idx = V.size();
-                break;
-            } else if(s1 == 1){
-                vector<int> q2(n+1, v_anchor);
-                q2[g1] = a;
-                q2[g2] = a;
-                int r2 = doQuery(q2);
-                int s2 = r2 - 1;
-                if(s2 == 1){
-                    hidden[g1] = a;
-                    hidden[g2] = n;
-                    hidden[g3] = b;
+            // c is in P1 or P2; deduce by elimination if possible
+            // We know a's partition and b's partition. But a,b,c are different positions.
+            // If Ca = P3 and Cb = P3: impossible (a != b positions). Actually they could share a partition if partition has size >= 2.
+            // Need another query for c
+            vector<int> q4(n+1, v_anchor);
+            for(int p : P1) q4[p] = c;
+            int r4 = doQuery(q4);
+            int ic = r4 - 1;
+            if(ic == 1) Cc = P1; else Cc = P2;
+        } else {
+            // s == 1 or s == 2: ambiguous
+            // Do localization: place a alone in P1
+            vector<int> q2(n+1, v_anchor);
+            for(int p : P1) q2[p] = a;
+            int r2 = doQuery(q2);
+            int ia_p1 = r2 - 1; // 1 if a in P1
+            
+            // Place b alone in P2
+            vector<int> q3(n+1, v_anchor);
+            for(int p : P2) q3[p] = b;
+            int r3 = doQuery(q3);
+            int ib_p2 = r3 - 1;
+            
+            // For a: if ia_p1=1 -> P1, else need to distinguish P2/P3
+            // For b: if ib_p2=1 -> P2, else need P1/P3
+            // For c: need to determine
+            // From original s: i_a + i_b + i_c = s where i_x = 1 if x in its chosen part (a in P1, b in P2, c in P3)
+            // We know ia_p1 = i_a (whether a in P1), ib_p2 = i_b
+            // So i_c = s - ia_p1 - ib_p2
+            int ic_p3 = s - ia_p1 - ib_p2;
+            
+            // Now we know for each value whether it's in its "chosen" part
+            // a: in P1 iff ia_p1=1; else in P2 or P3
+            // b: in P2 iff ib_p2=1; else in P1 or P3
+            // c: in P3 iff ic_p3=1; else in P1 or P2
+            
+            // If all are in chosen, that's s=3 case (impossible here)
+            // We have at most one more query budget. Let's use it strategically.
+            
+            // Determine unknowns
+            bool a_known = (ia_p1 == 1);
+            bool b_known = (ib_p2 == 1);
+            bool c_known = (ic_p3 == 1);
+            
+            if(a_known) Ca = P1;
+            if(b_known) Cb = P2;
+            if(c_known) Cc = P3;
+            
+            int unknown_count = (a_known?0:1) + (b_known?0:1) + (c_known?0:1);
+            
+            if(unknown_count == 1){
+                // The one unknown is determined by elimination... actually not really, we know it's not in its chosen, so it's in one of two others.
+                // But all three positions are different. If two are known (e.g., a in P1, b in P2), c is not in P3 so c in P1 or P2.
+                // Still ambiguous between two partitions. Need another query.
+                if(!a_known){
+                    vector<int> q4(n+1, v_anchor);
+                    for(int p : P2) q4[p] = a;
+                    int r4 = doQuery(q4);
+                    if(r4 - 1 == 1) Ca = P2; else Ca = P3;
+                } else if(!b_known){
+                    vector<int> q4(n+1, v_anchor);
+                    for(int p : P1) q4[p] = b;
+                    int r4 = doQuery(q4);
+                    if(r4 - 1 == 1) Cb = P1; else Cb = P3;
                 } else {
-                    hidden[g1] = n;
-                    hidden[g2] = b;
-                    hidden[g3] = a;
+                    vector<int> q4(n+1, v_anchor);
+                    for(int p : P1) q4[p] = c;
+                    int r4 = doQuery(q4);
+                    if(r4 - 1 == 1) Cc = P1; else Cc = P2;
                 }
-                G.clear();
-                idx = V.size();
-                break;
-            } else {
-                vector<int> q2(n+1, v_anchor);
-                q2[g1] = b;
-                q2[g2] = a;
-                int r2 = doQuery(q2);
-                int s2 = r2 - 1;
-                if(s2 == 2){
-                    hidden[g1] = b;
-                    hidden[g2] = a;
-                    hidden[g3] = n;
-                    G.clear();
-                    idx = V.size();
-                    break;
-                } else {
-                    vector<int> q3(n+1, v_anchor);
-                    q3[g1] = b;
-                    int r3 = doQuery(q3);
-                    int s3 = r3 - 1;
-                    if(s3 == 1){
-                        hidden[g1] = b;
-                        hidden[g2] = n;
-                        hidden[g3] = a;
-                    } else {
-                        hidden[g1] = n;
-                        hidden[g2] = a;
-                        hidden[g3] = b;
-                    }
-                    G.clear();
-                    idx = V.size();
-                    break;
+            } else if(unknown_count == 2){
+                // Two unknowns. We've used 3 queries already (initial + 2 localization). Budget says cap at 3.
+                // But we still need to resolve. Use Ca/Cb/Cc as union of possible partitions.
+                if(!a_known){
+                    // a in P2 or P3
+                    Ca = P2; Ca.insert(Ca.end(), P3.begin(), P3.end());
                 }
+                if(!b_known){
+                    Cb = P1; Cb.insert(Cb.end(), P3.begin(), P3.end());
+                }
+                if(!c_known){
+                    Cc = P1; Cc.insert(Cc.end(), P2.begin(), P2.end());
+                }
+            } else if(unknown_count == 3){
+                // s = 0 case actually, but s != 0 here. So unknown_count <= 2 when s>=1
+                // Defensive
+                Ca = G; Cb = G; Cc = G;
             }
         }
         
+        // Now binary search per value, round-robin
+        auto refine = [&](vector<int>& C, int val){
+            if(C.size() <= 1) return;
+            int sz = C.size();
+            int half = (sz + 1) / 2;
+            vector<int> S(C.begin(), C.begin() + half);
+            vector<int> q(n+1, v_anchor);
+            for(int p : S) q[p] = val;
+            int r = doQuery(q);
+            int ind = r - 1;
+            if(ind == 1) C = S;
+            else C = vector<int>(C.begin() + half, C.end());
+        };
+        
+        while(Ca.size() > 1 || Cb.size() > 1 || Cc.size() > 1){
+            if(Ca.size() > 1) refine(Ca, a);
+            if(Cb.size() > 1) refine(Cb, b);
+            if(Cc.size() > 1) refine(Cc, c);
+        }
+        
+        hidden[Ca[0]] = a;
+        hidden[Cb[0]] = b;
+        hidden[Cc[0]] = c;
+        int pa = Ca[0], pb = Cb[0], pc = Cc[0];
+        G.erase(remove_if(G.begin(), G.end(), [&](int x){ return x == pa || x == pb || x == pc; }), G.end());
+        idx += 3;
+    }
+    
+    // Leftover: paired
+    while(idx + 1 < V.size()){
         int a = V[idx], b = V[idx+1];
         idx += 2;
         
@@ -247,13 +431,6 @@ int main(){
             
             int r = doQuery(q);
             int sum = r - 1;
-            
-            auto setMinus = [](const vector<int>& A, const vector<int>& B){
-                set<int> Bs(B.begin(), B.end());
-                vector<int> res;
-                for(int x : A) if(!Bs.count(x)) res.push_back(x);
-                return res;
-            };
             
             if(Sa.empty()){
                 if(sum == 1) Cb = Sb;
