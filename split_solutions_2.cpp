@@ -79,7 +79,79 @@ int main(){
         }
         
         if(!found){
-            fallbackScan();
+            // Half-shifted retry
+            int h = k / 2;
+            if(h >= 1){
+                vector<vector<int>> shifted_chunks;
+                {
+                    vector<int> first;
+                    for(int j = 1; j <= h && j <= n; j++) first.push_back(j);
+                    shifted_chunks.push_back(first);
+                    int j = 0;
+                    while(true){
+                        int s = h + j * k + 1;
+                        int e = min(n, h + (j + 1) * k);
+                        if(s > n) break;
+                        vector<int> C;
+                        for(int p = s; p <= e; p++) C.push_back(p);
+                        shifted_chunks.push_back(C);
+                        if(e >= n) break;
+                        j++;
+                    }
+                }
+                
+                for(auto& Cprime : shifted_chunks){
+                    if(Cprime.empty()) continue;
+                    vector<int> q(n+1, 1);
+                    for(int j : Cprime) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 0){
+                        found_chunk = Cprime;
+                        v_anchor = 1;
+                        found = true;
+                        break;
+                    } else if(a == 2){
+                        found_chunk = Cprime;
+                        v_anchor = 2;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            
+            if(!found){
+                fallbackScan();
+            } else {
+                vector<int> C = found_chunk;
+                if(v_anchor == 1){
+                    while(C.size() > 1){
+                        int sz = C.size();
+                        int half = (sz + 1) / 2;
+                        vector<int> L(C.begin(), C.begin() + half);
+                        vector<int> R(C.begin() + half, C.end());
+                        
+                        vector<int> q(n+1, 1);
+                        for(int j : R) q[j] = 2;
+                        int a = doQuery(q);
+                        if(a == 1) C = L;
+                        else C = R;
+                    }
+                } else {
+                    while(C.size() > 1){
+                        int sz = C.size();
+                        int half = (sz + 1) / 2;
+                        vector<int> L(C.begin(), C.begin() + half);
+                        vector<int> R(C.begin() + half, C.end());
+                        
+                        vector<int> q(n+1, 1);
+                        for(int j : L) q[j] = 2;
+                        int a = doQuery(q);
+                        if(a == 2) C = L;
+                        else C = R;
+                    }
+                }
+                p_anchor = C[0];
+            }
         } else {
             vector<int> C = found_chunk;
             if(v_anchor == 1){
@@ -127,7 +199,6 @@ int main(){
     
     size_t idx = 0;
     while(idx + 1 < V.size()){
-        // Triple-end direct enumeration branch
         if(n >= 30 && idx + 2 == V.size() && G.size() == 3){
             int a = V[idx], b = V[idx+1];
             int g1 = G[0], g2 = G[1], g3 = G[2];
@@ -135,7 +206,6 @@ int main(){
             vector<int> q1(n+1, v_anchor);
             q1[g1] = a;
             q1[g2] = b;
-            // q1[g3] stays v_anchor
             int r1 = doQuery(q1);
             int s1 = r1 - 1;
             
@@ -150,16 +220,13 @@ int main(){
                 vector<int> q2(n+1, v_anchor);
                 q2[g1] = a;
                 q2[g2] = a;
-                // q2[g3] stays v_anchor
                 int r2 = doQuery(q2);
                 int s2 = r2 - 1;
                 if(s2 == 1){
-                    // (a, n, b)
                     hidden[g1] = a;
                     hidden[g2] = n;
                     hidden[g3] = b;
                 } else {
-                    // (n, b, a)
                     hidden[g1] = n;
                     hidden[g2] = b;
                     hidden[g3] = a;
@@ -168,14 +235,12 @@ int main(){
                 idx = V.size();
                 break;
             } else {
-                // s1 == 0
                 vector<int> q2(n+1, v_anchor);
                 q2[g1] = b;
                 q2[g2] = a;
                 int r2 = doQuery(q2);
                 int s2 = r2 - 1;
                 if(s2 == 2){
-                    // (b, a, n)
                     hidden[g1] = b;
                     hidden[g2] = a;
                     hidden[g3] = n;
@@ -183,18 +248,15 @@ int main(){
                     idx = V.size();
                     break;
                 } else {
-                    // s2 == 1
                     vector<int> q3(n+1, v_anchor);
                     q3[g1] = b;
                     int r3 = doQuery(q3);
                     int s3 = r3 - 1;
                     if(s3 == 1){
-                        // (b, n, a)
                         hidden[g1] = b;
                         hidden[g2] = n;
                         hidden[g3] = a;
                     } else {
-                        // (n, a, b)
                         hidden[g1] = n;
                         hidden[g2] = a;
                         hidden[g3] = b;
