@@ -29,8 +29,11 @@ int main(){
     vector<int> hidden(n+1, 0);
     int p_anchor = -1;
     int p_anchor2 = -1;
+    int p_anchor3 = -1;
+    int p_anchor4 = -1;
     v_anchor = -1;
     bool haveAnchor2 = false;
+    bool haveAnchor34 = false;
     
     auto fallbackScan = [&](){
         for(int k = 1; k <= n; k++){
@@ -121,20 +124,93 @@ int main(){
         assert(p_anchor2 >= 1 && p_anchor2 <= n);
         assert(p_anchor2 != p_anchor);
         haveAnchor2 = true;
+        
+        // Phase 1C
+        vector<int> determinedBits34(B, -1);
+        vector<int> ambiguousBits34;
+        for(int i = 0; i < B; i++){
+            vector<int> q(n+1, 0);
+            for(int p = 1; p <= n; p++){
+                if(((p-1) >> i) & 1) q[p] = 4;
+                else q[p] = 3;
+            }
+            int c = doQuery(q);
+            if(c == 0){
+                determinedBits34[i] = 1;
+            } else if(c == 2){
+                determinedBits34[i] = 0;
+            } else {
+                ambiguousBits34.push_back(i);
+            }
+        }
+        
+        // Phase 1D
+        vector<int> Cset3;
+        for(int p = 1; p <= n; p++){
+            if(p == p_anchor || p == p_anchor2) continue;
+            bool ok = true;
+            for(int i = 0; i < B; i++){
+                if(determinedBits34[i] != -1){
+                    int bit = ((p-1) >> i) & 1;
+                    if(bit != determinedBits34[i]){ ok = false; break; }
+                }
+            }
+            if(ok) Cset3.push_back(p);
+        }
+        
+        while(Cset3.size() > 1){
+            int sz = Cset3.size();
+            int half = (sz + 1) / 2;
+            vector<int> L(Cset3.begin(), Cset3.begin() + half);
+            set<int> Lset(L.begin(), L.end());
+            
+            vector<int> q(n+1, 1);
+            for(int p : L) q[p] = 3;
+            
+            int r = doQuery(q);
+            int indicator = r - 1;
+            
+            if(indicator == 1){
+                Cset3 = L;
+            } else {
+                vector<int> newC;
+                for(int x : Cset3) if(!Lset.count(x)) newC.push_back(x);
+                Cset3 = newC;
+            }
+        }
+        
+        p_anchor3 = Cset3[0];
+        
+        int D_mask_34 = 0;
+        for(int i = 0; i < B; i++){
+            if(determinedBits34[i] != -1) D_mask_34 |= (1 << i);
+        }
+        p_anchor4 = ((p_anchor3 - 1) ^ D_mask_34) + 1;
+        assert(p_anchor4 >= 1 && p_anchor4 <= n);
+        assert(p_anchor4 != p_anchor && p_anchor4 != p_anchor2 && p_anchor4 != p_anchor3);
+        haveAnchor34 = true;
     }
     
     hidden[p_anchor] = v_anchor;
     if(haveAnchor2) hidden[p_anchor2] = 2;
+    if(haveAnchor34){
+        hidden[p_anchor3] = 3;
+        hidden[p_anchor4] = 4;
+    }
     
     vector<int> G;
     for(int i = 1; i <= n; i++){
-        if(i != p_anchor && (!haveAnchor2 || i != p_anchor2)) G.push_back(i);
+        if(i == p_anchor) continue;
+        if(haveAnchor2 && i == p_anchor2) continue;
+        if(haveAnchor34 && (i == p_anchor3 || i == p_anchor4)) continue;
+        G.push_back(i);
     }
     
     vector<int> V;
     for(int v = 1; v <= n-1; v++){
         if(v == v_anchor) continue;
         if(haveAnchor2 && v == 2) continue;
+        if(haveAnchor34 && (v == 3 || v == 4)) continue;
         V.push_back(v);
     }
     
