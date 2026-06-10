@@ -1,22 +1,29 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-int n = 0;
-vector<vector<pair<int,int>>> adj;
-int START_NODE, END_NODE;
-
-int newNode() {
-    n++;
-    adj.push_back({});
-    return n;
-}
-
 struct Trip { int m; long long lo, hi; };
-map<string, int> profMemo;
-vector<vector<Trip>> nodeProfile;
+
+struct Graph {
+    int n = 0;
+    vector<vector<pair<int,int>>> adj;
+    int START, END;
+    vector<vector<Trip>> nodeProfile;
+    vector<bool> deleted;
+    
+    int newNode() {
+        n++;
+        adj.push_back({});
+        nodeProfile.push_back({});
+        return n;
+    }
+};
 
 string serialize(vector<Trip>& P) {
-    sort(P.begin(), P.end(), [](const Trip& a, const Trip& b){ return a.m < b.m; });
+    sort(P.begin(), P.end(), [](const Trip& a, const Trip& b){
+        if (a.m != b.m) return a.m < b.m;
+        if (a.lo != b.lo) return a.lo < b.lo;
+        return a.hi < b.hi;
+    });
     string s;
     for (auto& t : P) {
         s += to_string(t.m); s += '-';
@@ -26,15 +33,14 @@ string serialize(vector<Trip>& P) {
     return s;
 }
 
-int buildNode(vector<Trip> profile, long long v) {
+int buildNode(Graph& G, vector<Trip> profile, map<string,int>& memo) {
     if (profile.empty()) return -1;
     string key = serialize(profile);
-    auto it = profMemo.find(key);
-    if (it != profMemo.end()) return it->second;
-    int node = newNode();
-    profMemo[key] = node;
-    if ((int)nodeProfile.size() < node) nodeProfile.resize(node);
-    nodeProfile[node-1] = profile;
+    auto it = memo.find(key);
+    if (it != memo.end()) return it->second;
+    int node = G.newNode();
+    memo[key] = node;
+    G.nodeProfile[node-1] = profile;
     
     for (int b = 0; b < 2; b++) {
         vector<Trip> child;
@@ -56,50 +62,48 @@ int buildNode(vector<Trip> profile, long long v) {
                 child.push_back({t.m - 1, clo, chi});
             }
         }
-        if (stopHere) adj[node-1].push_back({END_NODE, b});
+        if (stopHere) G.adj[node-1].push_back({G.END, b});
         if (!child.empty()) {
-            int cid = buildNode(child, 2*v + b);
-            if (cid != -1) adj[node-1].push_back({cid, b});
+            int cid = buildNode(G, child, memo);
+            if (cid != -1) G.adj[node-1].push_back({cid, b});
         }
     }
     return node;
 }
 
-vector<bool> deleted;
-
-vector<int> topoOrder() {
-    vector<int> indeg(n+1, 0);
-    for (int u = 1; u <= n; u++) {
-        if (deleted[u]) continue;
-        for (auto& e : adj[u-1]) {
-            if (!deleted[e.first]) indeg[e.first]++;
+vector<int> topoOrder(Graph& G) {
+    vector<int> indeg(G.n+1, 0);
+    for (int u = 1; u <= G.n; u++) {
+        if (G.deleted[u]) continue;
+        for (auto& e : G.adj[u-1]) {
+            if (!G.deleted[e.first]) indeg[e.first]++;
         }
     }
     queue<int> q;
-    for (int u = 1; u <= n; u++) {
-        if (!deleted[u] && indeg[u] == 0) q.push(u);
+    for (int u = 1; u <= G.n; u++) {
+        if (!G.deleted[u] && indeg[u] == 0) q.push(u);
     }
     vector<int> order;
     while (!q.empty()) {
         int u = q.front(); q.pop();
         order.push_back(u);
-        for (auto& e : adj[u-1]) {
-            if (deleted[e.first]) continue;
+        for (auto& e : G.adj[u-1]) {
+            if (G.deleted[e.first]) continue;
             if (--indeg[e.first] == 0) q.push(e.first);
         }
     }
     return order;
 }
 
-vector<vector<uint64_t>> computeReach() {
-    int W = (n + 1 + 63) / 64;
-    vector<vector<uint64_t>> reach(n+1, vector<uint64_t>(W, 0));
-    vector<int> order = topoOrder();
+vector<vector<uint64_t>> computeReach(Graph& G) {
+    int W = (G.n + 1 + 63) / 64;
+    vector<vector<uint64_t>> reach(G.n+1, vector<uint64_t>(W, 0));
+    vector<int> order = topoOrder(G);
     for (int i = (int)order.size() - 1; i >= 0; i--) {
         int u = order[i];
-        for (auto& e : adj[u-1]) {
+        for (auto& e : G.adj[u-1]) {
             int c = e.first;
-            if (deleted[c]) continue;
+            if (G.deleted[c]) continue;
             reach[u][c >> 6] |= (1ULL << (c & 63));
             for (int w = 0; w < W; w++) reach[u][w] |= reach[c][w];
         }
@@ -107,18 +111,18 @@ vector<vector<uint64_t>> computeReach() {
     return reach;
 }
 
-long long totalPathCount(long long cap, int maxLen) {
-    vector<vector<long long>> cnt(n+1, vector<long long>(maxLen+2, 0));
-    cnt[END_NODE][0] = 1;
-    vector<int> order = topoOrder();
+long long totalPathCount(Graph& G, long long cap, int maxLen) {
+    vector<vector<long long>> cnt(G.n+1, vector<long long>(maxLen+2, 0));
+    cnt[G.END][0] = 1;
+    vector<int> order = topoOrder(G);
     for (int i = (int)order.size() - 1; i >= 0; i--) {
         int u = order[i];
-        if (u == END_NODE) continue;
+        if (u == G.END) continue;
         for (int k = 1; k <= maxLen+1; k++) {
             long long s = 0;
-            for (auto& e : adj[u-1]) {
+            for (auto& e : G.adj[u-1]) {
                 int c = e.first;
-                if (deleted[c]) continue;
+                if (G.deleted[c]) continue;
                 s += cnt[c][k-1];
                 if (s > cap) { s = cap+1; break; }
             }
@@ -127,17 +131,16 @@ long long totalPathCount(long long cap, int maxLen) {
     }
     long long total = 0;
     for (int k = 0; k <= maxLen+1; k++) {
-        total += cnt[START_NODE][k];
+        total += cnt[G.START][k];
         if (total > cap) return cap+1;
     }
     return total;
 }
 
-bool valueIntervalDisjoint(int u, int v) {
-    // for each length m the value intervals must satisfy max(los) > min(his)
+bool valueIntervalDisjoint(Graph& G, int u, int v) {
     map<int, vector<pair<long long,long long>>> byM;
-    for (auto& t : nodeProfile[u-1]) byM[t.m].push_back({t.lo, t.hi});
-    for (auto& t : nodeProfile[v-1]) byM[t.m].push_back({t.lo, t.hi});
+    for (auto& t : G.nodeProfile[u-1]) byM[t.m].push_back({t.lo, t.hi});
+    for (auto& t : G.nodeProfile[v-1]) byM[t.m].push_back({t.lo, t.hi});
     for (auto& kv : byM) {
         if (kv.second.size() < 2) continue;
         long long maxLo = LLONG_MIN, minHi = LLONG_MAX;
@@ -150,21 +153,154 @@ bool valueIntervalDisjoint(int u, int v) {
     return true;
 }
 
-int main() {
-    long long L, R;
-    cin >> L >> R;
-    
+void mergePass(Graph& G, long long target, long long cap, int maxLen) {
+    bool progress = true;
+    while (progress) {
+        progress = false;
+        auto reach = computeReach(G);
+        for (int u = 1; u <= G.n && !progress; u++) {
+            if (G.deleted[u] || u == G.START || u == G.END) continue;
+            for (int v = u+1; v <= G.n && !progress; v++) {
+                if (G.deleted[v] || v == G.START || v == G.END) continue;
+                if (G.nodeProfile[u-1].empty() || G.nodeProfile[v-1].empty()) continue;
+                if (!valueIntervalDisjoint(G, u, v)) continue;
+                if (reach[u][v>>6] & (1ULL << (v&63))) continue;
+                if (reach[v][u>>6] & (1ULL << (u&63))) continue;
+                
+                set<pair<int,int>> merged;
+                bool bad = false;
+                for (auto& e : G.adj[u-1]) {
+                    if (G.deleted[e.first]) { bad = true; break; }
+                    if (e.first == u) { bad = true; break; }
+                    merged.insert(e);
+                }
+                if (bad) continue;
+                for (auto& e : G.adj[v-1]) {
+                    if (G.deleted[e.first]) { bad = true; break; }
+                    if (e.first == v) { bad = true; break; }
+                    merged.insert(e);
+                }
+                if (bad) continue;
+                if (merged.size() > 200) continue;
+                
+                vector<pair<int,int>> snapU = G.adj[u-1];
+                vector<pair<int,int>> snapV = G.adj[v-1];
+                vector<bool> snapDel = G.deleted;
+                vector<pair<int, vector<pair<int,int>>>> snapPred;
+                for (int p = 1; p <= G.n; p++) {
+                    if (G.deleted[p]) continue;
+                    bool has = false;
+                    for (auto& e : G.adj[p-1]) if (e.first == v) { has = true; break; }
+                    if (has) snapPred.push_back({p, G.adj[p-1]});
+                }
+                
+                G.adj[u-1].assign(merged.begin(), merged.end());
+                int origProfSize = (int)G.nodeProfile[u-1].size();
+                for (auto& t : G.nodeProfile[v-1]) G.nodeProfile[u-1].push_back(t);
+                
+                for (auto& sp : snapPred) {
+                    int p = sp.first;
+                    set<pair<int,int>> ns;
+                    for (auto& e : G.adj[p-1]) {
+                        int tgt = (e.first == v) ? u : e.first;
+                        if (tgt == p) continue;
+                        ns.insert({tgt, e.second});
+                    }
+                    G.adj[p-1].assign(ns.begin(), ns.end());
+                }
+                
+                G.deleted[v] = true;
+                G.adj[v-1].clear();
+                
+                long long pc = totalPathCount(G, cap, maxLen);
+                if (pc == target) {
+                    progress = true;
+                } else {
+                    G.adj[u-1] = snapU;
+                    G.adj[v-1] = snapV;
+                    G.deleted = snapDel;
+                    for (auto& sp : snapPred) {
+                        G.adj[sp.first - 1] = sp.second;
+                    }
+                    G.nodeProfile[u-1].resize(origProfSize);
+                }
+            }
+        }
+    }
+}
+
+Graph compact(Graph& G) {
+    Graph H;
+    vector<int> remap(G.n+1, 0);
+    int newN = 0;
+    // ensure START becomes 1
+    if (!G.deleted[G.START]) {
+        newN++;
+        remap[G.START] = newN;
+    }
+    for (int i = 1; i <= G.n; i++) {
+        if (G.deleted[i] || i == G.START) continue;
+        newN++;
+        remap[i] = newN;
+    }
+    H.n = newN;
+    H.adj.assign(newN, {});
+    H.nodeProfile.assign(newN, {});
+    H.deleted.assign(newN+1, false);
+    H.START = remap[G.START];
+    H.END = G.deleted[G.END] ? 0 : remap[G.END];
+    for (int i = 1; i <= G.n; i++) {
+        if (G.deleted[i]) continue;
+        int ni = remap[i];
+        for (auto& e : G.adj[i-1]) {
+            H.adj[ni-1].push_back({remap[e.first], e.second});
+        }
+        H.nodeProfile[ni-1] = G.nodeProfile[i-1];
+    }
+    return H;
+}
+
+int countAlive(Graph& G) {
+    int c = 0;
+    for (int i = 1; i <= G.n; i++) if (!G.deleted[i]) c++;
+    return c;
+}
+
+void outputGraph(Graph& G) {
+    // renumber so START is 1
+    vector<int> remap(G.n+1, 0);
+    int newN = 0;
+    if (!G.deleted[G.START]) { newN++; remap[G.START] = newN; }
+    for (int i = 1; i <= G.n; i++) {
+        if (G.deleted[i] || i == G.START) continue;
+        newN++;
+        remap[i] = newN;
+    }
+    cout << newN << "\n";
+    vector<vector<pair<int,int>>> out(newN);
+    for (int i = 1; i <= G.n; i++) {
+        if (G.deleted[i]) continue;
+        int ni = remap[i];
+        for (auto& e : G.adj[i-1]) {
+            out[ni-1].push_back({remap[e.first], e.second});
+        }
+    }
+    for (int i = 0; i < newN; i++) {
+        cout << out[i].size();
+        for (auto& e : out[i]) cout << " " << e.first << " " << e.second;
+        cout << "\n";
+    }
+}
+
+void buildForward(Graph& G, long long L, long long R) {
     auto bitlen = [](long long x) {
         int b = 0;
         while (x) { b++; x >>= 1; }
         return b;
     };
-    
     int ellL = bitlen(L), ellR = bitlen(R);
-    
-    START_NODE = newNode();
-    END_NODE = newNode();
-    nodeProfile.resize(n);
+    G.START = G.newNode();
+    G.END = G.newNode();
     
     vector<Trip> P1;
     for (int m = ellL - 1; m <= ellR - 1; m++) {
@@ -176,125 +312,228 @@ int main() {
     }
     
     if (L == 1) {
-        adj[START_NODE-1].push_back({END_NODE, 1});
+        G.adj[G.START-1].push_back({G.END, 1});
     }
+    map<string,int> memo;
     if (!P1.empty()) {
-        int c = buildNode(P1, 1);
-        if (c != -1) adj[START_NODE-1].push_back({c, 1});
+        int c = buildNode(G, P1, memo);
+        if (c != -1) G.adj[G.START-1].push_back({c, 1});
+    }
+    G.deleted.assign(G.n+1, false);
+}
+
+// Brzozowski reverse
+bool buildReverseDFA(Graph& Gorig, Graph& NF) {
+    // reverseAdj[v] = list of (u, w) for edges u->v weight w in Gorig
+    int N = Gorig.n;
+    vector<vector<pair<int,int>>> revAdj(N+1);
+    for (int u = 1; u <= N; u++) {
+        if (Gorig.deleted[u]) continue;
+        for (auto& e : Gorig.adj[u-1]) {
+            int v = e.first, w = e.second;
+            revAdj[v].push_back({u, w});
+        }
     }
     
-    nodeProfile.resize(n+1);
-    deleted.assign(n+1, false);
+    auto serializeVec = [](const vector<int>& v) {
+        string s;
+        for (int x : v) { s += to_string(x); s += ','; }
+        return s;
+    };
+    
+    map<string,int> subsetId;
+    vector<vector<int>> subsets;
+    vector<int> initSub = {Gorig.END};
+    string initKey = serializeVec(initSub);
+    subsetId[initKey] = 0;
+    subsets.push_back(initSub);
+    
+    vector<tuple<int,int,int>> transitions; // (S id, w, T id)
+    queue<int> bfs;
+    bfs.push(0);
+    
+    while (!bfs.empty()) {
+        int sid = bfs.front(); bfs.pop();
+        vector<int> S = subsets[sid];
+        for (int w = 0; w < 2; w++) {
+            set<int> Tset;
+            for (int u : S) {
+                for (auto& p : revAdj[u]) {
+                    if (p.second == w) Tset.insert(p.first);
+                }
+            }
+            if (Tset.empty()) continue;
+            vector<int> T(Tset.begin(), Tset.end());
+            string key = serializeVec(T);
+            auto it = subsetId.find(key);
+            int tid;
+            if (it == subsetId.end()) {
+                tid = (int)subsets.size();
+                subsetId[key] = tid;
+                subsets.push_back(T);
+                if ((int)subsets.size() > 200) return false;
+                bfs.push(tid);
+            } else {
+                tid = it->second;
+            }
+            transitions.push_back({sid, w, tid});
+        }
+    }
+    
+    int numSub = (int)subsets.size();
+    // determine accept subsets (contain START)
+    vector<bool> isAccept(numSub, false);
+    for (int i = 0; i < numSub; i++) {
+        if (binary_search(subsets[i].begin(), subsets[i].end(), Gorig.START)) {
+            isAccept[i] = true;
+        }
+    }
+    
+    // NF nodes: one merged_start + one per non-accept subset
+    // initial subset (id 0) is the NF end
+    NF.n = 0;
+    NF.adj.clear();
+    NF.nodeProfile.clear();
+    int mergedStart = NF.newNode();
+    vector<int> sid2nf(numSub, -1);
+    for (int i = 0; i < numSub; i++) {
+        if (isAccept[i]) {
+            sid2nf[i] = mergedStart;
+        } else {
+            sid2nf[i] = NF.newNode();
+        }
+    }
+    NF.START = mergedStart;
+    NF.END = sid2nf[0];
+    
+    // Reverse transitions: edge weight w from sid2nf[tid] to sid2nf[sid]
+    set<tuple<int,int,int>> edgeSet;
+    for (auto& tr : transitions) {
+        int sid, w, tid;
+        tie(sid, w, tid) = tr;
+        int from = sid2nf[tid];
+        int to = sid2nf[sid];
+        edgeSet.insert({from, w, to});
+    }
+    for (auto& e : edgeSet) {
+        int from, w, to;
+        tie(from, w, to) = e;
+        NF.adj[from-1].push_back({to, w});
+    }
+    
+    NF.deleted.assign(NF.n+1, false);
+    return true;
+}
+
+// Compute nodeProfile for NF graph via forward propagation
+// Each node's profile = set of (m, lo, hi) triples representing values reachable from this node to END
+void computeNFProfiles(Graph& NF) {
+    NF.nodeProfile.assign(NF.n, {});
+    // topo order: process in reverse topo (children first)
+    vector<int> order = topoOrder(NF);
+    // For each node, profile = union over edges (c, w) of:
+    //   if c == END: include (1, w, w)
+    //   else: for each (m, lo, hi) in profile[c]: include (m+1, 2*lo+w, 2*hi+w)
+    for (int i = (int)order.size() - 1; i >= 0; i--) {
+        int u = order[i];
+        if (u == NF.END) continue;
+        map<int, vector<pair<long long,long long>>> byM;
+        for (auto& e : NF.adj[u-1]) {
+            int c = e.first, w = e.second;
+            if (c == NF.END) {
+                byM[1].push_back({w, w});
+            }
+            if (c != NF.END) {
+                for (auto& t : NF.nodeProfile[c-1]) {
+                    byM[t.m + 1].push_back({2*t.lo + w, 2*t.hi + w});
+                }
+            } else {
+                // also potentially has further from END? END has no outgoing
+            }
+        }
+        // Union intervals per m
+        vector<Trip> prof;
+        for (auto& kv : byM) {
+            auto& v = kv.second;
+            sort(v.begin(), v.end());
+            long long curLo = -1, curHi = -1;
+            bool has = false;
+            for (auto& p : v) {
+                if (!has) { curLo = p.first; curHi = p.second; has = true; }
+                else if (p.first <= curHi + 1) { curHi = max(curHi, p.second); }
+                else { prof.push_back({kv.first, curLo, curHi}); curLo = p.first; curHi = p.second; }
+            }
+            if (has) prof.push_back({kv.first, curLo, curHi});
+        }
+        NF.nodeProfile[u-1] = prof;
+    }
+}
+
+int main() {
+    long long L, R;
+    cin >> L >> R;
+    
+    auto bitlen = [](long long x) {
+        int b = 0;
+        while (x) { b++; x >>= 1; }
+        return b;
+    };
+    
+    if (L == R) {
+        // simple chain: bit length + 1 nodes
+        string bits;
+        long long x = L;
+        while (x) { bits += char('0' + (x & 1)); x >>= 1; }
+        reverse(bits.begin(), bits.end());
+        int nn = (int)bits.size() + 1;
+        cout << nn << "\n";
+        for (int i = 0; i < nn; i++) {
+            if (i == nn - 1) cout << 0 << "\n";
+            else cout << 1 << " " << (i+2) << " " << (bits[i] - '0') << "\n";
+        }
+        return 0;
+    }
     
     long long target = R - L + 1;
     long long cap = 1LL << 30;
-    int maxLen = ellR;
+    int maxLen = bitlen(R);
     
-    bool progress = true;
-    while (progress) {
-        progress = false;
-        auto reach = computeReach();
-        for (int u = 1; u <= n && !progress; u++) {
-            if (deleted[u] || u == START_NODE || u == END_NODE) continue;
-            for (int v = u+1; v <= n && !progress; v++) {
-                if (deleted[v] || v == START_NODE || v == END_NODE) continue;
-                if (u-1 >= (int)nodeProfile.size() || v-1 >= (int)nodeProfile.size()) continue;
-                if (nodeProfile[u-1].empty() || nodeProfile[v-1].empty()) continue;
-                if (!valueIntervalDisjoint(u, v)) continue;
-                if (reach[u][v>>6] & (1ULL << (v&63))) continue;
-                if (reach[v][u>>6] & (1ULL << (u&63))) continue;
-                
-                set<pair<int,int>> merged;
-                bool bad = false;
-                for (auto& e : adj[u-1]) {
-                    if (deleted[e.first]) { bad = true; break; }
-                    if (e.first == u) { bad = true; break; }
-                    merged.insert(e);
-                }
-                if (bad) continue;
-                for (auto& e : adj[v-1]) {
-                    if (deleted[e.first]) { bad = true; break; }
-                    if (e.first == v) { bad = true; break; }
-                    merged.insert(e);
-                }
-                if (bad) continue;
-                if (merged.size() > 200) continue;
-                
-                // snapshot
-                vector<pair<int,int>> snapU = adj[u-1];
-                vector<pair<int,int>> snapV = adj[v-1];
-                vector<bool> snapDel = deleted;
-                vector<pair<int, vector<pair<int,int>>>> snapPred;
-                for (int p = 1; p <= n; p++) {
-                    if (deleted[p]) continue;
-                    bool has = false;
-                    for (auto& e : adj[p-1]) if (e.first == v) { has = true; break; }
-                    if (has) snapPred.push_back({p, adj[p-1]});
-                }
-                
-                // mutate
-                adj[u-1].assign(merged.begin(), merged.end());
-                for (auto& t : nodeProfile[v-1]) nodeProfile[u-1].push_back(t);
-                
-                for (auto& sp : snapPred) {
-                    int p = sp.first;
-                    set<pair<int,int>> ns;
-                    for (auto& e : adj[p-1]) {
-                        int tgt = (e.first == v) ? u : e.first;
-                        if (tgt == p) continue;
-                        ns.insert({tgt, e.second});
-                    }
-                    adj[p-1].assign(ns.begin(), ns.end());
-                }
-                
-                deleted[v] = true;
-                adj[v-1].clear();
-                
-                long long pc = totalPathCount(cap, maxLen);
-                if (pc == target) {
-                    progress = true;
-                } else {
-                    // rollback
-                    adj[u-1] = snapU;
-                    adj[v-1] = snapV;
-                    deleted = snapDel;
-                    for (auto& sp : snapPred) {
-                        adj[sp.first - 1] = sp.second;
-                    }
-                    // restore nodeProfile[u-1]
-                    int origSize = (int)nodeProfile[u-1].size() - (int)nodeProfile[v-1].size();
-                    nodeProfile[u-1].resize(origSize);
-                }
-            }
-        }
+    // Phase A: forward
+    Graph Gf;
+    buildForward(Gf, L, R);
+    
+    // Save snapshot of original forward for phase B
+    Graph Gorig;
+    buildForward(Gorig, L, R);
+    
+    // Merge pass on Gf
+    mergePass(Gf, target, cap, maxLen);
+    int forwardN = countAlive(Gf);
+    
+    if (forwardN <= 20) {
+        outputGraph(Gf);
+        return 0;
     }
     
-    // compact
-    vector<int> remap(n+1, 0);
-    int newN = 0;
-    for (int i = 1; i <= n; i++) {
-        if (!deleted[i]) {
-            newN++;
-            remap[i] = newN;
-        }
-    }
-    // ensure START is 1 and END is 2 if possible - keep order
-    vector<vector<pair<int,int>>> newAdj(newN);
-    for (int i = 1; i <= n; i++) {
-        if (deleted[i]) continue;
-        int ni = remap[i];
-        for (auto& e : adj[i-1]) {
-            newAdj[ni-1].push_back({remap[e.first], e.second});
-        }
+    // Phase B: Brzozowski reverse
+    Graph NF;
+    bool ok = buildReverseDFA(Gorig, NF);
+    
+    if (!ok) {
+        outputGraph(Gf);
+        return 0;
     }
     
-    cout << newN << "\n";
-    for (int i = 0; i < newN; i++) {
-        cout << newAdj[i].size();
-        for (auto& e : newAdj[i]) {
-            cout << " " << e.first << " " << e.second;
-        }
-        cout << "\n";
+    computeNFProfiles(NF);
+    
+    // Apply same merge pass
+    mergePass(NF, target, cap, maxLen);
+    int reverseN = countAlive(NF);
+    
+    if (reverseN < forwardN) {
+        outputGraph(NF);
+    } else {
+        outputGraph(Gf);
     }
     
     return 0;
