@@ -249,6 +249,7 @@ int main() {
     vector<int> nonA;
     for (int v = 1; v <= n; v++) if (!inA[v]) nonA.push_back(v);
     int nn = (int)nonA.size();
+    int numNonA = nn;
     
     vector<int> sig1(n + 1, 0), sig2(n + 1, 0), sig3(n + 1, 0);
     
@@ -301,8 +302,16 @@ int main() {
         }
     }
     
+    vector<int> sig1Of(numNonA), sig2Of(numNonA), sig3Of(numNonA);
+    for (int q = 0; q < numNonA; q++) {
+        sig1Of[q] = sig1[nonA[q]];
+        sig2Of[q] = sig2[nonA[q]];
+        sig3Of[q] = sig3[nonA[q]];
+    }
+    
     vector<vector<int>> neighbors(n + 1);
     set<pair<int,int>> edgeSet;
+    set<pair<int,int>> skelEdges;
     auto pushNeighbor = [&](int a, int b) {
         int aa = a, bb = b;
         if (aa > bb) swap(aa, bb);
@@ -317,8 +326,7 @@ int main() {
     
     vector<vector<int>> bySoleA(m);
     vector<int> D;
-    
-    auto popcnt = [](int x){ return __builtin_popcount(x); };
+    vector<int> degA(m, 0);
     
     auto fallback = [&]() {
         printf("-1");
@@ -327,51 +335,73 @@ int main() {
         fflush(stdout);
     };
     
-    for (int y : nonA) {
-        int s1 = sig1[y], s2 = sig2[y], s3 = sig3[y];
-        if (popcnt(s1) > 13) continue;
-        if (s1 < m && idx2[s1] == s2 && idx3[s1] == s3) {
-            yType[y] = 1;
-            ySoleA[y] = s1;
-            pushNeighbor(y, A_list[s1]);
-            D.push_back(y);
-            bySoleA[s1].push_back(y);
-            continue;
-        } else {
-            int found_count = 0;
-            int found_sub = -1, found_comp = -1;
-            int sub = s1;
-            do {
-                if (sub >= m) { sub = (sub - 1) & s1; continue; }
-                if ((idx2[sub] & ~s2) != 0) { sub = (sub - 1) & s1; continue; }
-                if ((idx3[sub] & ~s3) != 0) { sub = (sub - 1) & s1; continue; }
-                
-                int base_comp = s1 & ~sub;
-                int free_bits = s1 & sub;
-                
-                int extra = free_bits;
-                do {
-                    int comp = base_comp | extra;
-                    if (sub < comp && comp < m) {
-                        if ((idx2[sub] | idx2[comp]) == s2 && (idx3[sub] | idx3[comp]) == s3) {
-                            found_count++;
-                            found_sub = sub;
-                            found_comp = comp;
-                            if (found_count > 1) break;
-                        }
-                    }
-                    extra = (extra - 1) & free_bits;
-                } while (extra != free_bits);
-                
-                if (found_count > 1) break;
-                sub = (sub - 1) & s1;
-            } while (sub != s1);
-            
-            if (found_count == 1) {
-                pushNeighbor(y, A_list[found_sub]);
-                pushNeighbor(y, A_list[found_comp]);
+    // Phase 3: bucket by sig1
+    vector<vector<int>> bucketBy_S1(1 << K);
+    for (int q = 0; q < numNonA; q++) {
+        bucketBy_S1[sig1Of[q]].push_back(q);
+    }
+    
+    vector<int> dgCount(numNonA, 0);
+    vector<int> dgSub(numNonA, -1);
+    vector<int> sgCount(numNonA, 0);
+    vector<pair<int,int>> sgPair(numNonA, {-1, -1});
+    
+    // Step 3a: single A index
+    for (int i = 0; i < m; i++) {
+        int s1_i = idx1[i];
+        int s2_i = idx2[i];
+        int s3_i = idx3[i];
+        for (int q : bucketBy_S1[s1_i]) {
+            if (sig2Of[q] == s2_i && sig3Of[q] == s3_i) {
+                dgCount[q]++;
+                dgSub[q] = i;
             }
         }
+    }
+    
+    // Step 3b: unordered pair
+    for (int i = 0; i < m; i++) {
+        int idx2_i = idx2[i];
+        int idx3_i = idx3[i];
+        for (int j = i + 1; j < m; j++) {
+            int s1_ij = i | j;
+            int s2_ij = idx2_i | idx2[j];
+            int s3_ij = idx3_i | idx3[j];
+            for (int q : bucketBy_S1[s1_ij]) {
+                if (sig2Of[q] == s2_ij && sig3Of[q] == s3_ij) {
+                    sgCount[q]++;
+                    sgPair[q] = {i, j};
+                }
+            }
+        }
+    }
+    
+    // Step 3c: classify
+    for (int q = 0; q < numNonA; q++) {
+        int y = nonA[q];
+        if (dgCount[q] == 1 && sgCount[q] == 0) {
+            int i = dgSub[q];
+            pushNeighbor(y, A_list[i]);
+            D.push_back(y);
+            bySoleA[i].push_back(y);
+            yType[y] = 1;
+            ySoleA[y] = i;
+        } else if (dgCount[q] == 0 && sgCount[q] == 1) {
+            int i = sgPair[q].first;
+            int j = sgPair[q].second;
+            pushNeighbor(y, A_list[i]);
+            pushNeighbor(y, A_list[j]);
+            int aa = i, bb = j;
+            if (aa > bb) swap(aa, bb);
+            skelEdges.insert({aa, bb});
+            degA[i]++;
+            degA[j]++;
+            yType[y] = 2;
+        }
+    }
+    
+    for (int i = 0; i < m; i++) {
+        if (degA[i] > 2) { fallback(); return 0; }
     }
     
     {
