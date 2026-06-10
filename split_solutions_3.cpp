@@ -143,6 +143,76 @@ int main() {
         return 0;
     }
     
+    // Maximality completion pass
+    {
+        vector<int> R_rem;
+        for (int v = 1; v <= n; v++) if (!inA[v]) R_rem.push_back(v);
+        if (!R_rem.empty()) {
+            long long L = 2LL * (long long)R_rem.size();
+            printf("%lld", L);
+            for (int v : R_rem) printf(" %d %d", v, v);
+            printf("\n");
+            fflush(stdout);
+            vector<int> resp(L);
+            for (long long i = 0; i < L; i++) scanf("%d", &resp[i]);
+            
+            vector<int> M;
+            for (size_t k = 0; k < R_rem.size(); k++) {
+                if (resp[2 * k] == 0) M.push_back(R_rem[k]);
+            }
+            
+            const int E2 = 8;
+            const uint64_t SEED2 = 0xCAFEBABEDEADBEEFULL;
+            
+            for (int e2 = 0; e2 < E2; e2++) {
+                vector<int> R2;
+                for (int m : M) if (!inA[m]) R2.push_back(m);
+                if (R2.empty()) break;
+                
+                uint64_t x = SEED2 ^ (uint64_t)e2;
+                if (x == 0) x = 1;
+                for (int i = (int)R2.size() - 1; i >= 1; i--) {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    uint64_t j = x % (uint64_t)(i + 1);
+                    swap(R2[i], R2[(int)j]);
+                }
+                
+                long long LL = (long long)R2.size();
+                printf("%lld", LL);
+                for (int t : R2) printf(" %d", t);
+                printf("\n");
+                fflush(stdout);
+                vector<int> res(R2.size());
+                for (size_t i = 0; i < R2.size(); i++) scanf("%d", &res[i]);
+                
+                int k2 = (int)R2.size();
+                for (int i = 0; i < (int)R2.size(); i++) {
+                    if (res[i] == 1) { k2 = i; break; }
+                }
+                
+                for (int i = 0; i < k2; i++) {
+                    A_list.push_back(R2[i]);
+                    inA[R2[i]] = 1;
+                }
+                
+                if (k2 < (int)R2.size()) {
+                    vector<int> cleanup;
+                    for (int i = k2; i < (int)R2.size(); i++) cleanup.push_back(R2[i]);
+                    long long CL = (long long)cleanup.size();
+                    printf("%lld", CL);
+                    for (int t : cleanup) printf(" %d", t);
+                    printf("\n");
+                    fflush(stdout);
+                    for (size_t i = 0; i < cleanup.size(); i++) {
+                        int tmp; scanf("%d", &tmp);
+                    }
+                }
+            }
+        }
+    }
+    
     int m = (int)A_list.size();
     int K = 1;
     while ((1 << K) < m) K++;
