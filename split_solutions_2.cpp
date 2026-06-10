@@ -54,65 +54,63 @@ int main(){
     if(n < 30){
         fallbackScan();
     } else {
-        int B = 0;
-        while((1 << B) < n) B++;
-        
-        vector<int> a_results(B);
-        for(int i = 0; i < B; i++){
+        int k = max(2, (int)floor(sqrt((double)n)));
+        vector<int> found_chunk;
+        bool found = false;
+        for(int start = 1; start <= n; start += k){
+            int end = min(n, start + k - 1);
+            vector<int> C;
+            for(int j = start; j <= end; j++) C.push_back(j);
+            
             vector<int> q(n+1, 1);
-            for(int p = 1; p <= n; p++){
-                if((p-1) & (1 << i)) q[p] = 2;
+            for(int j : C) q[j] = 2;
+            int a = doQuery(q);
+            if(a == 0){
+                found_chunk = C;
+                v_anchor = 1;
+                found = true;
+                break;
+            } else if(a == 2){
+                found_chunk = C;
+                v_anchor = 2;
+                found = true;
+                break;
             }
-            a_results[i] = doQuery(q);
         }
         
-        vector<int> determinedBits(B, -1);
-        for(int i = 0; i < B; i++){
-            if(a_results[i] == 0){
-                determinedBits[i] = 0;
-            } else if(a_results[i] == 3){
-                determinedBits[i] = 1;
+        if(!found){
+            fallbackScan();
+        } else {
+            vector<int> C = found_chunk;
+            if(v_anchor == 1){
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    
+                    vector<int> q(n+1, 1);
+                    for(int j : R) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 1) C = L;
+                    else C = R;
+                }
             } else {
-                determinedBits[i] = -1;
-            }
-        }
-        
-        vector<int> Cset;
-        for(int p = 1; p <= n; p++){
-            bool ok = true;
-            for(int i = 0; i < B; i++){
-                if(determinedBits[i] != -1){
-                    int bit = ((p-1) >> i) & 1;
-                    if(bit != determinedBits[i]){ ok = false; break; }
+                while(C.size() > 1){
+                    int sz = C.size();
+                    int half = (sz + 1) / 2;
+                    vector<int> L(C.begin(), C.begin() + half);
+                    vector<int> R(C.begin() + half, C.end());
+                    
+                    vector<int> q(n+1, 1);
+                    for(int j : L) q[j] = 2;
+                    int a = doQuery(q);
+                    if(a == 2) C = L;
+                    else C = R;
                 }
             }
-            if(ok) Cset.push_back(p);
+            p_anchor = C[0];
         }
-        
-        v_anchor = 1;
-        
-        while(Cset.size() > 1){
-            int sz = Cset.size();
-            int half = (sz + 1) / 2;
-            vector<int> L(Cset.begin(), Cset.begin() + half);
-            set<int> Lset(L.begin(), L.end());
-            
-            vector<int> q(n+1, 2);
-            for(int j : L) q[j] = 1;
-            
-            int r = doQuery(q);
-            int indicator = r - 1;
-            
-            if(indicator == 1){
-                Cset = L;
-            } else {
-                vector<int> newC;
-                for(int x : Cset) if(!Lset.count(x)) newC.push_back(x);
-                Cset = newC;
-            }
-        }
-        
-        p_anchor = Cset[0];
     }
     
     hidden[p_anchor] = v_anchor;
@@ -129,28 +127,86 @@ int main(){
     
     size_t idx = 0;
     while(idx + 1 < V.size()){
-        int a = V[idx], b = V[idx+1];
-        
-        // Last pair optimization
-        if(n >= 30 && idx + 2 == V.size() && G.size() == 2){
-            int g1 = G[0], g2 = G[1];
-            vector<int> q(n+1, v_anchor);
-            q[g1] = a;
-            q[g2] = b;
-            int r = doQuery(q);
-            int s = r - 1;
-            if(s == 2){
+        // Triple-end direct enumeration branch
+        if(n >= 30 && idx + 2 == V.size() && G.size() == 3){
+            int a = V[idx], b = V[idx+1];
+            int g1 = G[0], g2 = G[1], g3 = G[2];
+            
+            vector<int> q1(n+1, v_anchor);
+            q1[g1] = a;
+            q1[g2] = b;
+            // q1[g3] stays v_anchor
+            int r1 = doQuery(q1);
+            int s1 = r1 - 1;
+            
+            if(s1 == 2){
                 hidden[g1] = a;
                 hidden[g2] = b;
+                hidden[g3] = n;
+                G.clear();
+                idx = V.size();
+                break;
+            } else if(s1 == 1){
+                vector<int> q2(n+1, v_anchor);
+                q2[g1] = a;
+                q2[g2] = a;
+                // q2[g3] stays v_anchor
+                int r2 = doQuery(q2);
+                int s2 = r2 - 1;
+                if(s2 == 1){
+                    // (a, n, b)
+                    hidden[g1] = a;
+                    hidden[g2] = n;
+                    hidden[g3] = b;
+                } else {
+                    // (n, b, a)
+                    hidden[g1] = n;
+                    hidden[g2] = b;
+                    hidden[g3] = a;
+                }
+                G.clear();
+                idx = V.size();
+                break;
             } else {
-                hidden[g1] = b;
-                hidden[g2] = a;
+                // s1 == 0
+                vector<int> q2(n+1, v_anchor);
+                q2[g1] = b;
+                q2[g2] = a;
+                int r2 = doQuery(q2);
+                int s2 = r2 - 1;
+                if(s2 == 2){
+                    // (b, a, n)
+                    hidden[g1] = b;
+                    hidden[g2] = a;
+                    hidden[g3] = n;
+                    G.clear();
+                    idx = V.size();
+                    break;
+                } else {
+                    // s2 == 1
+                    vector<int> q3(n+1, v_anchor);
+                    q3[g1] = b;
+                    int r3 = doQuery(q3);
+                    int s3 = r3 - 1;
+                    if(s3 == 1){
+                        // (b, n, a)
+                        hidden[g1] = b;
+                        hidden[g2] = n;
+                        hidden[g3] = a;
+                    } else {
+                        // (n, a, b)
+                        hidden[g1] = n;
+                        hidden[g2] = a;
+                        hidden[g3] = b;
+                    }
+                    G.clear();
+                    idx = V.size();
+                    break;
+                }
             }
-            G.clear();
-            idx += 2;
-            break;
         }
         
+        int a = V[idx], b = V[idx+1];
         idx += 2;
         
         vector<int> Ca = G;
