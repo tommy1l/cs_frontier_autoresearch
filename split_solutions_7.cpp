@@ -4,17 +4,21 @@ using namespace std;
 int n = 0;
 vector<vector<pair<int,int>>> adj;
 
+struct Trip { int m; long long lo, hi; };
+
+vector<vector<Trip>> nodeProfile;
+vector<bool> deleted;
+
 int newNode() {
     n++;
     adj.push_back({});
+    nodeProfile.push_back({});
+    deleted.push_back(false);
     return n;
 }
 
 int END_NODE;
-int START_NODE;
 map<string, int> profMemo;
-
-struct Trip { int m; long long lo, hi; };
 
 string serialize(vector<Trip>& P) {
     sort(P.begin(), P.end(), [](const Trip& a, const Trip& b){ return a.m < b.m; });
@@ -34,6 +38,7 @@ int buildNode(vector<Trip> profile, long long v) {
     if (it != profMemo.end()) return it->second;
     int node = newNode();
     profMemo[key] = node;
+    nodeProfile[node-1] = profile;
     
     for (int b = 0; b < 2; b++) {
         vector<Trip> child;
@@ -64,9 +69,163 @@ int buildNode(vector<Trip> profile, long long v) {
     return node;
 }
 
-void buildForward(long long L, long long R) {
-    START_NODE = newNode();
-    END_NODE = newNode();
+// reach[u] : bitset of nodes reachable from u (not including u itself)
+vector<vector<uint64_t>> reachBits;
+int wordsPerBitset;
+
+void computeReach() {
+    wordsPerBitset = (n + 63) / 64;
+    reachBits.assign(n, vector<uint64_t>(wordsPerBitset, 0));
+    
+    // topological order
+    vector<int> indeg(n, 0);
+    for (int u = 0; u < n; u++) {
+        if (deleted[u]) continue;
+        for (auto& e : adj[u]) {
+            int v = e.first - 1;
+            if (deleted[v]) continue;
+            indeg[v]++;
+        }
+    }
+    vector<int> order;
+    queue<int> q;
+    for (int u = 0; u < n; u++) if (!deleted[u] && indeg[u] == 0) q.push(u);
+    while (!q.empty()) {
+        int u = q.front(); q.pop();
+        order.push_back(u);
+        for (auto& e : adj[u]) {
+            int v = e.first - 1;
+            if (deleted[v]) continue;
+            if (--indeg[v] == 0) q.push(v);
+        }
+    }
+    
+    for (int i = order.size() - 1; i >= 0; i--) {
+        int u = order[i];
+        for (auto& e : adj[u]) {
+            int v = e.first - 1;
+            if (deleted[v]) continue;
+            // set bit v in reach[u]
+            reachBits[u][v >> 6] |= (1ULL << (v & 63));
+            // OR reach[v]
+            for (int w = 0; w < wordsPerBitset; w++) {
+                reachBits[u][w] |= reachBits[v][w];
+            }
+        }
+    }
+}
+
+bool reachable(int u, int v) {
+    return (reachBits[u][v >> 6] >> (v & 63)) & 1ULL;
+}
+
+bool profileDisjoint(vector<Trip>& A, vector<Trip>& B) {
+    map<int, pair<long long, long long>> ma, mb;
+    for (auto& t : A) {
+        if (ma.count(t.m)) {
+            ma[t.m].first = min(ma[t.m].first, t.lo);
+            ma[t.m].second = max(ma[t.m].second, t.hi);
+        } else ma[t.m] = {t.lo, t.hi};
+    }
+    for (auto& t : B) {
+        if (mb.count(t.m)) {
+            mb[t.m].first = min(mb[t.m].first, t.lo);
+            mb[t.m].second = max(mb[t.m].second, t.hi);
+        } else mb[t.m] = {t.lo, t.hi};
+    }
+    for (auto& p : ma) {
+        if (mb.count(p.first)) {
+            auto& a = p.second;
+            auto& b = mb[p.first];
+            if (!(a.second < b.first || b.second < a.first)) return false;
+        }
+    }
+    return true;
+}
+
+int START_NODE_GLOBAL;
+
+void mergePass() {
+    while (true) {
+        computeReach();
+        
+        struct Cand { int u, v, score; };
+        vector<Cand> cands;
+        
+        vector<int> alive;
+        for (int u = 0; u < n; u++) {
+            if (deleted[u]) continue;
+            if (u + 1 == START_NODE_GLOBAL) continue;
+            if (u + 1 == END_NODE) continue;
+            if (nodeProfile[u].empty()) continue;
+            alive.push_back(u);
+        }
+        
+        for (size_t i = 0; i < alive.size(); i++) {
+            for (size_t j = i + 1; j < alive.size(); j++) {
+                int u = alive[i], v = alive[j];
+                if (reachable(u, v) || reachable(v, u)) continue;
+                if (!profileDisjoint(nodeProfile[u], nodeProfile[v])) continue;
+                int score = (int)adj[u].size() + (int)adj[v].size();
+                cands.push_back({u, v, score});
+            }
+        }
+        
+        if (cands.empty()) break;
+        
+        sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){ return a.score < b.score; });
+        
+        bool didMerge = false;
+        for (auto& c : cands) {
+            int u = c.u, v = c.v;
+            if (deleted[u] || deleted[v]) continue;
+            
+            // Check the merged outdegree
+            set<pair<int,int>> uni;
+            for (auto& e : adj[u]) uni.insert(e);
+            for (auto& e : adj[v]) uni.insert(e);
+            if ((int)uni.size() > 200) continue;
+            
+            // Re-check reach (it could have changed but we computed it for this iter; both u and v alive)
+            if (reachable(u, v) || reachable(v, u)) continue;
+            
+            // Merge v into u
+            adj[u].clear();
+            for (auto& e : uni) adj[u].push_back(e);
+            
+            // Append v's profile to u's
+            for (auto& t : nodeProfile[v]) nodeProfile[u].push_back(t);
+            
+            // Rewrite predecessors of v to point to u
+            for (int p = 0; p < n; p++) {
+                if (deleted[p]) continue;
+                if (p == v) continue;
+                for (auto& e : adj[p]) {
+                    if (e.first - 1 == v) e.first = u + 1;
+                }
+                // dedupe
+                if (p != u) {
+                    set<pair<int,int>> dd(adj[p].begin(), adj[p].end());
+                    adj[p].assign(dd.begin(), dd.end());
+                }
+            }
+            // also dedupe u after potential predecessor rewrites (no, u's adj was set)
+            
+            deleted[v] = true;
+            adj[v].clear();
+            nodeProfile[v].clear();
+            
+            didMerge = true;
+            break;
+        }
+        
+        if (!didMerge) break;
+    }
+}
+
+int main() {
+    long long L, R;
+    cin >> L >> R;
     
     auto bitlen = [](long long x) {
         int b = 0;
@@ -75,6 +234,10 @@ void buildForward(long long L, long long R) {
     };
     
     int ellL = bitlen(L), ellR = bitlen(R);
+    
+    int START = newNode();
+    END_NODE = newNode();
+    START_NODE_GLOBAL = START;
     
     vector<Trip> P1;
     for (int m = ellL - 1; m <= ellR - 1; m++) {
@@ -86,165 +249,62 @@ void buildForward(long long L, long long R) {
     }
     
     if (L == 1) {
-        adj[START_NODE-1].push_back({END_NODE, 1});
+        adj[START-1].push_back({END_NODE, 1});
     }
     if (!P1.empty()) {
         int c = buildNode(P1, 1);
-        if (c != -1) adj[START_NODE-1].push_back({c, 1});
-    }
-}
-
-void printGraph(int nn, vector<vector<pair<int,int>>>& ad, int startId, int endId) {
-    vector<int> remap(nn+1, 0);
-    remap[startId] = 1;
-    int nxt = 2;
-    for (int i = 1; i <= nn; i++) {
-        if (i == startId) continue;
-        remap[i] = nxt++;
+        if (c != -1) adj[START-1].push_back({c, 1});
     }
     
-    cout << nn << "\n";
-    vector<vector<pair<int,int>>> out(nn+1);
-    for (int i = 1; i <= nn; i++) {
-        for (auto& e : ad[i-1]) {
-            out[remap[i]].push_back({remap[e.first], e.second});
-        }
-    }
-    for (int i = 1; i <= nn; i++) {
-        cout << out[i].size();
-        for (auto& e : out[i]) {
-            cout << " " << e.first << " " << e.second;
-        }
-        cout << "\n";
-    }
-}
-
-int main() {
-    long long L, R;
-    cin >> L >> R;
+    // Save pre-merge state
+    int n_before = n;
+    vector<vector<pair<int,int>>> adj_before = adj;
+    int START_before = START, END_before = END_NODE;
     
-    buildForward(L, R);
+    mergePass();
     
-    int nForward = n;
-    vector<vector<pair<int,int>>> forwardAdj = adj;
-    int fwdStart = START_NODE, fwdEnd = END_NODE;
-    
-    vector<array<vector<int>,2>> revAdj(nForward+1);
-    for (int u = 1; u <= nForward; u++) {
-        for (auto& e : forwardAdj[u-1]) {
-            revAdj[e.first][e.second].push_back(u);
+    // Compact
+    vector<int> remap(n + 1, 0);
+    int nn = 0;
+    for (int i = 1; i <= n; i++) {
+        if (!deleted[i-1]) {
+            nn++;
+            remap[i] = nn;
         }
     }
     
-    auto encodeSet = [](vector<int>& s) {
-        string r;
-        for (int x : s) { r += to_string(x); r += ','; }
-        return r;
-    };
+    vector<vector<pair<int,int>>> newAdj(nn);
+    for (int i = 1; i <= n; i++) {
+        if (deleted[i-1]) continue;
+        int ni = remap[i];
+        for (auto& e : adj[i-1]) {
+            newAdj[ni-1].push_back({remap[e.first], e.second});
+        }
+    }
+    int newStart = remap[START];
+    int newEnd = remap[END_NODE];
     
-    unordered_map<string,int> subsetId;
-    vector<vector<int>> subsets;
-    
-    int runningNonAcceptCount = 0;
-    bool anyAccept = false;
-    
-    vector<int> initSet = {fwdEnd};
-    sort(initSet.begin(), initSet.end());
-    string initKey = encodeSet(initSet);
-    subsetId[initKey] = 0;
-    subsets.push_back(initSet);
-    if (binary_search(initSet.begin(), initSet.end(), fwdStart)) {
-        anyAccept = true;
+    if (nn <= n_before) {
+        cout << nn << "\n";
+        // Need to output START and END info? Original just prints n then adjacency
+        // Match original format
+        for (int i = 0; i < nn; i++) {
+            cout << newAdj[i].size();
+            for (auto& e : newAdj[i]) {
+                cout << " " << e.first << " " << e.second;
+            }
+            cout << "\n";
+        }
     } else {
-        runningNonAcceptCount++;
-    }
-    
-    struct DRTrans { int from, w, to; };
-    vector<DRTrans> drTrans;
-    
-    queue<int> bfs;
-    bfs.push(0);
-    bool bailout = false;
-    
-    while (!bfs.empty() && !bailout) {
-        int sid = bfs.front(); bfs.pop();
-        vector<int> S = subsets[sid];
-        for (int w = 0; w < 2; w++) {
-            set<int> Tset;
-            for (int u : S) {
-                for (int v : revAdj[u][w]) Tset.insert(v);
+        cout << n_before << "\n";
+        for (int i = 0; i < n_before; i++) {
+            cout << adj_before[i].size();
+            for (auto& e : adj_before[i]) {
+                cout << " " << e.first << " " << e.second;
             }
-            if (Tset.empty()) continue;
-            vector<int> T(Tset.begin(), Tset.end());
-            string k = encodeSet(T);
-            auto it = subsetId.find(k);
-            int tid;
-            if (it == subsetId.end()) {
-                tid = subsets.size();
-                subsetId[k] = tid;
-                subsets.push_back(T);
-                bool isAcc = binary_search(T.begin(), T.end(), fwdStart);
-                if (isAcc) anyAccept = true;
-                else runningNonAcceptCount++;
-                
-                int currentReverseSize = runningNonAcceptCount + (anyAccept ? 1 : 0);
-                if (currentReverseSize > 99 || (int)subsets.size() > 4096) {
-                    bailout = true;
-                    break;
-                }
-                bfs.push(tid);
-            } else {
-                tid = it->second;
-            }
-            drTrans.push_back({sid, w, tid});
+            cout << "\n";
         }
     }
-    
-    if (bailout || !anyAccept) {
-        printGraph(nForward, forwardAdj, fwdStart, fwdEnd);
-        return 0;
-    }
-    
-    int numSubsets = subsets.size();
-    vector<bool> isAccept(numSubsets, false);
-    for (int i = 0; i < numSubsets; i++) {
-        if (binary_search(subsets[i].begin(), subsets[i].end(), fwdStart)) {
-            isAccept[i] = true;
-        }
-    }
-    
-    vector<int> nfId(numSubsets, 0);
-    int mergedStart = 1;
-    int nfCount = 1;
-    for (int i = 0; i < numSubsets; i++) {
-        if (isAccept[i]) {
-            nfId[i] = mergedStart;
-        } else {
-            nfCount++;
-            nfId[i] = nfCount;
-        }
-    }
-    
-    int nReverse = nfCount;
-    
-    if (nForward <= nReverse) {
-        printGraph(nForward, forwardAdj, fwdStart, fwdEnd);
-        return 0;
-    }
-    
-    vector<vector<pair<int,int>>> nfAdj(nReverse);
-    for (auto& tr : drTrans) {
-        int from = nfId[tr.to];
-        int to = nfId[tr.from];
-        nfAdj[from-1].push_back({to, tr.w});
-    }
-    
-    int nfEnd = nfId[0];
-    int nfStart = mergedStart;
-    
-    n = nReverse;
-    adj = nfAdj;
-    printGraph(nReverse, nfAdj, nfStart, nfEnd);
     
     return 0;
 }
