@@ -40,66 +40,48 @@ int main() {
         cout.flush();
         return 0;
     }
-    long long lo = query(1, 1);
-    long long hi = query(n, n);
+    long long a11 = query(1, 1);
+    long long ann = query(n, n);
     if (k == 1) {
-        cout << "DONE " << lo << "\n";
+        cout << "DONE " << a11 << "\n";
         cout.flush();
         return 0;
     }
     if (k == (long long)n * n) {
-        cout << "DONE " << hi << "\n";
+        cout << "DONE " << ann << "\n";
         cout.flush();
         return 0;
     }
     
-    // Diagonal precomputation
     vector<long long> diag(n + 1, 0);
-    diag[1] = lo;
-    diag[n] = hi;
+    diag[1] = a11;
+    diag[n] = ann;
     for (int i = 2; i <= n - 1; i++) {
         diag[i] = query(i, i);
     }
     
-    // Find i_hi: smallest i in [1,n] with i*i >= k
-    long long target_hi = k;
-    int i_hi = -1;
-    for (int i = 1; i <= n; i++) {
-        if ((long long)i * i >= target_hi) {
-            i_hi = i;
-            break;
-        }
-    }
-    if (i_hi != -1) {
-        hi = diag[i_hi];
+    int lo_i = 1, hi_i = n;
+    while (lo_i < hi_i) {
+        int mid_i = (lo_i + hi_i) / 2;
+        if (countLE(diag[mid_i]) >= k) hi_i = mid_i;
+        else lo_i = mid_i + 1;
     }
     
-    // Find i_lo: largest i in [1,n] with (n-i+1)*(n-i+1) >= n*n - k + 1
-    long long target_lo = (long long)n * n - k + 1;
-    int i_lo = -1;
-    for (int i = n; i >= 1; i--) {
-        long long m = n - i + 1;
-        if (m * m >= target_lo) {
-            i_lo = i;
-            break;
-        }
-    }
-    if (i_lo != -1) {
-        lo = diag[i_lo];
-    }
+    long long vlo = (lo_i > 1) ? diag[lo_i - 1] + 1 : a11;
+    long long vhi = diag[lo_i];
     
-    if (lo == hi) {
-        cout << "DONE " << lo << "\n";
+    if (vlo >= vhi) {
+        cout << "DONE " << vhi << "\n";
         cout.flush();
         return 0;
     }
     
-    while (lo < hi) {
-        long long mid = lo + (hi - lo) / 2;
-        if (countLE(mid) >= k) hi = mid;
-        else lo = mid + 1;
+    while (vlo < vhi) {
+        long long mid = vlo + (vhi - vlo) / 2;
+        if (countLE(mid) >= k) vhi = mid;
+        else vlo = mid + 1;
     }
-    cout << "DONE " << lo << "\n";
+    cout << "DONE " << vlo << "\n";
     cout.flush();
     return 0;
 }
