@@ -6,6 +6,7 @@ long long k;
 unordered_map<long long, long long> cache;
 vector<pair<int, long long>> col1Vals, colNVals;
 vector<pair<int, long long>> row1Vals, rowNVals;
+long long lo, hi;
 
 long long query(int i, int j) {
     long long key = (long long)i * 200001LL + j;
@@ -16,6 +17,9 @@ long long query(int i, int j) {
     long long v;
     cin >> v;
     cache[key] = v;
+    if ((long long)i * (long long)j >= k) hi = min(hi, v);
+    long long m = (long long)(n - i + 1) * (long long)(n - j + 1);
+    if (m >= (long long)n * (long long)n - k + 1) lo = max(lo, v);
     return v;
 }
 
@@ -71,21 +75,25 @@ long long countLE(long long v) {
 
 int main() {
     cin >> n >> k;
+    lo = LLONG_MIN;
+    hi = LLONG_MAX;
     if (n == 1) {
         long long v = query(1, 1);
         cout << "DONE " << v << "\n";
         cout.flush();
         return 0;
     }
-    long long lo = query(1, 1);
-    long long hi = query(n, n);
+    long long a11 = query(1, 1);
+    long long ann = query(n, n);
+    lo = max(lo, a11);
+    hi = min(hi, ann);
     if (k == 1) {
-        cout << "DONE " << lo << "\n";
+        cout << "DONE " << a11 << "\n";
         cout.flush();
         return 0;
     }
     if (k == (long long)n * n) {
-        cout << "DONE " << hi << "\n";
+        cout << "DONE " << ann << "\n";
         cout.flush();
         return 0;
     }
@@ -99,7 +107,8 @@ int main() {
         }
     }
     if (i_hi != -1) {
-        hi = query(i_hi, i_hi);
+        long long v = query(i_hi, i_hi);
+        hi = min(hi, v);
     }
     
     long long target_lo = (long long)n * n - k + 1;
@@ -112,7 +121,8 @@ int main() {
         }
     }
     if (i_lo != -1) {
-        lo = query(i_lo, i_lo);
+        long long v = query(i_lo, i_lo);
+        lo = max(lo, v);
     }
     
     long long iListArr[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, (long long)n};
@@ -174,8 +184,8 @@ int main() {
     
     while (lo < hi) {
         long long mid = lo + (hi - lo) / 2;
-        if (countLE(mid) >= k) hi = mid;
-        else lo = mid + 1;
+        if (countLE(mid) >= k) hi = min(hi, mid);
+        else lo = max(lo, mid + 1);
     }
     cout << "DONE " << lo << "\n";
     cout.flush();
