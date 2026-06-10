@@ -335,7 +335,6 @@ int main() {
         fflush(stdout);
     };
     
-    // Phase 3: bucket by sig1
     vector<vector<int>> bucketBy_S1(1 << K);
     for (int q = 0; q < numNonA; q++) {
         bucketBy_S1[sig1Of[q]].push_back(q);
@@ -346,7 +345,6 @@ int main() {
     vector<int> sgCount(numNonA, 0);
     vector<pair<int,int>> sgPair(numNonA, {-1, -1});
     
-    // Step 3a: single A index
     for (int i = 0; i < m; i++) {
         int s1_i = idx1[i];
         int s2_i = idx2[i];
@@ -359,7 +357,6 @@ int main() {
         }
     }
     
-    // Step 3b: unordered pair
     for (int i = 0; i < m; i++) {
         int idx2_i = idx2[i];
         int idx3_i = idx3[i];
@@ -376,17 +373,16 @@ int main() {
         }
     }
     
-    // Step 3c: classify
     for (int q = 0; q < numNonA; q++) {
         int y = nonA[q];
-        if (dgCount[q] == 1 && sgCount[q] == 0) {
+        if (dgCount[q] >= 1) {
             int i = dgSub[q];
             pushNeighbor(y, A_list[i]);
             D.push_back(y);
             bySoleA[i].push_back(y);
             yType[y] = 1;
             ySoleA[y] = i;
-        } else if (dgCount[q] == 0 && sgCount[q] == 1) {
+        } else if (sgCount[q] >= 1) {
             int i = sgPair[q].first;
             int j = sgPair[q].second;
             pushNeighbor(y, A_list[i]);
