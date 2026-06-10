@@ -7,7 +7,6 @@ unordered_map<long long, long long> cache;
 vector<pair<int, long long>> col1Vals, colNVals;
 vector<pair<int, long long>> row1Vals, rowNVals;
 long long lo, hi;
-vector<pair<long long, long long>> samples;
 
 long long query(int i, int j) {
     long long key = (long long)i * 200001LL + j;
@@ -99,9 +98,61 @@ int main() {
         return 0;
     }
     
-    samples.push_back({a11 - 1, 0LL});
-    samples.push_back({ann, (long long)n * n});
-    sort(samples.begin(), samples.end());
+    const long long T = 10000;
+    long long nn = (long long)n * n;
+    long long targetLarge = nn - k + 1;
+    
+    if (k <= T) {
+        vector<vector<char>> visited(n + 2, vector<char>(n + 2, 0));
+        priority_queue<tuple<long long, int, int>, vector<tuple<long long, int, int>>, greater<tuple<long long, int, int>>> pqMin;
+        long long v00 = query(1, 1);
+        pqMin.push({v00, 1, 1});
+        visited[1][1] = 1;
+        for (long long r = 1; r <= k; r++) {
+            auto [v, i, j] = pqMin.top();
+            pqMin.pop();
+            if (r == k) {
+                cout << "DONE " << v << "\n";
+                cout.flush();
+                return 0;
+            }
+            if (i + 1 <= n && visited[i + 1][j] == 0) {
+                long long vd = query(i + 1, j);
+                visited[i + 1][j] = 1;
+                pqMin.push({vd, i + 1, j});
+            }
+            if (j + 1 <= n && visited[i][j + 1] == 0) {
+                long long vr = query(i, j + 1);
+                visited[i][j + 1] = 1;
+                pqMin.push({vr, i, j + 1});
+            }
+        }
+    } else if (targetLarge <= T) {
+        vector<vector<char>> visited(n + 2, vector<char>(n + 2, 0));
+        priority_queue<tuple<long long, int, int>> pqMax;
+        long long vNN = query(n, n);
+        pqMax.push({vNN, n, n});
+        visited[n][n] = 1;
+        for (long long r = 1; r <= targetLarge; r++) {
+            auto [v, i, j] = pqMax.top();
+            pqMax.pop();
+            if (r == targetLarge) {
+                cout << "DONE " << v << "\n";
+                cout.flush();
+                return 0;
+            }
+            if (i - 1 >= 1 && visited[i - 1][j] == 0) {
+                long long vu = query(i - 1, j);
+                visited[i - 1][j] = 1;
+                pqMax.push({vu, i - 1, j});
+            }
+            if (j - 1 >= 1 && visited[i][j - 1] == 0) {
+                long long vl = query(i, j - 1);
+                visited[i][j - 1] = 1;
+                pqMax.push({vl, i, j - 1});
+            }
+        }
+    }
     
     long long target_hi = k;
     int i_hi = -1;
@@ -188,39 +239,8 @@ int main() {
     }
     
     while (lo < hi) {
-        int iR = -1;
-        for (int idx = 0; idx < (int)samples.size(); idx++) {
-            if (samples[idx].second >= k) {
-                iR = idx;
-                break;
-            }
-        }
-        int iL = iR - 1;
-        long long vL = samples[iL].first;
-        long long cL = samples[iL].second;
-        long long vR = samples[iR].first;
-        long long cR = samples[iR].second;
-        long long imid = lo + (hi - lo) / 2;
-        long long mid = imid;
-        if (cR > cL && vR >= vL + 2) {
-            __int128 num = (__int128)(k - cL) * (__int128)(vR - vL);
-            long long pred = vL + (long long)(num / (__int128)(cR - cL));
-            long long lowClamp = max(lo, vL + 1);
-            long long highClamp = min(hi - 1, vR - 1);
-            if (pred < lowClamp) pred = lowClamp;
-            if (pred > highClamp) pred = highClamp;
-            if (pred >= lo && pred <= hi - 1) {
-                bool exists = false;
-                for (auto& s : samples) {
-                    if (s.first == pred) { exists = true; break; }
-                }
-                if (!exists) mid = pred;
-            }
-        }
-        long long c = countLE(mid);
-        samples.push_back({mid, c});
-        sort(samples.begin(), samples.end());
-        if (c >= k) hi = min(hi, mid);
+        long long mid = lo + (hi - lo) / 2;
+        if (countLE(mid) >= k) hi = min(hi, mid);
         else lo = max(lo, mid + 1);
     }
     cout << "DONE " << lo << "\n";
