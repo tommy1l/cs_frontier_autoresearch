@@ -329,7 +329,7 @@ int main() {
     
     for (int y : nonA) {
         int s1 = sig1[y], s2 = sig2[y], s3 = sig3[y];
-        if (popcnt(s1) > 16) continue;
+        if (popcnt(s1) > 13) continue;
         if (s1 < m && idx2[s1] == s2 && idx3[s1] == s3) {
             yType[y] = 1;
             ySoleA[y] = s1;
@@ -342,15 +342,28 @@ int main() {
             int found_sub = -1, found_comp = -1;
             int sub = s1;
             do {
-                int comp = s1 ^ sub;
-                if (sub < comp && sub < m && comp < m) {
-                    if ((idx2[sub] | idx2[comp]) == s2 && (idx3[sub] | idx3[comp]) == s3) {
-                        found_count++;
-                        found_sub = sub;
-                        found_comp = comp;
-                        if (found_count > 1) break;
+                if (sub >= m) { sub = (sub - 1) & s1; continue; }
+                if ((idx2[sub] & ~s2) != 0) { sub = (sub - 1) & s1; continue; }
+                if ((idx3[sub] & ~s3) != 0) { sub = (sub - 1) & s1; continue; }
+                
+                int base_comp = s1 & ~sub;
+                int free_bits = s1 & sub;
+                
+                int extra = free_bits;
+                do {
+                    int comp = base_comp | extra;
+                    if (sub < comp && comp < m) {
+                        if ((idx2[sub] | idx2[comp]) == s2 && (idx3[sub] | idx3[comp]) == s3) {
+                            found_count++;
+                            found_sub = sub;
+                            found_comp = comp;
+                            if (found_count > 1) break;
+                        }
                     }
-                }
+                    extra = (extra - 1) & free_bits;
+                } while (extra != free_bits);
+                
+                if (found_count > 1) break;
                 sub = (sub - 1) & s1;
             } while (sub != s1);
             
