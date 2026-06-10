@@ -229,37 +229,6 @@ void mergePass(Graph& G, long long target, long long cap, int maxLen) {
     }
 }
 
-Graph compact(Graph& G) {
-    Graph H;
-    vector<int> remap(G.n+1, 0);
-    int newN = 0;
-    // ensure START becomes 1
-    if (!G.deleted[G.START]) {
-        newN++;
-        remap[G.START] = newN;
-    }
-    for (int i = 1; i <= G.n; i++) {
-        if (G.deleted[i] || i == G.START) continue;
-        newN++;
-        remap[i] = newN;
-    }
-    H.n = newN;
-    H.adj.assign(newN, {});
-    H.nodeProfile.assign(newN, {});
-    H.deleted.assign(newN+1, false);
-    H.START = remap[G.START];
-    H.END = G.deleted[G.END] ? 0 : remap[G.END];
-    for (int i = 1; i <= G.n; i++) {
-        if (G.deleted[i]) continue;
-        int ni = remap[i];
-        for (auto& e : G.adj[i-1]) {
-            H.adj[ni-1].push_back({remap[e.first], e.second});
-        }
-        H.nodeProfile[ni-1] = G.nodeProfile[i-1];
-    }
-    return H;
-}
-
 int countAlive(Graph& G) {
     int c = 0;
     for (int i = 1; i <= G.n; i++) if (!G.deleted[i]) c++;
@@ -267,7 +236,6 @@ int countAlive(Graph& G) {
 }
 
 void outputGraph(Graph& G) {
-    // renumber so START is 1
     vector<int> remap(G.n+1, 0);
     int newN = 0;
     if (!G.deleted[G.START]) { newN++; remap[G.START] = newN; }
@@ -322,9 +290,7 @@ void buildForward(Graph& G, long long L, long long R) {
     G.deleted.assign(G.n+1, false);
 }
 
-// Brzozowski reverse
 bool buildReverseDFA(Graph& Gorig, Graph& NF) {
-    // reverseAdj[v] = list of (u, w) for edges u->v weight w in Gorig
     int N = Gorig.n;
     vector<vector<pair<int,int>>> revAdj(N+1);
     for (int u = 1; u <= N; u++) {
@@ -348,7 +314,7 @@ bool buildReverseDFA(Graph& Gorig, Graph& NF) {
     subsetId[initKey] = 0;
     subsets.push_back(initSub);
     
-    vector<tuple<int,int,int>> transitions; // (S id, w, T id)
+    vector<tuple<int,int,int>> transitions;
     queue<int> bfs;
     bfs.push(0);
     
@@ -381,7 +347,6 @@ bool buildReverseDFA(Graph& Gorig, Graph& NF) {
     }
     
     int numSub = (int)subsets.size();
-    // determine accept subsets (contain START)
     vector<bool> isAccept(numSub, false);
     for (int i = 0; i < numSub; i++) {
         if (binary_search(subsets[i].begin(), subsets[i].end(), Gorig.START)) {
@@ -389,8 +354,6 @@ bool buildReverseDFA(Graph& Gorig, Graph& NF) {
         }
     }
     
-    // NF nodes: one merged_start + one per non-accept subset
-    // initial subset (id 0) is the NF end
     NF.n = 0;
     NF.adj.clear();
     NF.nodeProfile.clear();
@@ -406,7 +369,6 @@ bool buildReverseDFA(Graph& Gorig, Graph& NF) {
     NF.START = mergedStart;
     NF.END = sid2nf[0];
     
-    // Reverse transitions: edge weight w from sid2nf[tid] to sid2nf[sid]
     set<tuple<int,int,int>> edgeSet;
     for (auto& tr : transitions) {
         int sid, w, tid;
@@ -425,15 +387,9 @@ bool buildReverseDFA(Graph& Gorig, Graph& NF) {
     return true;
 }
 
-// Compute nodeProfile for NF graph via forward propagation
-// Each node's profile = set of (m, lo, hi) triples representing values reachable from this node to END
 void computeNFProfiles(Graph& NF) {
     NF.nodeProfile.assign(NF.n, {});
-    // topo order: process in reverse topo (children first)
     vector<int> order = topoOrder(NF);
-    // For each node, profile = union over edges (c, w) of:
-    //   if c == END: include (1, w, w)
-    //   else: for each (m, lo, hi) in profile[c]: include (m+1, 2*lo+w, 2*hi+w)
     for (int i = (int)order.size() - 1; i >= 0; i--) {
         int u = order[i];
         if (u == NF.END) continue;
@@ -442,16 +398,12 @@ void computeNFProfiles(Graph& NF) {
             int c = e.first, w = e.second;
             if (c == NF.END) {
                 byM[1].push_back({w, w});
-            }
-            if (c != NF.END) {
+            } else {
                 for (auto& t : NF.nodeProfile[c-1]) {
                     byM[t.m + 1].push_back({2*t.lo + w, 2*t.hi + w});
                 }
-            } else {
-                // also potentially has further from END? END has no outgoing
             }
         }
-        // Union intervals per m
         vector<Trip> prof;
         for (auto& kv : byM) {
             auto& v = kv.second;
@@ -469,6 +421,87 @@ void computeNFProfiles(Graph& NF) {
     }
 }
 
+// =================== Kameda-Weiner construction ===================
+
+struct IntervalList {
+    // map from d (length) to list of [lo, hi]
+    map<int, vector<pair<long long,long long>>> d2iv;
+    void add(int d, long long lo, long long hi) {
+        d2iv[d].push_back({lo, hi});
+    }
+    void normalize(int cap = 32) {
+        for (auto& kv : d2iv) {
+            auto& v = kv.second;
+            sort(v.begin(), v.end());
+            vector<pair<long long,long long>> out;
+            for (auto& p : v) {
+                if (!out.empty() && p.first <= out.back().second + 1) {
+                    out.back().second = max(out.back().second, p.second);
+                } else {
+                    out.push_back(p);
+                }
+            }
+            if ((int)out.size() > cap) {
+                // merge by force: keep first cap-1 then union the rest
+                vector<pair<long long,long long>> reduced(out.begin(), out.begin() + cap - 1);
+                long long lo = out[cap-1].first, hi = out.back().second;
+                reduced.push_back({lo, hi});
+                out = reduced;
+            }
+            v = out;
+        }
+    }
+    bool empty() const { return d2iv.empty(); }
+};
+
+// Compute pf_prefix per node in forward DFA
+vector<IntervalList> computeForwardPrefix(Graph& Gf) {
+    vector<IntervalList> pre(Gf.n + 1);
+    pre[Gf.START].add(0, 0, 0);
+    vector<int> order = topoOrder(Gf);
+    for (int u : order) {
+        if (pre[u].empty()) continue;
+        pre[u].normalize();
+        for (auto& e : Gf.adj[u-1]) {
+            int v = e.first, w = e.second;
+            if (Gf.deleted[v]) continue;
+            for (auto& kv : pre[u].d2iv) {
+                int d = kv.first;
+                for (auto& iv : kv.second) {
+                    pre[v].add(d+1, 2*iv.first + w, 2*iv.second + w);
+                }
+            }
+        }
+    }
+    for (auto& p : pre) p.normalize();
+    return pre;
+}
+
+// Profile of reverse-DFA node = intervals representing reverse-strings from START_r to this node
+// Equivalent to: forward strings from this node going backwards through reverse DFA.
+// We compute pr_prefix using the same propagation in NF where we treat START as source.
+vector<IntervalList> computeNFPrefix(Graph& NF) {
+    vector<IntervalList> pre(NF.n + 1);
+    pre[NF.START].add(0, 0, 0);
+    vector<int> order = topoOrder(NF);
+    for (int u : order) {
+        if (pre[u].empty()) continue;
+        pre[u].normalize();
+        for (auto& e : NF.adj[u-1]) {
+            int v = e.first, w = e.second;
+            if (NF.deleted[v]) continue;
+            for (auto& kv : pre[u].d2iv) {
+                int d = kv.first;
+                for (auto& iv : kv.second) {
+                    pre[v].add(d+1, 2*iv.first + w, 2*iv.second + w);
+                }
+            }
+        }
+    }
+    for (auto& p : pre) p.normalize();
+    return pre;
+}
+
 int main() {
     long long L, R;
     cin >> L >> R;
@@ -480,7 +513,6 @@ int main() {
     };
     
     if (L == R) {
-        // simple chain: bit length + 1 nodes
         string bits;
         long long x = L;
         while (x) { bits += char('0' + (x & 1)); x >>= 1; }
@@ -498,15 +530,12 @@ int main() {
     long long cap = 1LL << 30;
     int maxLen = bitlen(R);
     
-    // Phase A: forward
     Graph Gf;
     buildForward(Gf, L, R);
     
-    // Save snapshot of original forward for phase B
     Graph Gorig;
     buildForward(Gorig, L, R);
     
-    // Merge pass on Gf
     mergePass(Gf, target, cap, maxLen);
     int forwardN = countAlive(Gf);
     
@@ -515,26 +544,22 @@ int main() {
         return 0;
     }
     
-    // Phase B: Brzozowski reverse
     Graph NF;
     bool ok = buildReverseDFA(Gorig, NF);
     
-    if (!ok) {
-        outputGraph(Gf);
-        return 0;
+    Graph hybrid = Gf;
+    int hybridN = forwardN;
+    
+    if (ok) {
+        computeNFProfiles(NF);
+        mergePass(NF, target, cap, maxLen);
+        int reverseN = countAlive(NF);
+        if (reverseN < hybridN) {
+            hybrid = NF;
+            hybridN = reverseN;
+        }
     }
     
-    computeNFProfiles(NF);
-    
-    // Apply same merge pass
-    mergePass(NF, target, cap, maxLen);
-    int reverseN = countAlive(NF);
-    
-    if (reverseN < forwardN) {
-        outputGraph(NF);
-    } else {
-        outputGraph(Gf);
-    }
-    
+    outputGraph(hybrid);
     return 0;
 }
