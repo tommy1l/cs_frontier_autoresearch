@@ -4,6 +4,7 @@ using namespace std;
 int n;
 long long k;
 unordered_map<long long, long long> cache;
+set<long long> cachedSet;
 vector<pair<int, long long>> col1Vals, colNVals;
 vector<pair<int, long long>> row1Vals, rowNVals;
 long long lo, hi;
@@ -20,6 +21,7 @@ long long query(int i, int j) {
     if ((long long)i * (long long)j >= k) hi = min(hi, v);
     long long m = (long long)(n - i + 1) * (long long)(n - j + 1);
     if (m >= (long long)n * (long long)n - k + 1) lo = max(lo, v);
+    cachedSet.insert(v);
     return v;
 }
 
@@ -183,7 +185,26 @@ int main() {
     }
     
     while (lo < hi) {
-        long long mid = lo + (hi - lo) / 2;
+        long long imid = lo + (hi - lo) / 2;
+        auto it = cachedSet.lower_bound(imid);
+        long long candA = LLONG_MAX, candB = LLONG_MAX;
+        if (it != cachedSet.end()) {
+            long long val = *it;
+            if (val >= lo && val < hi) candA = val;
+        }
+        if (it != cachedSet.begin()) {
+            auto itP = prev(it);
+            long long val = *itP;
+            if (val >= lo && val < hi) candB = val;
+        }
+        long long mid;
+        if (candA == LLONG_MAX && candB == LLONG_MAX) mid = imid;
+        else if (candB == LLONG_MAX) mid = candA;
+        else if (candA == LLONG_MAX) mid = candB;
+        else {
+            if (imid - candB < candA - imid) mid = candB;
+            else mid = candA;
+        }
         if (countLE(mid) >= k) hi = min(hi, mid);
         else lo = max(lo, mid + 1);
     }
