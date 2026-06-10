@@ -10,29 +10,55 @@ int newNode() {
     return n;
 }
 
-map<tuple<int,long long,long long>, int> memo;
 int END_NODE;
+map<string, int> profMemo;
 
-int getState(int k, long long lo, long long hi) {
-    if (lo > hi) return -1;
-    if (k == 0) return END_NODE;
-    auto key = make_tuple(k, lo, hi);
-    auto it = memo.find(key);
-    if (it != memo.end()) return it->second;
-    int node = newNode();
-    memo[key] = node;
-    long long half = 1LL << (k-1);
-    long long lo0 = max(0LL, lo);
-    long long hi0 = min(half - 1, hi);
-    if (lo0 <= hi0) {
-        int c = getState(k-1, lo0, hi0);
-        if (c != -1) adj[node-1].push_back({c, 0});
+struct Trip { int m; long long lo, hi; };
+
+string serialize(vector<Trip>& P) {
+    sort(P.begin(), P.end(), [](const Trip& a, const Trip& b){ return a.m < b.m; });
+    string s;
+    for (auto& t : P) {
+        s += to_string(t.m); s += '-';
+        s += to_string(t.lo); s += '-';
+        s += to_string(t.hi); s += '-';
     }
-    long long lo1 = max(0LL, lo - half);
-    long long hi1 = min(half - 1, hi - half);
-    if (lo1 <= hi1) {
-        int c = getState(k-1, lo1, hi1);
-        if (c != -1) adj[node-1].push_back({c, 1});
+    return s;
+}
+
+int buildNode(vector<Trip> profile, long long v) {
+    if (profile.empty()) return -1;
+    string key = serialize(profile);
+    auto it = profMemo.find(key);
+    if (it != profMemo.end()) return it->second;
+    int node = newNode();
+    profMemo[key] = node;
+    
+    for (int b = 0; b < 2; b++) {
+        vector<Trip> child;
+        bool stopHere = false;
+        for (auto& t : profile) {
+            long long half = 1LL << (t.m - 1);
+            long long clo, chi;
+            if (b == 0) {
+                clo = max(0LL, t.lo);
+                chi = min(half - 1, t.hi);
+            } else {
+                clo = max(0LL, t.lo - half);
+                chi = min(half - 1, t.hi - half);
+            }
+            if (clo > chi) continue;
+            if (t.m == 1) {
+                if (clo == 0 && chi == 0) stopHere = true;
+            } else {
+                child.push_back({t.m - 1, clo, chi});
+            }
+        }
+        if (stopHere) adj[node-1].push_back({END_NODE, b});
+        if (!child.empty()) {
+            int cid = buildNode(child, 2*v + b);
+            if (cid != -1) adj[node-1].push_back({cid, b});
+        }
     }
     return node;
 }
@@ -51,32 +77,22 @@ int main() {
     
     int START = newNode();
     END_NODE = newNode();
-    memo[make_tuple(0, 0LL, 0LL)] = END_NODE;
     
-    for (int ell = ellL; ell <= ellR; ell++) {
-        int T;
-        if (ell == 1) {
-            T = END_NODE;
-        } else {
-            int m = ell - 1;
-            long long losuf, hisuf;
-            long long pw = 1LL << m;
-            if (ell > ellL && ell < ellR) {
-                losuf = 0;
-                hisuf = pw - 1;
-            } else if (ell == ellL && ell == ellR) {
-                losuf = L - pw;
-                hisuf = R - pw;
-            } else if (ell == ellL && ell < ellR) {
-                losuf = L - pw;
-                hisuf = pw - 1;
-            } else {
-                losuf = 0;
-                hisuf = R - pw;
-            }
-            T = getState(m, losuf, hisuf);
-        }
-        if (T != -1) adj[START-1].push_back({T, 1});
+    vector<Trip> P1;
+    for (int m = ellL - 1; m <= ellR - 1; m++) {
+        if (m < 1) continue;
+        long long pw = 1LL << m;
+        long long lo = max(0LL, L - pw);
+        long long hi = min(pw - 1, R - pw);
+        if (lo <= hi) P1.push_back({m, lo, hi});
+    }
+    
+    if (L == 1) {
+        adj[START-1].push_back({END_NODE, 1});
+    }
+    if (!P1.empty()) {
+        int c = buildNode(P1, 1);
+        if (c != -1) adj[START-1].push_back({c, 1});
     }
     
     cout << n << "\n";
