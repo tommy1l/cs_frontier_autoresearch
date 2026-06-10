@@ -56,29 +56,28 @@ int main() {
         return 0;
     }
     
-    long long target_hi = k;
-    int i_hi = -1;
-    for (int i = 1; i <= n; i++) {
-        if ((long long)i * i >= target_hi) {
-            i_hi = i;
-            break;
-        }
-    }
-    if (i_hi != -1) {
-        hi = query(i_hi, i_hi);
+    vector<long long> anchors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, (long long)n};
+    
+    // Pass A: tighten hi
+    for (long long i : anchors) {
+        if (i < 1 || i > n) continue;
+        long long jH = (k + i - 1) / i;
+        if (jH < 1 || jH > n) continue;
+        long long v = query((int)i, (int)jH);
+        hi = min(hi, v);
     }
     
-    long long target_lo = (long long)n * n - k + 1;
-    int i_lo = -1;
-    for (int i = n; i >= 1; i--) {
-        long long m = n - i + 1;
-        if (m * m >= target_lo) {
-            i_lo = i;
-            break;
-        }
-    }
-    if (i_lo != -1) {
-        lo = query(i_lo, i_lo);
+    // Pass B: tighten lo
+    for (long long i : anchors) {
+        if (i < 1 || i > n) continue;
+        long long m = (long long)n - i + 1;
+        long long target = (long long)n * n - k + 1;
+        long long p = (target + m - 1) / m;
+        if (p < 1 || p > n) continue;
+        long long jL = (long long)n + 1 - p;
+        if (jL < 1 || jL > n) continue;
+        long long v = query((int)i, (int)jL);
+        lo = max(lo, v);
     }
     
     if (lo == hi) {
