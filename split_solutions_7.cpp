@@ -229,6 +229,206 @@ void mergePass(Graph& G, long long target, long long cap, int maxLen) {
     }
 }
 
+struct DSU {
+    vector<int> p;
+    bool tainted = false;
+    DSU(int n) : p(n) { iota(p.begin(), p.end(), 0); }
+    int find(int x) { while (p[x]!=x){ p[x]=p[p[x]]; x=p[x]; } return x; }
+    bool unite(int a, int b) {
+        a = find(a); b = find(b);
+        if (a == b) return false;
+        if (a < b) p[b] = a; else p[a] = b;
+        return true;
+    }
+};
+
+void batchMergePass(Graph& G, long long target, long long cap, int maxLen) {
+    bool progress = true;
+    while (progress) {
+        progress = false;
+        auto reach = computeReach(G);
+        int N = G.n;
+        
+        for (int u = 1; u <= N && !progress; u++) {
+            if (G.deleted[u] || u == G.START || u == G.END) continue;
+            for (int v = u+1; v <= N && !progress; v++) {
+                if (G.deleted[v] || v == G.START || v == G.END) continue;
+                if (G.nodeProfile[u-1].empty() || G.nodeProfile[v-1].empty()) continue;
+                if (!valueIntervalDisjoint(G, u, v)) continue;
+                if (reach[u][v>>6] & (1ULL << (v&63))) continue;
+                if (reach[v][u>>6] & (1ULL << (u&63))) continue;
+                
+                DSU dsu(N+1);
+                // members per class
+                vector<vector<int>> members(N+1);
+                for (int i = 1; i <= N; i++) {
+                    if (!G.deleted[i]) members[i].push_back(i);
+                }
+                
+                auto doUnion = [&](int a, int b) -> bool {
+                    int ra = dsu.find(a), rb = dsu.find(b);
+                    if (ra == rb) return false;
+                    int newRoot = min(ra, rb);
+                    int oldRoot = max(ra, rb);
+                    dsu.p[oldRoot] = newRoot;
+                    for (int x : members[oldRoot]) members[newRoot].push_back(x);
+                    members[oldRoot].clear();
+                    if (newRoot == G.START || newRoot == G.END || oldRoot == G.START || oldRoot == G.END) {
+                        // check if class has multiple
+                        if (members[newRoot].size() > 1) {
+                            for (int x : members[newRoot]) {
+                                if (x == G.START || x == G.END) { dsu.tainted = true; break; }
+                            }
+                        }
+                    }
+                    return true;
+                };
+                
+                doUnion(u, v);
+                if (dsu.tainted) continue;
+                
+                queue<pair<int,int>> Q;
+                Q.push({dsu.find(u), dsu.find(u)});
+                // We actually need to inspect class against itself as pairs of its members
+                // Reformulate: inspect a single class - propagate constraints among its members
+                
+                bool abandon = false;
+                int qcount = 0;
+                while (!Q.empty() && !abandon) {
+                    auto pr = Q.front(); Q.pop();
+                    qcount++;
+                    if (qcount > 4096) { abandon = true; break; }
+                    int A = dsu.find(pr.first), B = dsu.find(pr.second);
+                    // gather members
+                    vector<int> mA = members[A];
+                    vector<int> mB;
+                    if (A == B) mB = mA; else mB = members[B];
+                    
+                    for (int a : mA) {
+                        if (G.deleted[a]) continue;
+                        for (int b : mB) {
+                            if (G.deleted[b]) continue;
+                            if (a == b) continue;
+                            for (int w = 0; w < 2; w++) {
+                                int ca = -1, cb = -1;
+                                for (auto& e : G.adj[a-1]) if (e.second == w) { ca = e.first; break; }
+                                for (auto& e : G.adj[b-1]) if (e.second == w) { cb = e.first; break; }
+                                if (ca == -1 || cb == -1) continue;
+                                if (G.deleted[ca] || G.deleted[cb]) { abandon = true; break; }
+                                int rca = dsu.find(ca), rcb = dsu.find(cb);
+                                if (rca != rcb) {
+                                    doUnion(ca, cb);
+                                    if (dsu.tainted) { abandon = true; break; }
+                                    int nr = dsu.find(ca);
+                                    Q.push({nr, nr});
+                                    if (Q.size() > 4096) { abandon = true; break; }
+                                }
+                            }
+                            if (abandon) break;
+                        }
+                        if (abandon) break;
+                    }
+                }
+                if (abandon || dsu.tainted) continue;
+                
+                // Collect classes
+                vector<vector<int>> classes;
+                for (int i = 1; i <= N; i++) {
+                    if (members[i].size() >= 2) classes.push_back(members[i]);
+                }
+                if (classes.empty()) continue;
+                
+                // Verify no class contains START/END
+                bool valid = true;
+                for (auto& cls : classes) {
+                    for (int x : cls) {
+                        if (x == G.START || x == G.END) { valid = false; break; }
+                        if (G.deleted[x]) { valid = false; break; }
+                    }
+                    if (!valid) break;
+                }
+                if (!valid) continue;
+                
+                // Verify no reach cycle within class
+                for (auto& cls : classes) {
+                    for (size_t i = 0; i < cls.size() && valid; i++) {
+                        for (size_t j = 0; j < cls.size() && valid; j++) {
+                            if (i == j) continue;
+                            int a = cls[i], b = cls[j];
+                            if (reach[a][b>>6] & (1ULL << (b&63))) { valid = false; break; }
+                        }
+                    }
+                    if (!valid) break;
+                }
+                if (!valid) continue;
+                
+                // Verify merged outdegree
+                for (auto& cls : classes) {
+                    set<pair<int,int>> outs;
+                    for (int x : cls) {
+                        for (auto& e : G.adj[x-1]) outs.insert(e);
+                    }
+                    if (outs.size() > 200) { valid = false; break; }
+                }
+                if (!valid) continue;
+                
+                // Snapshot
+                vector<vector<pair<int,int>>> snapAdj = G.adj;
+                vector<bool> snapDel = G.deleted;
+                vector<vector<Trip>> snapProf = G.nodeProfile;
+                
+                // representative map
+                vector<int> rep(N+1, 0);
+                for (int i = 1; i <= N; i++) {
+                    if (!G.deleted[i]) rep[i] = i;
+                }
+                for (auto& cls : classes) {
+                    int r = *min_element(cls.begin(), cls.end());
+                    for (int x : cls) rep[x] = r;
+                }
+                
+                // perform merges
+                for (auto& cls : classes) {
+                    int r = *min_element(cls.begin(), cls.end());
+                    set<pair<int,int>> outs;
+                    for (int x : cls) {
+                        for (auto& e : G.adj[x-1]) outs.insert(e);
+                    }
+                    G.adj[r-1].assign(outs.begin(), outs.end());
+                    for (int x : cls) {
+                        if (x == r) continue;
+                        for (auto& t : G.nodeProfile[x-1]) G.nodeProfile[r-1].push_back(t);
+                        G.deleted[x] = true;
+                        G.adj[x-1].clear();
+                    }
+                }
+                
+                // rewire all edges to use rep
+                for (int p = 1; p <= N; p++) {
+                    if (G.deleted[p]) continue;
+                    set<pair<int,int>> ns;
+                    for (auto& e : G.adj[p-1]) {
+                        int tgt = rep[e.first];
+                        if (tgt == p) continue;
+                        if (G.deleted[tgt]) continue;
+                        ns.insert({tgt, e.second});
+                    }
+                    G.adj[p-1].assign(ns.begin(), ns.end());
+                }
+                
+                long long pc = totalPathCount(G, cap, maxLen);
+                if (pc == target) {
+                    progress = true;
+                } else {
+                    G.adj = snapAdj;
+                    G.deleted = snapDel;
+                    G.nodeProfile = snapProf;
+                }
+            }
+        }
+    }
+}
+
 int countAlive(Graph& G) {
     int c = 0;
     for (int i = 1; i <= G.n; i++) if (!G.deleted[i]) c++;
@@ -398,7 +598,8 @@ void computeNFProfiles(Graph& NF) {
             int c = e.first, w = e.second;
             if (c == NF.END) {
                 byM[1].push_back({w, w});
-            } else {
+            }
+            if (c != NF.END) {
                 for (auto& t : NF.nodeProfile[c-1]) {
                     byM[t.m + 1].push_back({2*t.lo + w, 2*t.hi + w});
                 }
@@ -419,87 +620,6 @@ void computeNFProfiles(Graph& NF) {
         }
         NF.nodeProfile[u-1] = prof;
     }
-}
-
-// =================== Kameda-Weiner construction ===================
-
-struct IntervalList {
-    // map from d (length) to list of [lo, hi]
-    map<int, vector<pair<long long,long long>>> d2iv;
-    void add(int d, long long lo, long long hi) {
-        d2iv[d].push_back({lo, hi});
-    }
-    void normalize(int cap = 32) {
-        for (auto& kv : d2iv) {
-            auto& v = kv.second;
-            sort(v.begin(), v.end());
-            vector<pair<long long,long long>> out;
-            for (auto& p : v) {
-                if (!out.empty() && p.first <= out.back().second + 1) {
-                    out.back().second = max(out.back().second, p.second);
-                } else {
-                    out.push_back(p);
-                }
-            }
-            if ((int)out.size() > cap) {
-                // merge by force: keep first cap-1 then union the rest
-                vector<pair<long long,long long>> reduced(out.begin(), out.begin() + cap - 1);
-                long long lo = out[cap-1].first, hi = out.back().second;
-                reduced.push_back({lo, hi});
-                out = reduced;
-            }
-            v = out;
-        }
-    }
-    bool empty() const { return d2iv.empty(); }
-};
-
-// Compute pf_prefix per node in forward DFA
-vector<IntervalList> computeForwardPrefix(Graph& Gf) {
-    vector<IntervalList> pre(Gf.n + 1);
-    pre[Gf.START].add(0, 0, 0);
-    vector<int> order = topoOrder(Gf);
-    for (int u : order) {
-        if (pre[u].empty()) continue;
-        pre[u].normalize();
-        for (auto& e : Gf.adj[u-1]) {
-            int v = e.first, w = e.second;
-            if (Gf.deleted[v]) continue;
-            for (auto& kv : pre[u].d2iv) {
-                int d = kv.first;
-                for (auto& iv : kv.second) {
-                    pre[v].add(d+1, 2*iv.first + w, 2*iv.second + w);
-                }
-            }
-        }
-    }
-    for (auto& p : pre) p.normalize();
-    return pre;
-}
-
-// Profile of reverse-DFA node = intervals representing reverse-strings from START_r to this node
-// Equivalent to: forward strings from this node going backwards through reverse DFA.
-// We compute pr_prefix using the same propagation in NF where we treat START as source.
-vector<IntervalList> computeNFPrefix(Graph& NF) {
-    vector<IntervalList> pre(NF.n + 1);
-    pre[NF.START].add(0, 0, 0);
-    vector<int> order = topoOrder(NF);
-    for (int u : order) {
-        if (pre[u].empty()) continue;
-        pre[u].normalize();
-        for (auto& e : NF.adj[u-1]) {
-            int v = e.first, w = e.second;
-            if (NF.deleted[v]) continue;
-            for (auto& kv : pre[u].d2iv) {
-                int d = kv.first;
-                for (auto& iv : kv.second) {
-                    pre[v].add(d+1, 2*iv.first + w, 2*iv.second + w);
-                }
-            }
-        }
-    }
-    for (auto& p : pre) p.normalize();
-    return pre;
 }
 
 int main() {
@@ -537,6 +657,7 @@ int main() {
     buildForward(Gorig, L, R);
     
     mergePass(Gf, target, cap, maxLen);
+    batchMergePass(Gf, target, cap, maxLen);
     int forwardN = countAlive(Gf);
     
     if (forwardN <= 20) {
@@ -547,19 +668,22 @@ int main() {
     Graph NF;
     bool ok = buildReverseDFA(Gorig, NF);
     
-    Graph hybrid = Gf;
-    int hybridN = forwardN;
-    
-    if (ok) {
-        computeNFProfiles(NF);
-        mergePass(NF, target, cap, maxLen);
-        int reverseN = countAlive(NF);
-        if (reverseN < hybridN) {
-            hybrid = NF;
-            hybridN = reverseN;
-        }
+    if (!ok) {
+        outputGraph(Gf);
+        return 0;
     }
     
-    outputGraph(hybrid);
+    computeNFProfiles(NF);
+    
+    mergePass(NF, target, cap, maxLen);
+    batchMergePass(NF, target, cap, maxLen);
+    int reverseN = countAlive(NF);
+    
+    if (reverseN < forwardN) {
+        outputGraph(NF);
+    } else {
+        outputGraph(Gf);
+    }
+    
     return 0;
 }
