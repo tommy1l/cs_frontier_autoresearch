@@ -2,14 +2,15 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <utility>
 #include <algorithm>
+#include <cstdint>
 using namespace std;
 
 int N;
 
 int sendQuery(const vector<int>& tokens) {
-    // returns the single response; tokens.size() should be small here
     printf("%d", (int)tokens.size());
     for (int t : tokens) printf(" %d", t);
     printf("\n");
@@ -20,7 +21,8 @@ int sendQuery(const vector<int>& tokens) {
 }
 
 vector<int> sendQueryMulti(const vector<int>& tokens) {
-    printf("%d", (int)tokens.size());
+    long long L = (long long)tokens.size();
+    printf("%lld", L);
     for (int t : tokens) printf(" %d", t);
     printf("\n");
     fflush(stdout);
@@ -81,7 +83,7 @@ int main() {
     }
     
     // n > 1000
-    // Phase 1
+    // Phase 1: build MIS A
     vector<int> A_list;
     vector<int> inA(n + 1, 0);
     for (int v = 1; v <= n; v++) {
@@ -91,7 +93,6 @@ int main() {
             A_list.push_back(v);
             inA[v] = 1;
         } else {
-            // toggle back out
             sendQuery(tk);
         }
     }
@@ -102,18 +103,22 @@ int main() {
     if (K > 17) K = 17;
     if (K < 1) K = 1;
     
-    auto bitReverse = [&](int x, int bits) {
-        int r = 0;
-        for (int i = 0; i < bits; i++) {
-            if (x & (1 << i)) r |= (1 << (bits - 1 - i));
-        }
-        return r;
-    };
-    
     vector<int> idx1(m), idx2(m);
     for (int i = 0; i < m; i++) {
         idx1[i] = i;
-        idx2[i] = bitReverse(i, K);
+        idx2[i] = i;
+    }
+    
+    // Fisher-Yates shuffle idx2 with xorshift64
+    {
+        uint64_t x = 0x9E3779B97F4A7C15ULL;
+        for (int i = m - 1; i >= 1; i--) {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            uint64_t j = x % (uint64_t)(i + 1);
+            swap(idx2[i], idx2[(int)j]);
+        }
     }
     
     vector<int> nonA;
@@ -129,7 +134,6 @@ int main() {
         vector<int> probe_start(K);
         
         for (int b = 0; b < K; b++) {
-            // transitions to T_b: want cur_in[i] == ((L[i]>>b)&1)
             for (int i = 0; i < m; i++) {
                 int want = (L[i] >> b) & 1;
                 if (cur_in[i] == 1 && want == 0) {
@@ -150,7 +154,6 @@ int main() {
                 tokens.push_back(y);
             }
         }
-        // restore: put back any cur_in == 0
         for (int i = 0; i < m; i++) {
             if (cur_in[i] == 0) {
                 tokens.push_back(A_list[i]);
@@ -173,37 +176,38 @@ int main() {
     }
     
     // Phase 3 decode
-    map<pair<int,int>, bool> edgeSet; // unordered edges
-    auto addEdge = [&](int a, int b) {
-        if (a > b) swap(a, b);
-        edgeSet[{a,b}] = true;
-    };
-    
     vector<vector<int>> neighbors(n + 1);
+    set<pair<int,int>> edgeSet;
     auto pushNeighbor = [&](int a, int b) {
-        if (a > b) swap(a, b);
-        if (edgeSet.count({a,b})) return;
-        edgeSet[{a,b}] = true;
+        int aa = a, bb = b;
+        if (aa > bb) swap(aa, bb);
+        if (edgeSet.count({aa,bb})) return;
+        edgeSet.insert({aa,bb});
         neighbors[a].push_back(b);
         neighbors[b].push_back(a);
     };
     
-    vector<int> yType(n + 1, 0); // 0 unresolved, 1 double-gap, 2 single-gap
-    vector<int> ySoleA(n + 1, -1); // for double-gap
-    vector<pair<int,int>> ySinglePair(n + 1, {-1,-1});
+    vector<int> yType(n + 1, 0);
+    vector<int> ySoleA(n + 1, -1);
     
-    set<pair<int,int>> singleGapAEdges; // pairs of A indices (unordered)
+    set<pair<int,int>> skelEdges;
     vector<int> degA(m, 0);
+    vector<vector<int>> bySoleA(m);
+    vector<int> D;
+    
+    auto popcnt = [](int x){ return __builtin_popcount(x); };
     
     for (int y : nonA) {
         int s1 = sig1[y], s2 = sig2[y];
+        if (popcnt(s1) > 14) continue;
         if (s1 < m && idx2[s1] == s2) {
             yType[y] = 1;
             ySoleA[y] = s1;
             pushNeighbor(y, A_list[s1]);
+            D.push_back(y);
+            bySoleA[s1].push_back(y);
             continue;
         }
-        // iterate submasks
         int count = 0;
         int foundSub = -1, foundComp = -1;
         int sub = s1;
@@ -222,55 +226,98 @@ int main() {
         }
         if (count == 1) {
             yType[y] = 2;
-            ySinglePair[y] = {foundSub, foundComp};
             pushNeighbor(y, A_list[foundSub]);
             pushNeighbor(y, A_list[foundComp]);
             auto pr = make_pair(foundSub, foundComp);
-            if (!singleGapAEdges.count(pr)) {
-                singleGapAEdges.insert(pr);
+            if (!skelEdges.count(pr)) {
+                skelEdges.insert(pr);
                 degA[foundSub]++;
                 degA[foundComp]++;
             }
         }
     }
     
-    // Phase 4: partner detection for double-gap
-    vector<int> need(m);
-    for (int i = 0; i < m; i++) need[i] = 2 - degA[i];
+    auto fallback = [&]() {
+        printf("-1");
+        for (int i = 1; i <= n; i++) printf(" %d", i);
+        printf("\n");
+        fflush(stdout);
+    };
     
-    // group double-gap y by sole A index
-    vector<vector<int>> bySoleA(m);
-    vector<int> D;
-    for (int y : nonA) {
-        if (yType[y] == 1) {
-            D.push_back(y);
-            bySoleA[ySoleA[y]].push_back(y);
-        }
+    // Phase 4: skeleton
+    bool ok = true;
+    for (int i = 0; i < m; i++) if (degA[i] > 2) { ok = false; break; }
+    if (!ok) { fallback(); return 0; }
+    
+    vector<vector<int>> adjA(m);
+    for (auto& e : skelEdges) {
+        adjA[e.first].push_back(e.second);
+        adjA[e.second].push_back(e.first);
     }
     
-    // build candidate pairs
+    vector<int> compId(m, -1);
+    vector<vector<int>> compEndpoints; // endpoints per component
+    int cc = 0;
+    for (int i = 0; i < m; i++) {
+        if (compId[i] != -1) continue;
+        // BFS
+        vector<int> comp;
+        vector<int> stk = {i};
+        compId[i] = cc;
+        while (!stk.empty()) {
+            int u = stk.back(); stk.pop_back();
+            comp.push_back(u);
+            for (int v : adjA[u]) if (compId[v] == -1) {
+                compId[v] = cc;
+                stk.push_back(v);
+            }
+        }
+        vector<int> eps;
+        for (int u : comp) if ((int)adjA[u].size() <= 1) eps.push_back(u);
+        compEndpoints.push_back(eps);
+        cc++;
+    }
+    
+    // Phase 5: partner detection
+    for (int i = 0; i < m; i++) {
+        if ((int)bySoleA[i].size() + degA[i] != 2) { ok = false; break; }
+    }
+    if (!ok) { fallback(); return 0; }
+    
+    // candidates across components, only endpoints
     vector<pair<int,int>> candidates;
-    int dsz = (int)D.size();
-    // For efficiency, iterate pairs but skip if same a_y; also need[a_y] > 0
-    for (int i = 0; i < dsz; i++) {
-        int y = D[i];
-        int ay = ySoleA[y];
-        if (need[ay] <= 0) continue;
-        for (int j = i + 1; j < dsz; j++) {
-            int yp = D[j];
-            int ayp = ySoleA[yp];
-            if (ay == ayp) continue;
-            if (need[ayp] <= 0) continue;
-            int a = ay, b = ayp;
-            if (a > b) swap(a, b);
-            if (singleGapAEdges.count({a, b})) continue;
-            candidates.push_back({y, yp});
+    long long candCount = 0;
+    
+    // for each component, list endpoints with c>0
+    vector<vector<int>> compEndsWithC(cc);
+    for (int c = 0; c < cc; c++) {
+        for (int u : compEndpoints[c]) {
+            if (!bySoleA[u].empty()) compEndsWithC[c].push_back(u);
         }
     }
     
-    if (!candidates.empty()) {
+    for (int c1 = 0; c1 < cc; c1++) {
+        for (int c2 = c1 + 1; c2 < cc; c2++) {
+            for (int i : compEndsWithC[c1]) {
+                for (int j : compEndsWithC[c2]) {
+                    for (int y : bySoleA[i]) {
+                        for (int yp : bySoleA[j]) {
+                            candidates.push_back({y, yp});
+                            candCount++;
+                            if (candCount > 1500000) { fallback(); return 0; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    long long totalTokens = (long long)m + 4LL * candCount;
+    if (totalTokens > 9500000LL) { fallback(); return 0; }
+    
+    if (!candidates.empty() || m > 0) {
         vector<int> tokens;
-        // first toggle out all A
+        tokens.reserve((size_t)totalTokens);
         for (int v : A_list) tokens.push_back(v);
         for (auto& pr : candidates) {
             int y = pr.first, yp = pr.second;
@@ -280,33 +327,24 @@ int main() {
             tokens.push_back(y);
         }
         vector<int> resp = sendQueryMulti(tokens);
-        // The first m responses are during A toggles - ignore
         int base = m;
         for (size_t k = 0; k < candidates.size(); k++) {
             int idx = base + 4 * (int)k;
-            int r = resp[idx + 1]; // second position within block
+            int r = resp[idx + 1];
             if (r == 1) {
                 int y = candidates[k].first;
                 int yp = candidates[k].second;
                 pushNeighbor(y, yp);
             }
-            // Note: state goes back to empty after each block (y yp yp y toggles add y, add yp, remove yp, remove y)
         }
     }
     
-    // Phase 5: verify
-    bool ok = true;
+    // Phase 6: verify
     for (int v = 1; v <= n; v++) {
         if ((int)neighbors[v].size() != 2) { ok = false; break; }
     }
     
-    if (!ok) {
-        printf("-1");
-        for (int i = 1; i <= n; i++) printf(" %d", i);
-        printf("\n");
-        fflush(stdout);
-        return 0;
-    }
+    if (!ok) { fallback(); return 0; }
     
     printf("-1");
     int prev = 0, cur = 1;
