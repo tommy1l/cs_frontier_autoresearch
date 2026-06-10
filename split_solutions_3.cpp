@@ -83,7 +83,6 @@ int main() {
     }
     
     // n > 1000
-    // Phase 1: build MIS A
     vector<int> A_list;
     vector<int> inA(n + 1, 0);
     for (int v = 1; v <= n; v++) {
@@ -103,13 +102,13 @@ int main() {
     if (K > 17) K = 17;
     if (K < 1) K = 1;
     
-    vector<int> idx1(m), idx2(m);
+    vector<int> idx1(m), idx2(m), idx3(m);
     for (int i = 0; i < m; i++) {
         idx1[i] = i;
         idx2[i] = i;
+        idx3[i] = i;
     }
     
-    // Fisher-Yates shuffle idx2 with xorshift64
     {
         uint64_t x = 0x9E3779B97F4A7C15ULL;
         for (int i = m - 1; i >= 1; i--) {
@@ -120,15 +119,25 @@ int main() {
             swap(idx2[i], idx2[(int)j]);
         }
     }
+    {
+        uint64_t x = 0xBF58476D1CE4E5B9ULL;
+        for (int i = m - 1; i >= 1; i--) {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            uint64_t j = x % (uint64_t)(i + 1);
+            swap(idx3[i], idx3[(int)j]);
+        }
+    }
     
     vector<int> nonA;
     for (int v = 1; v <= n; v++) if (!inA[v]) nonA.push_back(v);
     int nn = (int)nonA.size();
     
-    vector<int> sig1(n + 1, 0), sig2(n + 1, 0);
+    vector<int> sig1(n + 1, 0), sig2(n + 1, 0), sig3(n + 1, 0);
     
-    for (int round = 0; round < 2; round++) {
-        vector<int>& L = (round == 0) ? idx1 : idx2;
+    for (int round = 0; round < 3; round++) {
+        vector<int>& L = (round == 0) ? idx1 : (round == 1 ? idx2 : idx3);
         vector<int> tokens;
         vector<int> cur_in(m, 1);
         vector<int> probe_start(K);
@@ -169,13 +178,13 @@ int main() {
                 int r = resp[base + 2 * j];
                 if (r) {
                     if (round == 0) sig1[nonA[j]] |= (1 << b);
-                    else sig2[nonA[j]] |= (1 << b);
+                    else if (round == 1) sig2[nonA[j]] |= (1 << b);
+                    else sig3[nonA[j]] |= (1 << b);
                 }
             }
         }
     }
     
-    // Phase 3 decode
     vector<vector<int>> neighbors(n + 1);
     set<pair<int,int>> edgeSet;
     auto pushNeighbor = [&](int a, int b) {
@@ -198,9 +207,9 @@ int main() {
     auto popcnt = [](int x){ return __builtin_popcount(x); };
     
     for (int y : nonA) {
-        int s1 = sig1[y], s2 = sig2[y];
+        int s1 = sig1[y], s2 = sig2[y], s3 = sig3[y];
         if (popcnt(s1) > 14) continue;
-        if (s1 < m && idx2[s1] == s2) {
+        if (s1 < m && idx2[s1] == s2 && idx3[s1] == s3) {
             yType[y] = 1;
             ySoleA[y] = s1;
             pushNeighbor(y, A_list[s1]);
@@ -214,7 +223,7 @@ int main() {
         while (true) {
             int comp = s1 ^ sub;
             if (sub < comp && sub < m && comp < m) {
-                if ((idx2[sub] | idx2[comp]) == s2) {
+                if ((idx2[sub] | idx2[comp]) == s2 && (idx3[sub] | idx3[comp]) == s3) {
                     count++;
                     foundSub = sub;
                     foundComp = comp;
@@ -244,7 +253,6 @@ int main() {
         fflush(stdout);
     };
     
-    // Phase 4: skeleton
     bool ok = true;
     for (int i = 0; i < m; i++) if (degA[i] > 2) { ok = false; break; }
     if (!ok) { fallback(); return 0; }
@@ -256,11 +264,10 @@ int main() {
     }
     
     vector<int> compId(m, -1);
-    vector<vector<int>> compEndpoints; // endpoints per component
+    vector<vector<int>> compEndpoints;
     int cc = 0;
     for (int i = 0; i < m; i++) {
         if (compId[i] != -1) continue;
-        // BFS
         vector<int> comp;
         vector<int> stk = {i};
         compId[i] = cc;
@@ -278,17 +285,14 @@ int main() {
         cc++;
     }
     
-    // Phase 5: partner detection
     for (int i = 0; i < m; i++) {
         if ((int)bySoleA[i].size() + degA[i] != 2) { ok = false; break; }
     }
     if (!ok) { fallback(); return 0; }
     
-    // candidates across components, only endpoints
     vector<pair<int,int>> candidates;
     long long candCount = 0;
     
-    // for each component, list endpoints with c>0
     vector<vector<int>> compEndsWithC(cc);
     for (int c = 0; c < cc; c++) {
         for (int u : compEndpoints[c]) {
@@ -339,7 +343,6 @@ int main() {
         }
     }
     
-    // Phase 6: verify
     for (int v = 1; v <= n; v++) {
         if ((int)neighbors[v].size() != 2) { ok = false; break; }
     }
