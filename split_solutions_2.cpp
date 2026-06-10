@@ -28,7 +28,9 @@ int main(){
     
     vector<int> hidden(n+1, 0);
     int p_anchor = -1;
+    int p_anchor2 = -1;
     v_anchor = -1;
+    bool haveAnchor2 = false;
     
     auto fallbackScan = [&](){
         for(int k = 1; k <= n; k++){
@@ -110,18 +112,30 @@ int main(){
         
         p_anchor = Cset[0];
         v_anchor = 1;
+        
+        int D_mask = 0;
+        for(int i = 0; i < B; i++){
+            if(determinedBits[i] != -1) D_mask |= (1 << i);
+        }
+        p_anchor2 = ((p_anchor - 1) ^ D_mask) + 1;
+        assert(p_anchor2 >= 1 && p_anchor2 <= n);
+        assert(p_anchor2 != p_anchor);
+        haveAnchor2 = true;
     }
     
     hidden[p_anchor] = v_anchor;
+    if(haveAnchor2) hidden[p_anchor2] = 2;
     
     vector<int> G;
     for(int i = 1; i <= n; i++){
-        if(i != p_anchor) G.push_back(i);
+        if(i != p_anchor && (!haveAnchor2 || i != p_anchor2)) G.push_back(i);
     }
     
     vector<int> V;
     for(int v = 1; v <= n-1; v++){
-        if(v != v_anchor) V.push_back(v);
+        if(v == v_anchor) continue;
+        if(haveAnchor2 && v == 2) continue;
+        V.push_back(v);
     }
     
     size_t idx = 0;
