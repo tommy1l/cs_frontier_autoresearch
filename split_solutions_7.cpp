@@ -98,106 +98,131 @@ int main() {
         if (c != -1) adj[START_NODE-1].push_back({c, 1});
     }
     
-    // BFS depths from START
-    vector<int> depth(n+1, -1);
-    queue<int> q;
-    depth[START_NODE] = 0;
-    q.push(START_NODE);
-    while (!q.empty()) {
-        int u = q.front(); q.pop();
-        for (auto& e : adj[u-1]) {
-            int v = e.first;
-            if (depth[v] == -1) {
-                depth[v] = depth[u] + 1;
-                q.push(v);
-            }
-        }
-    }
-    
     vector<bool> deleted(n+1, false);
-    vector<set<int>> mset(n+1);
-    for (int u = 1; u <= n; u++) {
-        for (auto& t : nodeProfile[u-1]) {
-            mset[u].insert(get<0>(t));
+    
+    auto valueIntervalDisjoint = [&](int u, int v) -> bool {
+        map<int, vector<pair<long long,long long>>> mu, mv;
+        for (auto& t : nodeProfile[u-1]) mu[get<0>(t)].push_back({get<1>(t), get<2>(t)});
+        for (auto& t : nodeProfile[v-1]) mv[get<0>(t)].push_back({get<1>(t), get<2>(t)});
+        for (auto& kv : mu) {
+            int m = kv.first;
+            auto itv = mv.find(m);
+            if (itv == mv.end()) continue;
+            long long lo_u = LLONG_MAX, hi_u = LLONG_MIN;
+            for (auto& p : kv.second) { lo_u = min(lo_u, p.first); hi_u = max(hi_u, p.second); }
+            long long lo_v = LLONG_MAX, hi_v = LLONG_MIN;
+            for (auto& p : itv->second) { lo_v = min(lo_v, p.first); hi_v = max(hi_v, p.second); }
+            if (max(lo_u, lo_v) <= min(hi_u, hi_v)) return false;
         }
-    }
+        return true;
+    };
     
-    // Group by depth
-    map<int, vector<int>> byDepth;
-    for (int u = 1; u <= n; u++) {
-        if (u == START_NODE || u == END_NODE) continue;
-        if (depth[u] <= 0) continue;
-        byDepth[depth[u]].push_back(u);
-    }
-    
-    auto mergedOutdeg = [&](int u, int v) -> int {
+    auto mergedOutdegSet = [&](int u, int v) -> int {
         set<pair<int,int>> s;
         for (auto& e : adj[u-1]) s.insert(e);
         for (auto& e : adj[v-1]) s.insert(e);
         return (int)s.size();
     };
     
-    auto disjointMset = [&](int u, int v) {
-        if (mset[u].size() > mset[v].size()) swap(u, v);
-        for (int m : mset[u]) if (mset[v].count(m)) return false;
-        return true;
+    auto checkAcyclic = [&]() -> bool {
+        int liveCount = 0;
+        vector<int> indeg(n+1, 0);
+        for (int p = 1; p <= n; p++) {
+            if (deleted[p]) continue;
+            liveCount++;
+        }
+        for (int p = 1; p <= n; p++) {
+            if (deleted[p]) continue;
+            for (auto& e : adj[p-1]) {
+                if (deleted[e.first]) continue;
+                indeg[e.first]++;
+            }
+        }
+        queue<int> q;
+        for (int p = 1; p <= n; p++) {
+            if (deleted[p]) continue;
+            if (indeg[p] == 0) q.push(p);
+        }
+        int popped = 0;
+        while (!q.empty()) {
+            int u = q.front(); q.pop();
+            popped++;
+            for (auto& e : adj[u-1]) {
+                if (deleted[e.first]) continue;
+                if (--indeg[e.first] == 0) q.push(e.first);
+            }
+        }
+        return popped == liveCount;
     };
     
     bool progress = true;
     while (progress) {
         progress = false;
-        for (auto& kv : byDepth) {
-            auto& vec = kv.second;
-            // remove deleted
-            vec.erase(remove_if(vec.begin(), vec.end(), [&](int x){ return deleted[x]; }), vec.end());
-            
-            bool found = false;
-            for (int i = 0; i < (int)vec.size() && !found; i++) {
-                int u = vec[i];
-                if (deleted[u]) continue;
-                for (int j = i+1; j < (int)vec.size() && !found; j++) {
-                    int v = vec[j];
-                    if (deleted[v]) continue;
-                    if (depth[u] <= 0 || depth[v] <= 0) continue;
-                    if (!disjointMset(u, v)) continue;
-                    if (mergedOutdeg(u, v) > 200) continue;
-                    
-                    // Merge v into u
+        for (int u = 1; u <= n && !progress; u++) {
+            if (deleted[u]) continue;
+            if (u == START_NODE || u == END_NODE) continue;
+            for (int v = u+1; v <= n && !progress; v++) {
+                if (deleted[v]) continue;
+                if (v == START_NODE || v == END_NODE) continue;
+                
+                if (!valueIntervalDisjoint(u, v)) continue;
+                if (mergedOutdegSet(u, v) > 200) continue;
+                
+                // Snapshot
+                vector<pair<int,int>> snap_adj_u = adj[u-1];
+                vector<pair<int,int>> snap_adj_v = adj[v-1];
+                vector<tuple<int,long long,long long>> snap_prof_u = nodeProfile[u-1];
+                vector<bool> snap_deleted = deleted;
+                map<int, vector<pair<int,int>>> snap_preds;
+                
+                for (int p = 1; p <= n; p++) {
+                    if (deleted[p]) continue;
+                    for (auto& e : adj[p-1]) {
+                        if (e.first == v) {
+                            snap_preds[p] = adj[p-1];
+                            break;
+                        }
+                    }
+                }
+                
+                // Mutate
+                {
                     set<pair<int,int>> s;
                     for (auto& e : adj[u-1]) s.insert(e);
                     for (auto& e : adj[v-1]) s.insert(e);
                     adj[u-1].assign(s.begin(), s.end());
-                    
-                    for (auto& t : nodeProfile[v-1]) nodeProfile[u-1].push_back(t);
-                    for (int m : mset[v]) mset[u].insert(m);
-                    
-                    // Rewrite predecessors
-                    for (int p = 1; p <= n; p++) {
-                        if (deleted[p]) continue;
-                        bool touched = false;
-                        for (auto& e : adj[p-1]) {
-                            if (e.first == v) { e.first = u; touched = true; }
-                        }
-                        if (touched) {
-                            set<pair<int,int>> ss;
-                            for (auto& e : adj[p-1]) {
-                                if (e.first == p) continue; // skip self loop
-                                ss.insert(e);
-                            }
-                            adj[p-1].assign(ss.begin(), ss.end());
-                        }
+                }
+                for (auto& t : nodeProfile[v-1]) nodeProfile[u-1].push_back(t);
+                
+                for (int p = 1; p <= n; p++) {
+                    if (deleted[p]) continue;
+                    bool touched = false;
+                    for (auto& e : adj[p-1]) {
+                        if (e.first == v) { e.first = u; touched = true; }
                     }
-                    
-                    deleted[v] = true;
-                    adj[v-1].clear();
-                    mset[v].clear();
-                    nodeProfile[v-1].clear();
-                    
-                    found = true;
+                    if (touched) {
+                        set<pair<int,int>> ss;
+                        for (auto& e : adj[p-1]) ss.insert(e);
+                        adj[p-1].assign(ss.begin(), ss.end());
+                    }
+                }
+                
+                deleted[v] = true;
+                adj[v-1].clear();
+                
+                if (checkAcyclic()) {
                     progress = true;
+                } else {
+                    // Rollback
+                    adj[u-1] = snap_adj_u;
+                    adj[v-1] = snap_adj_v;
+                    nodeProfile[u-1] = snap_prof_u;
+                    deleted = snap_deleted;
+                    for (auto& kv : snap_preds) {
+                        adj[kv.first - 1] = kv.second;
+                    }
                 }
             }
-            if (found) break;
         }
     }
     
