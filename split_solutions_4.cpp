@@ -4,7 +4,6 @@ using namespace std;
 int n;
 long long k;
 unordered_map<long long, long long> cache;
-set<long long> cachedSet;
 vector<pair<int, long long>> col1Vals, colNVals;
 vector<pair<int, long long>> row1Vals, rowNVals;
 long long lo, hi;
@@ -21,7 +20,6 @@ long long query(int i, int j) {
     if ((long long)i * (long long)j >= k) hi = min(hi, v);
     long long m = (long long)(n - i + 1) * (long long)(n - j + 1);
     if (m >= (long long)n * (long long)n - k + 1) lo = max(lo, v);
-    cachedSet.insert(v);
     return v;
 }
 
@@ -178,6 +176,29 @@ int main() {
         }
     }
     
+    for (long long ii : iListArr) {
+        if (ii < 1 || ii > n) continue;
+        int i = (int)ii;
+        long long jH = (k + ii - 1) / ii;
+        if (jH >= 1 && jH <= (long long)n && jH > 1 && jH < (long long)n) {
+            long long v = query(i, (int)jH);
+            (void)v;
+        }
+    }
+    
+    for (long long ii : iListArr) {
+        if (ii < 1 || ii > n) continue;
+        int i = (int)ii;
+        long long m = (long long)n - ii + 1;
+        long long target = (long long)n * n - k + 1;
+        long long p = (target + m - 1) / m;
+        long long jL = (long long)n + 1 - p;
+        if (jL >= 1 && jL <= (long long)n && jL > 1 && jL < (long long)n) {
+            long long v = query(i, (int)jL);
+            (void)v;
+        }
+    }
+    
     if (lo == hi) {
         cout << "DONE " << lo << "\n";
         cout.flush();
@@ -185,26 +206,7 @@ int main() {
     }
     
     while (lo < hi) {
-        long long imid = lo + (hi - lo) / 2;
-        auto it = cachedSet.lower_bound(imid);
-        long long candA = LLONG_MAX, candB = LLONG_MAX;
-        if (it != cachedSet.end()) {
-            long long val = *it;
-            if (val >= lo && val < hi) candA = val;
-        }
-        if (it != cachedSet.begin()) {
-            auto itP = prev(it);
-            long long val = *itP;
-            if (val >= lo && val < hi) candB = val;
-        }
-        long long mid;
-        if (candA == LLONG_MAX && candB == LLONG_MAX) mid = imid;
-        else if (candB == LLONG_MAX) mid = candA;
-        else if (candA == LLONG_MAX) mid = candB;
-        else {
-            if (imid - candB < candA - imid) mid = candB;
-            else mid = candA;
-        }
+        long long mid = lo + (hi - lo) / 2;
         if (countLE(mid) >= k) hi = min(hi, mid);
         else lo = max(lo, mid + 1);
     }
