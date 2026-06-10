@@ -7,6 +7,7 @@ unordered_map<long long, long long> cache;
 vector<pair<int, long long>> col1Vals, colNVals;
 vector<pair<int, long long>> row1Vals, rowNVals;
 long long lo, hi;
+vector<pair<long long, long long>> samples;
 
 long long query(int i, int j) {
     long long key = (long long)i * 200001LL + j;
@@ -98,6 +99,10 @@ int main() {
         return 0;
     }
     
+    samples.push_back({a11 - 1, 0LL});
+    samples.push_back({ann, (long long)n * n});
+    sort(samples.begin(), samples.end());
+    
     long long target_hi = k;
     int i_hi = -1;
     for (int i = 1; i <= n; i++) {
@@ -176,29 +181,6 @@ int main() {
         }
     }
     
-    for (long long ii : iListArr) {
-        if (ii < 1 || ii > n) continue;
-        int i = (int)ii;
-        long long jH = (k + ii - 1) / ii;
-        if (jH >= 1 && jH <= (long long)n && jH > 1 && jH < (long long)n) {
-            long long v = query(i, (int)jH);
-            (void)v;
-        }
-    }
-    
-    for (long long ii : iListArr) {
-        if (ii < 1 || ii > n) continue;
-        int i = (int)ii;
-        long long m = (long long)n - ii + 1;
-        long long target = (long long)n * n - k + 1;
-        long long p = (target + m - 1) / m;
-        long long jL = (long long)n + 1 - p;
-        if (jL >= 1 && jL <= (long long)n && jL > 1 && jL < (long long)n) {
-            long long v = query(i, (int)jL);
-            (void)v;
-        }
-    }
-    
     if (lo == hi) {
         cout << "DONE " << lo << "\n";
         cout.flush();
@@ -206,8 +188,39 @@ int main() {
     }
     
     while (lo < hi) {
-        long long mid = lo + (hi - lo) / 2;
-        if (countLE(mid) >= k) hi = min(hi, mid);
+        int iR = -1;
+        for (int idx = 0; idx < (int)samples.size(); idx++) {
+            if (samples[idx].second >= k) {
+                iR = idx;
+                break;
+            }
+        }
+        int iL = iR - 1;
+        long long vL = samples[iL].first;
+        long long cL = samples[iL].second;
+        long long vR = samples[iR].first;
+        long long cR = samples[iR].second;
+        long long imid = lo + (hi - lo) / 2;
+        long long mid = imid;
+        if (cR > cL && vR >= vL + 2) {
+            __int128 num = (__int128)(k - cL) * (__int128)(vR - vL);
+            long long pred = vL + (long long)(num / (__int128)(cR - cL));
+            long long lowClamp = max(lo, vL + 1);
+            long long highClamp = min(hi - 1, vR - 1);
+            if (pred < lowClamp) pred = lowClamp;
+            if (pred > highClamp) pred = highClamp;
+            if (pred >= lo && pred <= hi - 1) {
+                bool exists = false;
+                for (auto& s : samples) {
+                    if (s.first == pred) { exists = true; break; }
+                }
+                if (!exists) mid = pred;
+            }
+        }
+        long long c = countLE(mid);
+        samples.push_back({mid, c});
+        sort(samples.begin(), samples.end());
+        if (c >= k) hi = min(hi, mid);
         else lo = max(lo, mid + 1);
     }
     cout << "DONE " << lo << "\n";
