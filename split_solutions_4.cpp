@@ -5,6 +5,7 @@ int n;
 long long k;
 unordered_map<long long, long long> cache;
 vector<pair<int, long long>> col1Vals, colNVals;
+vector<pair<int, long long>> row1Vals, rowNVals;
 
 long long query(int i, int j) {
     long long key = (long long)i * 200001LL + j;
@@ -33,18 +34,33 @@ long long countLE(long long v) {
             break;
         }
     }
-    long long cnt = (long long)n * iSkipN;
+    int jSkipN = 0;
+    for (int idx = (int)rowNVals.size() - 1; idx >= 0; idx--) {
+        if (rowNVals[idx].second <= v) {
+            jSkipN = rowNVals[idx].first;
+            break;
+        }
+    }
+    int jSkipZero = n + 1;
+    for (int idx = 0; idx < (int)row1Vals.size(); idx++) {
+        if (row1Vals[idx].second > v) {
+            jSkipZero = row1Vals[idx].first;
+            break;
+        }
+    }
+    int iLow = iSkipN, iHigh = iSkipZero - 1;
+    int jLow = jSkipN, jHigh = jSkipZero - 1;
+    long long cnt = (long long)iLow * n + (long long)(n - iLow) * jLow;
     if (cnt >= k) return cnt;
-    int i = iSkipN + 1, j = n;
-    int iMax = iSkipZero - 1;
-    if (i > iMax) return cnt;
-    while (i <= iMax && j >= 1) {
+    if (iLow + 1 > iHigh || jLow + 1 > jHigh) return cnt;
+    int i = iLow + 1, j = jHigh;
+    while (i <= iHigh && j > jLow) {
         if (cnt >= k) return cnt;
-        long long upperBound = cnt + (long long)(iMax - i + 1) * j;
+        long long upperBound = cnt + (long long)(iHigh - i + 1) * (j - jLow);
         if (upperBound < k) return cnt;
         long long x = query(i, j);
         if (x <= v) {
-            cnt += j;
+            cnt += (j - jLow);
             i++;
         } else {
             j--;
@@ -114,12 +130,37 @@ int main() {
     sort(col1Vals.begin(), col1Vals.end());
     sort(colNVals.begin(), colNVals.end());
     
+    long long jListArr[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, (long long)n};
+    set<int> usedJ;
+    for (long long jj : jListArr) {
+        if (jj < 1 || jj > n) continue;
+        int j = (int)jj;
+        if (usedJ.count(j)) continue;
+        usedJ.insert(j);
+        long long v1 = query(1, j);
+        row1Vals.push_back({j, v1});
+        long long vN = query(n, j);
+        rowNVals.push_back({j, vN});
+    }
+    sort(row1Vals.begin(), row1Vals.end());
+    sort(rowNVals.begin(), rowNVals.end());
+    
     for (auto& p : colNVals) {
         if ((long long)p.first * n >= k) {
             hi = min(hi, p.second);
         }
     }
     for (auto& p : col1Vals) {
+        if ((long long)(p.first - 1) * n < k) {
+            lo = max(lo, p.second);
+        }
+    }
+    for (auto& p : rowNVals) {
+        if ((long long)p.first * n >= k) {
+            hi = min(hi, p.second);
+        }
+    }
+    for (auto& p : row1Vals) {
         if ((long long)(p.first - 1) * n < k) {
             lo = max(lo, p.second);
         }
