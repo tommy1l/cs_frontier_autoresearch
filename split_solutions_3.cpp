@@ -84,15 +84,63 @@ int main() {
     
     vector<int> A_list;
     vector<int> inA(n + 1, 0);
-    for (int v = 1; v <= n; v++) {
-        vector<int> tk = {v};
-        int r = sendQuery(tk);
-        if (r == 0) {
-            A_list.push_back(v);
-            inA[v] = 1;
-        } else {
-            sendQuery(tk);
+    
+    const int E = 12;
+    const uint64_t SEED_BASE = 0xD6E8FEB86659FD93ULL;
+    
+    for (int e = 0; e < E; e++) {
+        vector<int> R;
+        for (int v = 1; v <= n; v++) if (!inA[v]) R.push_back(v);
+        if (R.empty()) break;
+        
+        uint64_t x = SEED_BASE ^ (uint64_t)e;
+        if (x == 0) x = 1;
+        for (int i = (int)R.size() - 1; i >= 1; i--) {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            uint64_t j = x % (uint64_t)(i + 1);
+            swap(R[i], R[(int)j]);
         }
+        
+        long long L = (long long)R.size();
+        printf("%lld", L);
+        for (int t : R) printf(" %d", t);
+        printf("\n");
+        fflush(stdout);
+        vector<int> res(R.size());
+        for (size_t i = 0; i < R.size(); i++) scanf("%d", &res[i]);
+        
+        int k = (int)R.size();
+        for (int i = 0; i < (int)R.size(); i++) {
+            if (res[i] == 1) { k = i; break; }
+        }
+        
+        for (int i = 0; i < k; i++) {
+            A_list.push_back(R[i]);
+            inA[R[i]] = 1;
+        }
+        
+        if (k < (int)R.size()) {
+            vector<int> cleanup;
+            for (int i = k; i < (int)R.size(); i++) cleanup.push_back(R[i]);
+            long long CL = (long long)cleanup.size();
+            printf("%lld", CL);
+            for (int t : cleanup) printf(" %d", t);
+            printf("\n");
+            fflush(stdout);
+            for (size_t i = 0; i < cleanup.size(); i++) {
+                int tmp; scanf("%d", &tmp);
+            }
+        }
+    }
+    
+    if ((int)A_list.size() < n / 3) {
+        printf("-1");
+        for (int i = 1; i <= n; i++) printf(" %d", i);
+        printf("\n");
+        fflush(stdout);
+        return 0;
     }
     
     int m = (int)A_list.size();
