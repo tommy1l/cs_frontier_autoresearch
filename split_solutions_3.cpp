@@ -143,7 +143,6 @@ int main() {
         return 0;
     }
     
-    // Maximality completion pass
     {
         vector<int> R_rem;
         for (int v = 1; v <= n; v++) if (!inA[v]) R_rem.push_back(v);
@@ -338,16 +337,35 @@ int main() {
             D.push_back(y);
             bySoleA[s1].push_back(y);
             continue;
+        } else {
+            int found_count = 0;
+            int found_sub = -1, found_comp = -1;
+            int sub = s1;
+            do {
+                int comp = s1 ^ sub;
+                if (sub < comp && sub < m && comp < m) {
+                    if ((idx2[sub] | idx2[comp]) == s2 && (idx3[sub] | idx3[comp]) == s3) {
+                        found_count++;
+                        found_sub = sub;
+                        found_comp = comp;
+                        if (found_count > 1) break;
+                    }
+                }
+                sub = (sub - 1) & s1;
+            } while (sub != s1);
+            
+            if (found_count == 1) {
+                pushNeighbor(y, A_list[found_sub]);
+                pushNeighbor(y, A_list[found_comp]);
+            }
         }
     }
     
-    // Step 4A: clear S to empty by toggling all A_list out
     {
         vector<int> resp = sendQueryMulti(A_list);
         (void)resp;
     }
     
-    // Step 4B: build T as maximal IS of D w.r.t. partner edges
     vector<int> T;
     vector<int> inT(n + 1, 0);
     {
@@ -401,7 +419,6 @@ int main() {
         }
     }
     
-    // Step 4C: maximality completion sweep on D
     {
         vector<int> U;
         for (int y : D) if (!inT[y]) U.push_back(y);
@@ -467,7 +484,6 @@ int main() {
         }
     }
     
-    // Step 4D: bit signature on T to identify partners
     int mT = (int)T.size();
     if (mT > 0) {
         int K_T = 1;
@@ -522,7 +538,6 @@ int main() {
             }
         }
         
-        // Step 4E: decode partners
         for (int q = 0; q < dU; q++) {
             int lbl = partner_label[q];
             if (lbl >= mT) { fallback(); return 0; }
