@@ -82,7 +82,6 @@ int main() {
         return 0;
     }
     
-    // n > 1000
     vector<int> A_list;
     vector<int> inA(n + 1, 0);
     for (int v = 1; v <= n; v++) {
@@ -206,9 +205,19 @@ int main() {
     
     auto popcnt = [](int x){ return __builtin_popcount(x); };
     
+    auto fallback = [&]() {
+        printf("-1");
+        for (int i = 1; i <= n; i++) printf(" %d", i);
+        printf("\n");
+        fflush(stdout);
+    };
+    
+    bool protocolError = false;
+    
     for (int y : nonA) {
         int s1 = sig1[y], s2 = sig2[y], s3 = sig3[y];
-        if (popcnt(s1) > 14) continue;
+        if (popcnt(s1) == 0) { protocolError = true; break; }
+        if (popcnt(s1) > 16) continue;
         if (s1 < m && idx2[s1] == s2 && idx3[s1] == s3) {
             yType[y] = 1;
             ySoleA[y] = s1;
@@ -246,12 +255,7 @@ int main() {
         }
     }
     
-    auto fallback = [&]() {
-        printf("-1");
-        for (int i = 1; i <= n; i++) printf(" %d", i);
-        printf("\n");
-        fflush(stdout);
-    };
+    if (protocolError) { fallback(); return 0; }
     
     bool ok = true;
     for (int i = 0; i < m; i++) if (degA[i] > 2) { ok = false; break; }
@@ -265,6 +269,7 @@ int main() {
     
     vector<int> compId(m, -1);
     vector<vector<int>> compEndpoints;
+    vector<pair<int,int>> compEnds01;
     int cc = 0;
     for (int i = 0; i < m; i++) {
         if (compId[i] != -1) continue;
@@ -282,6 +287,13 @@ int main() {
         vector<int> eps;
         for (int u : comp) if ((int)adjA[u].size() <= 1) eps.push_back(u);
         compEndpoints.push_back(eps);
+        if ((int)eps.size() == 1) {
+            compEnds01.push_back({eps[0], eps[0]});
+        } else if ((int)eps.size() == 2) {
+            compEnds01.push_back({eps[0], eps[1]});
+        } else {
+            compEnds01.push_back({-1, -1});
+        }
         cc++;
     }
     
@@ -300,6 +312,7 @@ int main() {
         }
     }
     
+    // Phase 4a: cross-component
     for (int c1 = 0; c1 < cc; c1++) {
         for (int c2 = c1 + 1; c2 < cc; c2++) {
             for (int i : compEndsWithC[c1]) {
@@ -312,6 +325,22 @@ int main() {
                         }
                     }
                 }
+            }
+        }
+    }
+    
+    // Phase 4b: same-component ring closing
+    for (int c = 0; c < cc; c++) {
+        if ((int)compEndpoints[c].size() != 2) continue;
+        int e0 = compEndpoints[c][0];
+        int e1 = compEndpoints[c][1];
+        if (e0 == e1) continue;
+        if (bySoleA[e0].empty() || bySoleA[e1].empty()) continue;
+        for (int y : bySoleA[e0]) {
+            for (int yp : bySoleA[e1]) {
+                candidates.push_back({y, yp});
+                candCount++;
+                if (candCount > 1500000) { fallback(); return 0; }
             }
         }
     }
@@ -349,16 +378,26 @@ int main() {
     
     if (!ok) { fallback(); return 0; }
     
-    printf("-1");
+    // Cycle walk verification
+    vector<int> walk(n);
+    vector<int> visited(n + 1, 0);
     int prev = 0, cur = 1;
     for (int i = 0; i < n; i++) {
-        printf(" %d", cur);
+        walk[i] = cur;
+        if (cur < 1 || cur > n || visited[cur]) { ok = false; break; }
+        visited[cur] = 1;
         int nxt;
         if (neighbors[cur][0] != prev) nxt = neighbors[cur][0];
         else nxt = neighbors[cur][1];
         prev = cur;
         cur = nxt;
     }
+    if (!ok) { fallback(); return 0; }
+    for (int i = 1; i <= n; i++) if (!visited[i]) { ok = false; break; }
+    if (!ok) { fallback(); return 0; }
+    
+    printf("-1");
+    for (int i = 0; i < n; i++) printf(" %d", walk[i]);
     printf("\n");
     fflush(stdout);
     return 0;
