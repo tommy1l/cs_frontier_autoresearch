@@ -216,7 +216,6 @@ int main() {
     
     for (int y : nonA) {
         int s1 = sig1[y], s2 = sig2[y], s3 = sig3[y];
-        if (popcnt(s1) == 0) { protocolError = true; break; }
         if (popcnt(s1) > 16) continue;
         if (s1 < m && idx2[s1] == s2 && idx3[s1] == s3) {
             yType[y] = 1;
@@ -312,7 +311,6 @@ int main() {
         }
     }
     
-    // Phase 4a: cross-component
     for (int c1 = 0; c1 < cc; c1++) {
         for (int c2 = c1 + 1; c2 < cc; c2++) {
             for (int i : compEndsWithC[c1]) {
@@ -329,7 +327,6 @@ int main() {
         }
     }
     
-    // Phase 4b: same-component ring closing
     for (int c = 0; c < cc; c++) {
         if ((int)compEndpoints[c].size() != 2) continue;
         int e0 = compEndpoints[c][0];
@@ -378,7 +375,6 @@ int main() {
     
     if (!ok) { fallback(); return 0; }
     
-    // Cycle walk verification
     vector<int> walk(n);
     vector<int> visited(n + 1, 0);
     int prev = 0, cur = 1;
