@@ -1,61 +1,33 @@
-import sys
-import os
 import csv
-import re
+import os
+import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-FIGSIZE_PER_PLOT = (10, 5.5)
-
 COLORS = {
-    "keep":    "#2ecc71",
-    "discard": "#e74c3c",
-    "crash":   "#e67e22",
-    "best":    "#2980b9",
+    "normal_dot":  "#2980b9",
+    "advisor_dot": "#27ae60",
+    "crash":       "#e67e22",
+    "normal_best": "#2980b9",
+    "advisor_best":"#27ae60",
 }
-
-# Max rows to load per file (None = all)
-ROW_LIMITS = {
-    "results_5": 4,
-}
-
-# Per-file model name overrides
-MODEL_NAMES = {}
-DEFAULT_MODEL = "Opus 4.7"
-
-# Files where title says "Prompt Fix Human Starting Point"
-PROMPT_FIX_FILES = {"prompt_fix_problem0", "prompt_fix_problem1"}
-
-# Files where title says "Human Starting Point"
-HUMAN_FILES = {"results_reference_0", "results_reference_1"}
-
-# Files where y-axis says "Score (unbounded)"
-UNBOUNDED_FILES = {"prompt_fix_problem0", "prompt_fix_problem1",
-                   "results_reference_0", "results_reference_1"}
 
 def load_tsv(path):
-    name = os.path.splitext(os.path.basename(path))[0]
-    limit = ROW_LIMITS.get(name, None)
     rows = []
     with open(path, newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for i, row in enumerate(reader):
-            if limit is not None and i >= limit:
-                break
             try:
                 score = float(row["best_unbounded"])
             except (ValueError, KeyError):
-                try:
-                    score = float(row["best_score"])
-                except (ValueError, KeyError):
-                    score = None
+                score = None
+            status = row.get("status", "").strip().lower()
             rows.append({
                 "iteration": i + 1,
-                "commit":      row.get("commit", ""),
-                "score":       score,
-                "status":      row.get("status", "keep").strip().lower(),
+                "score": score,
+                "status": status,
                 "description": row.get("description", ""),
             })
     return rows
@@ -70,96 +42,95 @@ def running_best(rows):
         bests.append(best)
     return bests
 
-def problem_number_from_name(name):
-    m = re.search(r'(\d+)$', name)
-    return m.group(1) if m else name
+def plot_comparison(normal_path, advisor_path, problem_num, out_path):
+    normal_rows  = load_tsv(normal_path)
+    advisor_rows = load_tsv(advisor_path)
 
-def plot_one(ax, rows, name):
-    problem_num = problem_number_from_name(name)
-
-    if name in PROMPT_FIX_FILES:
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Prompt Fix Human Starting Point"
-    elif name in HUMAN_FILES:
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — Human Starting Point"
-    else:
-        title = f"Frontier-CS Algorithmic Problem {problem_num} — {MODEL_NAMES.get(name, DEFAULT_MODEL)} Starting Point"
-
-    ylabel = "Score (unbounded)" if name in UNBOUNDED_FILES else "Score (bounded)"
-
-    iterations = [r["iteration"] for r in rows]
-    scores     = [r["score"]     for r in rows]
-    statuses   = [r["status"]    for r in rows]
-    bests      = running_best(rows)
-    valid      = [s for s in scores if s is not None]
-
-    # Best-so-far line
-    ax.plot(iterations, bests, color=COLORS["best"], linewidth=2,
-            label="best score", zorder=2)
-
-    # Scatter dots
-    for it, sc, st in zip(iterations, scores, statuses):
-        if sc is None:
-            continue
-        color = COLORS.get(st, COLORS["discard"])
-        ax.scatter(it, sc, color=color, s=70, zorder=3, linewidths=0)
-
-    ax.set_title(title, fontsize=13, fontweight="bold", pad=10)
-    ax.set_xlabel("Iteration", fontsize=11)
-    ax.set_ylabel(ylabel, fontsize=11)
-    ax.grid(True, linestyle="--", linewidth=0.5, color="#cccccc", alpha=0.8)
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
-    ax.set_xlim(0.5, 15.5)
-    ax.set_xticks(range(1, 16))
-    ax.set_ylim(0, 105)
+    def plot_series(rows, dot_color, best_color, label_prefix):
+        iterations = [r["iteration"] for r in rows]
+        scores     = [r["score"]     for r in rows]
+        statuses   = [r["status"]    for r in rows]
+        bests      = running_best(rows)
 
+        ax.plot(iterations, bests, color=best_color, linewidth=2,
+                label=f"{label_prefix} best", zorder=2)
+
+        for it, sc, st in zip(iterations, scores, statuses):
+            if sc is None:
+                continue
+            if st == "crash":
+                ax.scatter(it, sc, color=COLORS["crash"], marker="x",
+                           s=90, zorder=4, linewidths=1.8)
+            else:
+                ax.scatter(it, sc, color=dot_color, s=60, zorder=3,
+                           linewidths=0, alpha=0.85)
+
+    plot_series(normal_rows,  COLORS["normal_dot"],  COLORS["normal_best"],  "normal")
+    plot_series(advisor_rows, COLORS["advisor_dot"], COLORS["advisor_best"], "advisor")
+
+    # Best score annotations
+    normal_scores  = [r["score"] for r in normal_rows  if r["score"] is not None]
+    advisor_scores = [r["score"] for r in advisor_rows if r["score"] is not None]
+    normal_best  = max(normal_scores)  if normal_scores  else 0
+    advisor_best = max(advisor_scores) if advisor_scores else 0
+
+    ax.text(0.01, 0.97,
+            f"Normal best:  {normal_best:.4f}\nAdvisor best: {advisor_best:.4f}",
+            transform=ax.transAxes, fontsize=10, fontweight="bold",
+            va="top", ha="left",
+            bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
+                      edgecolor="#555555", linewidth=1.2, alpha=0.85))
+
+    # Legend
     legend_handles = [
-        mpatches.Patch(color=COLORS["keep"],    label="keep"),
-        mpatches.Patch(color=COLORS["discard"], label="discard"),
-        mpatches.Patch(color=COLORS["crash"],   label="crash"),
-        plt.Line2D([0], [0], color=COLORS["best"], linewidth=2, label="best score"),
+        mpatches.Patch(color=COLORS["normal_dot"],  label="normal"),
+        mpatches.Patch(color=COLORS["advisor_dot"], label="advisor"),
+        plt.Line2D([0],[0], color=COLORS["normal_best"],  linewidth=2, label="normal best"),
+        plt.Line2D([0],[0], color=COLORS["advisor_best"], linewidth=2, label="advisor best"),
+        plt.Line2D([0],[0], marker="x", color=COLORS["crash"], linewidth=0,
+                   markersize=8, markeredgewidth=1.8, label="crash"),
     ]
     ax.legend(handles=legend_handles, fontsize=9,
               loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0,
               framealpha=0.95, edgecolor="#aaaaaa")
 
-    if valid:
-        best_val = max(valid)
-        first_score = valid[0] if valid else 0
-        high_points = sum(1 for s in valid if s > 80)
-        if first_score > 80 or high_points > len(valid) * 0.7:
-            y_pos, va = 0.03, "bottom"
-        else:
-            y_pos, va = 0.97, "top"
-        ax.text(0.01, y_pos, f"Best: {best_val:.4f}",
-                transform=ax.transAxes, fontsize=11, fontweight="bold",
-                va=va, ha="left",
-                bbox=dict(boxstyle="round,pad=0.35", facecolor="#d6eaf8",
-                          edgecolor="#2980b9", linewidth=1.5, alpha=0.6))
+    max_iter = max(
+        max(r["iteration"] for r in normal_rows),
+        max(r["iteration"] for r in advisor_rows)
+    )
+    ax.set_xlim(0.5, max_iter + 0.5)
+    ax.set_xticks(range(1, max_iter + 1))
 
-def main():
-    paths = sys.argv[1:]
-    if not paths:
-        paths = [f"results_{i}.tsv" for i in range(11)]
+    ax.set_title(f"Frontier-CS Problem {problem_num} — Normal vs Advisor",
+                 fontsize=13, fontweight="bold", pad=10)
+    ax.set_xlabel("Iteration", fontsize=11)
+    ax.set_ylabel("Score (unbounded)", fontsize=11)
+    ax.grid(True, linestyle="--", linewidth=0.5, color="#cccccc", alpha=0.8)
 
-    datasets = []
-    for p in paths:
-        if not os.path.exists(p):
-            print(f"Skipping missing file: {p}")
-            continue
-        rows = load_tsv(p)
-        name = os.path.splitext(os.path.basename(p))[0]
-        datasets.append((name, rows))
-
-    for name, rows in datasets:
-        fig, ax = plt.subplots(figsize=FIGSIZE_PER_PLOT)
-        fig.patch.set_facecolor("white")
-        plot_one(ax, rows, name)
-        plt.tight_layout(pad=2.5)
-        out = f"{name}.png"
-        plt.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
-        print(f"Saved -> {out}")
-        plt.close(fig)
+    plt.tight_layout(pad=2.5)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"Saved -> {out_path}")
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    problems = [int(x) for x in sys.argv[1:]] if len(sys.argv) > 1 else [0, 2, 3, 4, 7]
+
+    for i in problems:
+        normal_path  = f"runs/normal/logs/results_{i}.tsv"
+        advisor_path = f"split_results_{i}.tsv"
+        out_path     = f"problem{i}_normal_vs_advisor.png"
+
+        if not os.path.exists(normal_path):
+            print(f"Skipping problem {i}: missing {normal_path}")
+            continue
+        if not os.path.exists(advisor_path):
+            print(f"Skipping problem {i}: missing {advisor_path}")
+            continue
+
+        plot_comparison(normal_path, advisor_path, problem_num=i, out_path=out_path)
