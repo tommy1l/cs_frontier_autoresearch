@@ -107,8 +107,9 @@ Field definitions:
 - Never write or edit any `.cpp` file
 - Never run the evaluator
 - Never commit anything
-- Never edit anything inside `Frontier-CS/`
-- Never run `git log`
+- Never read or edit anything inside `Frontier-CS/` other than `Frontier-CS/algorithmic/problems/{N}/statement.txt`. In particular, never read `testdata/`, `examples/`, `chk.cc`, or `config.yaml`, and never `ls` or otherwise enumerate the contents of any directory inside `Frontier-CS/`.
+- Never read or enumerate anything inside the `runs/` directory (past runs are off-limits).
+- Never run `git log`, `git diff`, `git show` with anything other than the exact form `git show <commit>:split_solutions_{N}.cpp`, or any other git command that could reveal history beyond the per-iteration solution snapshots listed in `split_results_{N}.tsv`.
 - Never read test data
 - Never use `$()`, `$var`, or `&&` chaining. Every command must be a completely separate standalone line.
 - Do not propose an approach already listed in either `.tsv` file
