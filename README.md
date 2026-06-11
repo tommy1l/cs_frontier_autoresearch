@@ -68,3 +68,29 @@ Each problem is numbered (0, 1, ...). File names include the problem number (e.g
    ```
 
 Claude Code will handle the rest — setting up the log file if needed, resuming from where it left off if interrupted, and stopping automatically after 15 iterations.
+
+## How to Run (Advisor–Worker)
+
+This is the alternate setup where two separate agents take turns: an **advisor** decides what to try next, and a **worker** implements it. Files involved:
+
+- `advisor.md` — prompt the advisor reads. It runs as `claude -p` and is told to propose the next approach for the current iteration, then append a row to `split_problem_{N}_proposals.tsv`.
+- `worker.py` — implementer. Reads the latest proposal, optionally reverts `split_solutions_{N}.cpp` to a prior commit, calls the Anthropic API to write the new C++, evaluates it, commits, pushes, and logs to `split_results_{N}.tsv`. Run standalone with `python worker.py --problem N`.
+- `advisor_worker.py` — orchestrator. Alternates advisor → worker for each problem in `PROBLEMS` until 15 iterations are logged. Resumes from existing TSVs if interrupted.
+
+Outputs per problem `N`:
+- `split_problem_{N}_proposals.tsv` — one row per advisor proposal
+- `split_solutions_{N}.cpp` — current solution being iterated
+- `split_results_{N}.tsv` — per-iteration log (commit, score, status, approach)
+
+### Steps
+
+1. **Edit the problem list in `advisor_worker.py`.** Change the `PROBLEMS` constant near the top to the problems you want to run:
+   ```python
+   PROBLEMS = [0]        # or [2, 3], etc.
+   ```
+2. **Run from the repo root:**
+   ```
+   python advisor_worker.py
+   ```
+
+The orchestrator will skip iterations already logged in `split_results_{N}.tsv`, so it's safe to re-run after an interruption.
