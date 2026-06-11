@@ -6,7 +6,7 @@ Alternates between advisor (claude -p) and implementer (worker.py)
 for each problem, 15 iterations each.
 
 Usage:
-    python run.py
+    python advisor_worker.py
 """
 
 import os
