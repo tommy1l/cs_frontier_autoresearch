@@ -162,14 +162,17 @@ def generate_cpp(problem: int, approach: str, details: str, current_solution: st
         "Output only the raw C++ code."
     )
 
-    message = client.messages.create(
+    text_parts = []
+    with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=4096,
+        max_tokens=32000,
         system=system,
         messages=[{"role": "user", "content": "\n\n".join(user_parts)}],
-    )
+    ) as stream:
+        for chunk in stream.text_stream:
+            text_parts.append(chunk)
 
-    code = message.content[0].text.strip()
+    code = "".join(text_parts).strip()
     # Strip any accidental markdown fences
     if code.startswith("```"):
         lines = code.splitlines()
