@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+99ecb35	66.66666666666666	logged	pairwise adjacency probing via four toggle blocks
+480432c	66.66666666666666	logged	max indep set with bit mask group testing for adjacency
+db19f9e	66.66666666666666	logged	batched protocol MIS plus dual bitmask group testing
+4a289b5	66.66666666666666	logged	per vertex MIS plus correct dual bit signature plus structural partner pairing
+16e82a5	66.66666666666666	logged	MIS plus random permutation bit signature plus skeleton restricted partner probing
+648a808	66.66666666666666	logged	MIS plus triple bit signature with three random labelings for robust decoding
+88834a0	66.66666666666666	logged	MIS plus triple bit signature with ring closing partner detection
+c50ead7	66.66666666666666	logged	MIS plus triple bit signature with zero index double gap fix
+7e2a826	66.66666666666666	logged	batched epoch prefix MIS plus triple bit signature decoding
+80064ed	66.66666666666666	logged	batched epoch MIS plus maximality completion plus triple bit signature decoding
+833bd0a	66.66666666666666	logged	MIS plus triple bit signature plus partner MIS bit signature pairing
+6ba58ce	66.66666666666666	logged	restore single gap decoder branch in phase three triple consistency check
+efeecab	66.66666666666666	logged	fix triple consistency decoder to enumerate all sub or comp equals s1 pairs
+c8b8bd8	66.66666666666666	logged	pair iterating decoder over A index pairs
+b788ba8	66.66666666666666	logged	double gap priority classification with noise tolerance

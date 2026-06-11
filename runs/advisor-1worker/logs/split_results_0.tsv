@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+3ed2fe0	69.39175185999999	logged	skyline bottom-left fill with rotations and reflections
+1d1ffb6	71.43928766428571	logged	skyline BL with maximum-contact scoring
+cae7888	74.85716380000004	logged	true bottom-left with per-column bitmap collision
+c795078	75.58434954428574	logged	multi-ordering BL with max-dimension-first fallback
+0aebf4a	68.67469771142859	logged	floor-match scoring with k-descending fallback ordering
+c396f1a	75.51311045571433	logged	BL with floating-gap-sum scoring
+be166ac	67.73013417000001	logged	BL with K-piece lookahead candidate selection
+f7b3938	62.80000173285717	logged	multi-start BL with within-tier shuffled orderings
+66c4b8a	51.12879880142857	logged	Burke best-fit lowest-skyline with bounded candidate pool
+8e1c779	67.38891011857146	logged	BL with diverse deterministic ordering chain
+b4c4e55	67.3496908971429	logged	BL with single-step chronological backtracking on placement failure
+42fd2b9	70.75847601285717	logged	BL with most-constrained-first piece selection
+eaa4e35	74.27696770857148	logged	BL with future-feasibility tiebreak on placement candidates
+9f6399d	76.20391212142859	logged	BL with bounded ejection-chain on placement failure
+8da9b38	66.89442025857144	logged	depth-2 recursive ejection chain

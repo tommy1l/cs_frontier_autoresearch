@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+cd8a9f3	88.0	logged	per-length DFA with shared free suffix chain and merged boundary chains
+356beb9	90.0	logged	backward construction sharing BL and BR nodes with FREE chain
+7c34750	90.0	logged	canonical state memoization keyed by level and accepted value interval
+7d4bd0b	90.0	logged	prefix value multi length state DAG with profile memoization and parallel stop here edges
+8f1436f	90.0	logged	Brzozowski reverse subset construction yielding unambiguous NFA
+53da74a	90.0	logged	Brzozowski reverse with merged accept tracking and relaxed bailout
+b40370b	0.0	crash	post construction disjoint length suffix state merging beyond minimum DFA
+3807d20	90.0	logged	same depth disjoint length merging with edge dedupe safeguards
+eb7aefa	0.0	crash	cross depth value interval merging with toposort verified atomic merge
+b960936	0.0	crash	cross depth language disjoint merging with pre merge reach bitsets and idempotent recompute
+29b16d5	0.0	crash	prefix and suffix profile disjoint merging for unambiguous NFA compression
+bce3c52	90.0	logged	cross depth merging with path count verification for unambiguity
+dd6f2fd	90.0	logged	hybrid forward and Brzozowski reverse bases each refined with path count verified merging
+6e2c48d	90.0	logged	Kameda Weiner state pair grid with greedy prime cover for sub minimum DFA NFA
+bb1c3e5	90.0	logged	constraint driven simultaneous multi node merging via union find with path count verification

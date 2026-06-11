@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+e8b7e7d	26.626666666666665	logged	saddleback search with value-space binary search and query caching
+e4dcd04	29.37	logged	diagonal precomputation with bracketed saddleback binary search
+3a04092	17.826666666666664	logged	diagonal-indexed binary search with bracketed refinement
+be44371	0.0	crash	cached-value-guided binary search with countLE early termination
+82267b5	0.0	crash	row pointer countLE with bracketed per-row binary search
+b105bf6	33.51	logged	sparse algebraic diagonal anchors with on-demand corner queries
+7117b63	44.93	logged	saddleback countLE with cumulative early termination
+f8d3709	44.43	logged	hyperbola anchor multi-point bracket
+e3cb5bb	44.96666666666666	logged	column 1 and column n sparse anchor preprocessing with row range skip in countLE
+b01a3dc	45.66333333333333	logged	row 1 and row n sparse anchor preprocessing with column range skip in countLE
+3d2dc51	45.66333333333333	logged	lazy lo and hi bracket tightening on every cached query
+f25c256	42.54333333333334	logged	cached matrix value midpoint pivot in value space binary search
+59d3999	45.64	logged	interior hyperbola anchors additive to sparse border anchor sweep
+7c8f1fa	0.0	crash	count interpolation pivot in value space binary search
+3061f81	45.66333333333333	logged	small-k min heap and large-k max heap dispatch with saddleback fallback

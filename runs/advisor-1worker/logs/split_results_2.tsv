@@ -1,0 +1,16 @@
+commit	best_unbounded	status	description
+afdb81b	0.0	crash	binary search per value using value 1 as reference
+7ca4cc4	0.0	crash	scan for pos(1) with opportunistic pos(2) then binary search per value
+b0c8833	34.25666666666666	logged	bidirectional Phase 1 first-found-anchor with state-separated binary search per value
+c34ed8a	91.28999999999999	logged	paired binary search with disambiguation
+319244b	94.87333333333333	logged	chunked Phase 1 anchor location
+6e3dc71	41.339999999999996	logged	triple joint Phase A with independent Phase B
+45c406c	94.82	logged	log encoded Phase 1 anchor location
+ec2c0d3	94.48	logged	free pos2 recovery from log encoded Phase 1
+309c7e4	94.43333333333332	logged	four anchor log encoded Phase 1
+0a63863	0.0	crash	log encoded Phase 1 with last pair direct test
+58bdb36	94.88333333333333	logged	chunked Phase 1 with last triple direct enumeration
+5b82d72	94.88333333333333	logged	chunked Phase 1 with half shifted retry fallback
+641303a	0.0	crash	quadruple-value joint Phase 2 binary search
+fea1e35	94.83	logged	log encoded Phase 1 with last triple direct enumeration
+4e03d03	41.339999999999996	logged	triple-value joint Phase 2 binary search with disjoint partition separation
