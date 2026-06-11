@@ -6,7 +6,7 @@ Handles all mechanical steps (git, eval, log) and calls the Anthropic API
 only to write C++ code from the proposer's details.
 
 Usage:
-    python agent.py --problem 3   # implement next iteration for problem 3
+    python worker.py --problem 3   # implement next iteration for problem 3
 """
 
 import argparse
@@ -201,7 +201,7 @@ def main():
     # Read proposal
     proposal = read_proposal(problem, iteration)
     if proposal is None:
-        print(f"No proposal found for problem {problem} iteration {iteration}. Run proposer first.")
+        print(f"No proposal found for problem {problem} iteration {iteration}. Run advisor first.")
         sys.exit(1)
 
     approach = proposal.get("approach", "")

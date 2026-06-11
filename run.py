@@ -2,7 +2,7 @@
 """
 Orchestrator for Frontier-CS algorithmic autoresearch.
 
-Alternates between proposer (claude -p) and implementer (agent.py)
+Alternates between advisor (claude -p) and implementer (worker.py)
 for each problem, 15 iterations each.
 
 Usage:
@@ -16,8 +16,8 @@ import time
 
 PROBLEMS = [0]
 MAX_ITERATIONS = 15
-PROPOSER_PROMPT = "proposer.md"
-IMPLEMENTER_SCRIPT = "agent.py"
+PROPOSER_PROMPT = "advisor.md"
+IMPLEMENTER_SCRIPT = "worker.py"
 
 
 def count_iterations(problem: int) -> int:
