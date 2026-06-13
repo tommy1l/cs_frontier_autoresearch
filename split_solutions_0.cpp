@@ -107,12 +107,6 @@ int main() {
                 int xMax = W - c.w;
                 for (int X = 0; X <= xMax; X++) {
                     int yMin = 0;
-                    int colMin = INT_MAX, colMax = INT_MIN;
-                    for (int i = 0; i < c.w; i++) {
-                        int h = col[X + i];
-                        if (h < colMin) colMin = h;
-                        if (h > colMax) colMax = h;
-                    }
                     for (auto& cell : c.cells) {
                         int need = col[X + cell.first] - cell.second;
                         if (need > yMin) yMin = need;
@@ -126,8 +120,7 @@ int main() {
                     int rightPieceTop = yMin + c.rightTopY + 1;
                     int leftExposed = (X > 0) ? max(0, leftPieceTop - col[X - 1]) : 0;
                     int rightExposed = (X + c.w < W) ? max(0, rightPieceTop - col[X + c.w]) : 0;
-                    int footprintRange = colMax - colMin;
-                    int metric = top + waste + leftExposed + rightExposed + footprintRange;
+                    int metric = top + waste + leftExposed + rightExposed;
                     if (metric < bestMetric) {
                         bestMetric = metric;
                         bestY = yMin;
