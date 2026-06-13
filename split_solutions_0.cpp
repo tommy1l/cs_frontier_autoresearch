@@ -21,6 +21,8 @@ int main() {
         int minx, miny;
         vector<pair<int,int>> cells; // normalized [0,w) x [0,h)
         vector<pair<int,int>> bottomCols; // (cx, min cellY at cx)
+        int leftTopY;  // max cellY among cells with cx == 0
+        int rightTopY; // max cellY among cells with cx == w-1
     };
     vector<vector<Variant>> variants(n);
     vector<int> maxDim(n, 0), kSize(n, 0);
@@ -57,12 +59,17 @@ int main() {
                 v.cells = norm;
                 // norm is sorted by (x asc, y asc), so first per-x is the bottom cell.
                 int curX = -1;
+                int leftTopY = -1, rightTopY = -1;
                 for (auto& cell : norm) {
                     if (cell.first != curX) {
                         v.bottomCols.push_back(cell);
                         curX = cell.first;
                     }
+                    if (cell.first == 0) leftTopY = cell.second;
+                    if (cell.first == v.w - 1) rightTopY = cell.second;
                 }
+                v.leftTopY = leftTopY;
+                v.rightTopY = rightTopY;
                 variants[i].push_back(v);
             }
         }
@@ -109,7 +116,11 @@ int main() {
                         waste += (yMin + bc.second) - col[X + bc.first];
                     }
                     int top = yMin + c.h;
-                    int metric = top + waste;
+                    int leftPieceTop = yMin + c.leftTopY + 1;
+                    int rightPieceTop = yMin + c.rightTopY + 1;
+                    int leftExposed = (X > 0) ? max(0, leftPieceTop - col[X - 1]) : 0;
+                    int rightExposed = (X + c.w < W) ? max(0, rightPieceTop - col[X + c.w]) : 0;
+                    int metric = top + waste + leftExposed + rightExposed;
                     if (metric < bestMetric) {
                         bestMetric = metric;
                         bestY = yMin;
