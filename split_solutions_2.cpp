@@ -141,7 +141,7 @@ int main() {
 
             int log2m = 0;
             while ((1 << log2m) < m) log2m++;
-            int T_q = log2m + 4;
+            int T_q = log2m + 8;
 
             int Qbase = 0;
             { long long p4v = 1; while (p4v < m) { Qbase++; p4v *= 4; } }
