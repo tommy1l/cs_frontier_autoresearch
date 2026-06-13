@@ -87,43 +87,61 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
-        // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
-        // samples already resolved analytically.
+        // diag-anchor + two-diagonal sandwich: S main-diag samples at (idxv[t], idxv[t])
+        // PLUS S-1 inter-diagonal corner samples at (idxv[t], idxv[t+1]).
+        // Corner samples interleave between main-diag samples (sorted) and supply
+        // tighter LB/UB rectangles (idxv[t]*idxv[t+1] / (N-idxv[t]+1)*(N-idxv[t+1]+1))
+        // so the analytic-skip pathway resolves MORE samples in/near the ambig band.
         int S = max(4, (int)cbrt((double)N) + 1);
-        vector<long long> samp(S);
+        vector<long long> samp(S), samp_sand(S - 1);
         vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
             idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
             samp[t] = query(idxv[t], idxv[t]);
         }
-        // samp[] is non-decreasing (main diagonal monotone). LB(t)=idxv[t]^2,
-        // UB(t)=M-(N-idxv[t]+1)^2+1. Both monotone in t.
-        // analyt_lo = last t with UB(t) < K (v_t strictly below answer).
-        // analyt_hi = first t with LB(t) >= K (v_t at-or-above answer).
-        int analyt_lo = -1, analyt_hi = S;
-        for (int t = 0; t < S; t++) {
-            long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
-            if (ubcount < K) analyt_lo = t;
+        for (int t = 0; t < S - 1; t++) {
+            samp_sand[t] = query(idxv[t], idxv[t + 1]);
         }
-        for (int t = S - 1; t >= 0; t--) {
-            long long lbcount = (long long)idxv[t] * idxv[t];
-            if (lbcount >= K) analyt_hi = t;
+
+        // Interleaved sorted samples: samp[0], samp_sand[0], samp[1], samp_sand[1], ..., samp[S-1]
+        // (sorted because a[i][i] <= a[i][j+] <= a[i+][j+] = a[i+][i+]).
+        int TS = 2 * S - 1;
+        vector<long long> vals(TS);
+        vector<long long> lbcnt(TS), ubcnt(TS);
+        for (int k = 0; k < TS; k++) {
+            int t = k / 2;
+            if (k % 2 == 0) {
+                vals[k] = samp[t];
+                lbcnt[k] = (long long)idxv[t] * idxv[t];
+                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
+            } else {
+                vals[k] = samp_sand[t];
+                lbcnt[k] = (long long)idxv[t] * idxv[t + 1];
+                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t + 1] + 1) + 1;
+            }
         }
-        long long Lbound = (analyt_lo >= 0) ? samp[analyt_lo] + 1 : 1;
-        long long Hbound = (analyt_hi < S) ? samp[analyt_hi] : (long long)2e18;
-        // Binary search within unknown band [analyt_lo+1 .. analyt_hi-1] using countLE.
+
+        int analyt_lo = -1, analyt_hi = TS;
+        for (int k = 0; k < TS; k++) {
+            if (ubcnt[k] < K) analyt_lo = k;
+        }
+        for (int k = TS - 1; k >= 0; k--) {
+            if (lbcnt[k] >= K) analyt_hi = k;
+        }
+        long long Lbound = (analyt_lo >= 0) ? vals[analyt_lo] + 1 : 1;
+        long long Hbound = (analyt_hi < TS) ? vals[analyt_hi] : (long long)2e18;
+        // Binary search within unknown band using countLE.
         int ilo_s = analyt_lo;
         int ihi_s = analyt_hi;
         while (ihi_s - ilo_s > 1) {
             int mid = (ilo_s + ihi_s) / 2;
-            long long c = countLE(samp[mid], K);
+            long long c = countLE(vals[mid], K);
             if (c >= K) {
                 ihi_s = mid;
-                if (samp[mid] < Hbound) Hbound = samp[mid];
+                if (vals[mid] < Hbound) Hbound = vals[mid];
             } else {
                 ilo_s = mid;
-                if (samp[mid] + 1 > Lbound) Lbound = samp[mid] + 1;
+                if (vals[mid] + 1 > Lbound) Lbound = vals[mid] + 1;
             }
         }
         if (Lbound > Hbound) Lbound = Hbound;
