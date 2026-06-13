@@ -211,7 +211,7 @@ int main() {
             // Adaptive extension: if enum input too large, send more queries
             // and tighten C[j] via decisive r=0/3 filter, avoiding the costly
             // fall-through to pair-BS (which wastes the T_q queries spent here).
-            int T_max_ext = T_q + 6;
+            int T_max_ext = T_q + 10;
             while (decode_ok && total > ENUM_LIMIT && T_q < T_max_ext) {
                 int t = T_q;
                 M.push_back(vector<int>(m));
@@ -314,6 +314,57 @@ int main() {
                         next_v += 3;
                         used_trio = true;
                     }
+                }
+            }
+
+            // ===== C-set BS fallback (alternative decoder on spent trio queries) =====
+            // When enum was infeasible (total > ENUM_LIMIT or empty triples or overflow),
+            // recover all 3 values by single-value BS on each C[j] instead of wasting
+            // the T_q packed queries and restarting via pair-BS.
+            if (!used_trio && decode_ok && !C[0].empty() && !C[1].empty() && !C[2].empty()) {
+                int v_vals[3] = {v0, v1, v2};
+                int found_idx[3] = {-1, -1, -1};
+                bool cset_ok = true;
+
+                for (int j = 0; j < 3 && cset_ok; j++) {
+                    vector<int> cand_idx;
+                    cand_idx.reserve(C[j].size());
+                    for (int idx : C[j]) {
+                        bool skip = false;
+                        for (int k = 0; k < j; k++) if (idx == found_idx[k]) { skip = true; break; }
+                        if (!skip) cand_idx.push_back(idx);
+                    }
+                    if (cand_idx.empty()) { cset_ok = false; break; }
+                    sort(cand_idx.begin(), cand_idx.end());
+
+                    int lo = 0, hi = (int)cand_idx.size() - 1;
+                    while (lo < hi) {
+                        int mid = (lo + hi) / 2;
+                        vector<int> q(n);
+                        for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
+                        for (int k = lo; k <= mid; k++) {
+                            q[U[cand_idx[k]] - 1] = v_vals[j];
+                        }
+                        int ans = do_query(q);
+                        int delta = ans - constMatch;
+                        if (delta >= 1) hi = mid;
+                        else lo = mid + 1;
+                    }
+                    found_idx[j] = cand_idx[lo];
+                }
+
+                if (cset_ok) {
+                    p[U[found_idx[0]]] = v0;
+                    p[U[found_idx[1]]] = v1;
+                    p[U[found_idx[2]]] = v2;
+                    vector<int> newU;
+                    for (int idx = 0; idx < m; idx++) {
+                        if (idx != found_idx[0] && idx != found_idx[1] && idx != found_idx[2])
+                            newU.push_back(U[idx]);
+                    }
+                    U = move(newU);
+                    next_v += 3;
+                    used_trio = true;
                 }
             }
         }
