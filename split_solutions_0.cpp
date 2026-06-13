@@ -25,7 +25,7 @@ int main() {
         int rightTopY; // max cellY among cells with cx == w-1
     };
     vector<vector<Variant>> variants(n);
-    vector<int> maxDim(n, 0), kSize(n, 0);
+    vector<int> maxDim(n, 0), kSize(n, 0), concavity(n, 0);
 
     for (int i = 0; i < n; i++) {
         set<vector<pair<int,int>>> seen;
@@ -75,13 +75,15 @@ int main() {
         }
         maxDim[i] = max(variants[i][0].w, variants[i][0].h);
         kSize[i] = (int)pieces[i].size();
+        concavity[i] = variants[i][0].w * variants[i][0].h - kSize[i];
     }
 
-    // Rotation-invariant sort: largest max dimension first, tiebreak by k.
+    // Rotation-invariant sort: largest max dimension first, bumpy (high concavity) before rectangular, then k.
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
         if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
+        if (concavity[a] != concavity[b]) return concavity[a] > concavity[b];
         return kSize[a] > kSize[b];
     });
 
