@@ -52,18 +52,18 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // naive-bsearch-walk: pollution-free brute neighbor test per chain step.
-        // Per step: 1 query, S={cur}, for each unplaced u: [u, u].
-        // bit after [u in] = adj(cur, u); bit after [u out] = 0.
-        // No pollution: |S| <= 2, never two unplaced together.
-        // Cost: per step ~2m ops; total ~n^2 ops -> budget cap hits mid-walk
-        // -> identity-fill remainder -> subtask 2 still wrong. Isolates
-        // pollution as a variable; budget still the limiting wall.
+        // NEW REGIME "naive-bsearch-walk":
+        // Closes end-to-end with bsearch chain walk: log_2(m) queries per step,
+        // each toggling half of unplaced in/out. Cost ~4m per step => O(n^2).
+        // Pollution from U-U internal adjacencies will likely flip top-level
+        // decisions (|L|=m/2 has many internal edges), degrading accuracy.
+        // Budget-capped at 2.5e8 ops; identity-fill on exhaustion.
+        // Goal: deliver a deterministic non-identity guess end-to-end so the
+        // advisor can score a real closure attempt (vs. partial skeletons).
 
-        long long opCap = 280000000LL;
+        long long opCap = 250000000LL;
         long long opsUsed = 0;
 
-        // Phase 1: find N(1). Query: [1, 2,2, 3,3, ..., n,n]. After: S={1}.
         long long L0 = 1LL + 2LL * (n - 1);
         cout << L0;
         cout << ' ' << 1;
@@ -103,9 +103,8 @@ int main() {
         placed[nbA] = placed[1] = placed[nbB] = 1;
 
         int prev = 1, cur = nbB;
-        int curS = 1; // S = {1} after Phase 1
+        int curS = 1; // currently S = {1} after round 0
 
-        bool exhausted = false;
         while ((int)chain.size() < n) {
             vector<int> U;
             U.reserve(n);
@@ -118,60 +117,56 @@ int main() {
                 break;
             }
 
-            vector<int> ops;
-            ops.reserve(2 + 2LL * m);
-            int switchOps = 0;
             if (curS != cur) {
-                ops.push_back(curS);
-                ops.push_back(cur);
-                switchOps = 2;
-            }
-            for (int u : U) {
-                ops.push_back(u);
-                ops.push_back(u);
-            }
-
-            long long Lq = ops.size();
-            if (opsUsed + Lq > opCap) {
-                exhausted = true;
-                break;
+                vector<int> tOps = {curS, cur};
+                long long Lt = tOps.size();
+                if (opsUsed + Lt > opCap) break;
+                cout << Lt;
+                for (int x : tOps) cout << ' ' << x;
+                cout << '\n';
+                cout.flush();
+                vector<int> rt(Lt);
+                for (long long k = 0; k < Lt; k++) cin >> rt[k];
+                opsUsed += Lt;
+                curS = cur;
             }
 
-            cout << Lq;
-            for (int x : ops) cout << ' ' << x;
-            cout << '\n';
-            cout.flush();
-            opsUsed += Lq;
+            int lo = 0, hi = m;
+            bool aborted = false;
+            while (hi - lo > 1) {
+                int mid = (lo + hi) / 2;
+                int sz = mid - lo;
+                vector<int> ops;
+                ops.reserve(2LL * sz);
+                for (int i = lo; i < mid; i++) ops.push_back(U[i]);
+                for (int i = mid - 1; i >= lo; i--) ops.push_back(U[i]);
+                long long Lq = ops.size();
+                if (opsUsed + Lq > opCap) { aborted = true; break; }
+                cout << Lq;
+                for (int x : ops) cout << ' ' << x;
+                cout << '\n';
+                cout.flush();
+                vector<int> r(Lq);
+                for (long long k = 0; k < Lq; k++) cin >> r[k];
+                opsUsed += Lq;
 
-            vector<int> r(Lq);
-            for (long long k = 0; k < Lq; k++) cin >> r[k];
-
-            curS = cur;
-
-            int nxt = -1;
-            for (int j = 0; j < m; j++) {
-                int bitIn = r[switchOps + 2 * j];
-                if (bitIn == 1) {
-                    nxt = U[j];
-                    break;
-                }
+                // POLLUTION assumption: bit after last "in" tells if cur adj to U[lo..mid).
+                int bitTest = r[sz - 1];
+                if (bitTest == 1) hi = mid;
+                else lo = mid;
             }
 
-            if (nxt == -1) {
-                exhausted = true;
-                break;
-            }
+            if (aborted) break;
 
+            int nxt = U[lo];
             chain.push_back(nxt);
             placed[nxt] = 1;
             prev = cur;
             cur = nxt;
         }
 
-        if (exhausted) {
-            for (int v = 1; v <= n; v++) {
-                if (!placed[v]) chain.push_back(v);
-            }
+        for (int v = 1; v <= n; v++) {
+            if (!placed[v]) chain.push_back(v);
         }
 
         cout << -1;
