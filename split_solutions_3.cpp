@@ -1,18 +1,36 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+int N;
+long long opsUsed = 0;
+vector<char> inSet;
+
+vector<int> doQuery(const vector<int>& ops) {
+    long long L = ops.size();
+    cout << L;
+    for (int x : ops) cout << ' ' << x;
+    cout << '\n';
+    cout.flush();
+    opsUsed += L;
+    vector<int> resp(L);
+    for (long long k = 0; k < L; k++) cin >> resp[k];
+    for (int x : ops) inSet[x] ^= 1;
+    return resp;
+}
+
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
 
-    int subtask, n;
-    cin >> subtask >> n;
+    int subtask;
+    cin >> subtask >> N;
+    inSet.assign(N + 1, 0);
 
-    if (n <= 1000) {
-        long long L = 2LL * n * (n - 1);
+    if (N <= 1000) {
+        long long L = 2LL * N * (N - 1);
         cout << L;
-        for (int i = 1; i <= n; i++) {
-            for (int j = i + 1; j <= n; j++) {
+        for (int i = 1; i <= N; i++) {
+            for (int j = i + 1; j <= N; j++) {
                 cout << ' ' << i << ' ' << j << ' ' << j << ' ' << i;
             }
         }
@@ -22,10 +40,10 @@ int main() {
         vector<int> resp(L);
         for (long long k = 0; k < L; k++) cin >> resp[k];
 
-        vector<vector<int>> adj(n + 1);
+        vector<vector<int>> adj(N + 1);
         long long idx = 0;
-        for (int i = 1; i <= n; i++) {
-            for (int j = i + 1; j <= n; j++) {
+        for (int i = 1; i <= N; i++) {
+            for (int j = i + 1; j <= N; j++) {
                 if (resp[idx + 1] == 1) {
                     adj[i].push_back(j);
                     adj[j].push_back(i);
@@ -35,10 +53,10 @@ int main() {
         }
 
         vector<int> perm;
-        perm.reserve(n);
+        perm.reserve(N);
         perm.push_back(1);
         int prev = -1, cur = 1;
-        for (int step = 1; step < n; step++) {
+        for (int step = 1; step < N; step++) {
             int nxt = -1;
             for (int v : adj[cur]) if (v != prev) { nxt = v; break; }
             if (nxt == -1) break;
@@ -51,162 +69,193 @@ int main() {
         for (int x : perm) cout << ' ' << x;
         cout << '\n';
         cout.flush();
-    } else {
-        // NEW REGIME "bit-fingerprint":
-        // Replace the K*n Phase 0 probe with a log2(K)-query bit-indexed scheme.
-        // For each bit b in 0..BITS-1, set S = {anchors with bit b set in their index}.
-        // |S| ~ K/2 = 24 random anchors on the ring; expected #adj-pairs in S ~ 5e-3,
-        // so A(S) = 0 with prob ~0.994. Probe each non-anchor v with (v,v):
-        // response = "v adj to some anchor in S" = bit b of (OR of v's anchor-nbr indices).
-        // After BITS queries, sigVals[v] = label-OR of v's anchor neighbors (0 if none).
-        // Cost ~6 * 2n = 1.2e6 ops (vs 1e7 for old Phase 0). Then chain walk with
-        // budget-capped per-step probe fallback.
+        return 0;
+    }
 
-        const int K = 49;
-        const int BITS = 6;
-        const long long opCap = 14000000LL;
-        long long opsUsed = 0;
+    // n large: bit-fingerprint Phase 0 + ITERATIVE Phase 1 endpoint expansion.
+    // No in-walk per-step (v,v) probe (DIRECTIVES.AVOID).
+    const int K = 49;
+    const int BITS_K = 6;
+    const long long opCap = 14000000LL;
 
-        vector<vector<int>> nbrs(n + 1);
-        vector<char> inS(n + 1, 0);
-        vector<int> sigVals(n + 1, 0);
+    // Phase 0: identify anchor neighbors via log2(K) bit queries
+    vector<int> sigVals(N + 1, 0);
+    for (int b = 0; b < BITS_K; b++) {
+        vector<int> ops;
+        int transCount = 0;
+        for (int a = 1; a <= K; a++) {
+            int want = (a >> b) & 1;
+            if (want != inSet[a]) {
+                ops.push_back(a);
+                transCount++;
+            }
+        }
+        for (int v = K + 1; v <= N; v++) {
+            ops.push_back(v);
+            ops.push_back(v);
+        }
+        vector<int> resp = doQuery(ops);
+        for (int v = K + 1; v <= N; v++) {
+            long long idx = (long long)transCount + 2LL * (v - K - 1);
+            if (resp[idx] == 1) sigVals[v] |= (1 << b);
+        }
+    }
 
-        for (int b = 0; b < BITS; b++) {
+    // Cleanup S to empty
+    {
+        vector<int> ops;
+        for (int a = 1; a <= K; a++) if (inSet[a]) ops.push_back(a);
+        if (!ops.empty()) doQuery(ops);
+    }
+
+    // Initialize chain segments from sigVals
+    vector<vector<int>> chains(K + 1);
+    vector<char> placed(N + 1, 0);
+    {
+        vector<vector<int>> anchorNbrs(K + 1);
+        for (int v = K + 1; v <= N; v++) {
+            int s = sigVals[v];
+            if (s >= 1 && s <= K) anchorNbrs[s].push_back(v);
+        }
+        for (int a = 1; a <= K; a++) {
+            chains[a].push_back(a);
+            placed[a] = 1;
+            if ((int)anchorNbrs[a].size() == 2) {
+                int u = anchorNbrs[a][0], w = anchorNbrs[a][1];
+                chains[a] = {u, a, w};
+                placed[u] = placed[w] = 1;
+            } else if ((int)anchorNbrs[a].size() == 1) {
+                int u = anchorNbrs[a][0];
+                chains[a].push_back(u);
+                placed[u] = 1;
+            }
+        }
+    }
+
+    // Iterative Phase 1+: expand chain endpoints via bit-fingerprint.
+    // Each iteration uses current chain endpoints (non-anchor, outermost) as
+    // fingerprint references, finds each unknown's adjacent endpoint, and
+    // extends the chain by 1 on each side. Loops until budget exhausted or
+    // no further extension is possible.
+    while (true) {
+        vector<int> endpoints;
+        vector<int> endpointChain;
+        vector<int> endpointSide; // 0 = front, 1 = back
+        for (int a = 1; a <= K; a++) {
+            int sz = chains[a].size();
+            if (sz < 2) continue;
+            int eFront = chains[a].front();
+            int eBack = chains[a].back();
+            if (eFront != a) {
+                endpoints.push_back(eFront);
+                endpointChain.push_back(a);
+                endpointSide.push_back(0);
+            }
+            if (eBack != a && eBack != eFront) {
+                endpoints.push_back(eBack);
+                endpointChain.push_back(a);
+                endpointSide.push_back(1);
+            }
+        }
+
+        int E = endpoints.size();
+        if (E == 0) break;
+
+        int eBits = 0;
+        while ((1 << eBits) < E + 1) eBits++;
+
+        long long unknowns = 0;
+        for (int v = 1; v <= N; v++) if (!placed[v]) unknowns++;
+        if (unknowns == 0) break;
+
+        long long phaseCost = (long long)eBits * (2LL * unknowns + E);
+        if (opsUsed + phaseCost > opCap) break;
+
+        vector<int> sig2(N + 1, 0);
+        for (int b = 0; b < eBits; b++) {
             vector<int> ops;
             int transCount = 0;
-            for (int a = 1; a <= K; a++) {
-                int want = (a >> b) & 1;
-                if (want != inS[a]) {
-                    ops.push_back(a);
+            for (int i = 0; i < E; i++) {
+                int idx1based = i + 1;
+                int want = (idx1based >> b) & 1;
+                if (want != inSet[endpoints[i]]) {
+                    ops.push_back(endpoints[i]);
                     transCount++;
                 }
             }
-            for (int v = K + 1; v <= n; v++) {
+            for (int v = 1; v <= N; v++) {
+                if (placed[v]) continue;
                 ops.push_back(v);
                 ops.push_back(v);
             }
+            vector<int> resp = doQuery(ops);
 
-            long long L = ops.size();
-            cout << L;
-            for (int x : ops) cout << ' ' << x;
-            cout << '\n';
-            cout.flush();
-            opsUsed += L;
-
-            vector<int> resp(L);
-            for (long long k = 0; k < L; k++) cin >> resp[k];
-
-            for (int x : ops) inS[x] ^= 1;
-
-            for (int v = K + 1; v <= n; v++) {
-                long long idx = (long long)transCount + 2LL * (v - K - 1);
-                if (resp[idx] == 1) sigVals[v] |= (1 << b);
+            int idx = transCount;
+            for (int v = 1; v <= N; v++) {
+                if (placed[v]) continue;
+                if (resp[idx] == 1) sig2[v] |= (1 << b);
+                idx += 2;
             }
         }
 
-        // Restore S to empty before chain walk
+        // Cleanup S to empty
         {
             vector<int> ops;
-            for (int a = 1; a <= K; a++) if (inS[a]) ops.push_back(a);
-            if (!ops.empty()) {
-                long long L = ops.size();
-                cout << L;
-                for (int x : ops) cout << ' ' << x;
-                cout << '\n';
-                cout.flush();
-                opsUsed += L;
-                vector<int> resp(L);
-                for (long long k = 0; k < L; k++) cin >> resp[k];
-                for (int x : ops) inS[x] ^= 1;
+            for (int e : endpoints) if (inSet[e]) ops.push_back(e);
+            if (!ops.empty()) doQuery(ops);
+        }
+
+        // Map sig2 -> endpoint claim. Each endpoint should be claimed by
+        // exactly one unknown (its non-chain ring neighbor).
+        vector<int> newNbr(E, 0);
+        vector<int> claimsCount(E, 0);
+        for (int v = 1; v <= N; v++) {
+            if (placed[v]) continue;
+            int s = sig2[v];
+            if (s >= 1 && s <= E) {
+                claimsCount[s - 1]++;
+                newNbr[s - 1] = v;
             }
         }
 
-        // Build nbrs from signatures. sigVals[v] in [1..K] means v adj to single anchor s.
-        for (int v = K + 1; v <= n; v++) {
-            int s = sigVals[v];
-            if (s >= 1 && s <= K) {
-                nbrs[s].push_back(v);
-                nbrs[v].push_back(s);
+        bool extended = false;
+        for (int i = 0; i < E; i++) {
+            if (claimsCount[i] != 1) continue;
+            int v = newNbr[i];
+            if (placed[v]) continue;
+            int a = endpointChain[i];
+            int side = endpointSide[i];
+            if (side == 0) {
+                chains[a].insert(chains[a].begin(), v);
+            } else {
+                chains[a].push_back(v);
             }
+            placed[v] = 1;
+            extended = true;
         }
 
-        vector<int> chain;
-        vector<char> placed(n + 1, 0);
-        int curSetVertex = 0;
-
-        if (nbrs[1].size() >= 2) {
-            int a = nbrs[1][0], b = nbrs[1][1];
-            chain.push_back(a); placed[a] = 1;
-            chain.push_back(1); placed[1] = 1;
-            chain.push_back(b); placed[b] = 1;
-
-            while ((int)chain.size() < n) {
-                int prev = chain[chain.size() - 2];
-                int cur = chain.back();
-                int nxt = -1;
-
-                for (int v : nbrs[cur]) {
-                    if (v != prev && !placed[v]) { nxt = v; break; }
-                }
-
-                if (nxt == -1) {
-                    int remaining = n - (int)chain.size();
-                    long long switchOps = (curSetVertex == cur) ? 0LL : ((curSetVertex == 0) ? 1LL : 2LL);
-                    long long opsNeeded = switchOps + 2LL * remaining;
-                    if (opsUsed + opsNeeded > opCap) break;
-
-                    vector<int> q;
-                    q.reserve(opsNeeded);
-                    if (curSetVertex != cur) {
-                        if (curSetVertex != 0) q.push_back(curSetVertex);
-                        q.push_back(cur);
-                    }
-                    for (int v = 1; v <= n; v++) {
-                        if (placed[v] || v == cur) continue;
-                        q.push_back(v);
-                        q.push_back(v);
-                    }
-                    long long Lqq = q.size();
-                    cout << Lqq;
-                    for (int x : q) cout << ' ' << x;
-                    cout << '\n';
-                    cout.flush();
-                    opsUsed += Lqq;
-
-                    vector<int> rq(Lqq);
-                    for (long long k = 0; k < Lqq; k++) cin >> rq[k];
-
-                    long long pidx = switchOps;
-                    curSetVertex = cur;
-
-                    for (int v = 1; v <= n; v++) {
-                        if (placed[v] || v == cur) continue;
-                        if (rq[pidx] == 1) {
-                            nbrs[cur].push_back(v);
-                            nbrs[v].push_back(cur);
-                        }
-                        pidx += 2;
-                    }
-
-                    for (int v : nbrs[cur]) {
-                        if (v != prev && !placed[v]) { nxt = v; break; }
-                    }
-                    if (nxt == -1) break;
-                }
-
-                chain.push_back(nxt);
-                placed[nxt] = 1;
-            }
-        }
-
-        for (int v = 1; v <= n; v++) {
-            if (!placed[v]) chain.push_back(v);
-        }
-
-        cout << -1;
-        for (int x : chain) cout << ' ' << x;
-        cout << '\n';
-        cout.flush();
+        if (!extended) break;
     }
+
+    // Output: anchor 1's chain, then remaining placed (deduped), then unplaced
+    vector<int> result;
+    vector<char> inResult(N + 1, 0);
+
+    for (int v : chains[1]) {
+        if (!inResult[v]) { result.push_back(v); inResult[v] = 1; }
+    }
+    for (int a = 2; a <= K; a++) {
+        for (int v : chains[a]) {
+            if (!inResult[v]) { result.push_back(v); inResult[v] = 1; }
+        }
+    }
+    for (int v = 1; v <= N; v++) {
+        if (!inResult[v]) { result.push_back(v); inResult[v] = 1; }
+    }
+
+    cout << -1;
+    for (int x : result) cout << ' ' << x;
+    cout << '\n';
+    cout.flush();
     return 0;
 }
