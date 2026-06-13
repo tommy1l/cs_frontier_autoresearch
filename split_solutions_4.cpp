@@ -75,6 +75,14 @@ static long long heapSelectMax(long long kk) {
     return last;
 }
 
+static inline int isqrt_ll(long long x) {
+    if (x <= 0) return 0;
+    int r = (int)sqrt((double)x);
+    while ((long long)(r + 1) * (r + 1) <= x) r++;
+    while (r > 0 && (long long)r * r > x) r--;
+    return r;
+}
+
 int main() {
     if (scanf("%d %lld", &N, &K) != 2) return 0;
     long long M = (long long)N * N;
@@ -87,20 +95,25 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
-        // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
-        // samples already resolved analytically.
+        // diag-anchor + K-aware sample band: every sample lies in the
+        // analytically-uncertain index band [k_lo, k_hi] where
+        //   k_hi = isqrt(K)             (LB(k_hi)=k_hi^2 <= K)
+        //   k_lo = N+1 - isqrt(M-K+1)   (UB(k_lo) >= K)
+        // Outside this band, samples would be resolvable a priori and waste a query.
+        int k_hi = min(N, isqrt_ll(K));
+        int k_lo = max(1, N + 1 - isqrt_ll(M - K + 1));
+        if (k_lo > k_hi) k_lo = k_hi;
         int S = max(4, (int)cbrt((double)N) + 1);
+        int bandW = k_hi - k_lo + 1;
+        if (S > bandW) S = bandW;
         vector<long long> samp(S);
         vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
-            idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
+            if (S == 1) idxv[t] = k_lo;
+            else idxv[t] = k_lo + (int)((long long)t * (k_hi - k_lo) / (S - 1));
             samp[t] = query(idxv[t], idxv[t]);
         }
-        // samp[] is non-decreasing (main diagonal monotone). LB(t)=idxv[t]^2,
-        // UB(t)=M-(N-idxv[t]+1)^2+1. Both monotone in t.
-        // analyt_lo = last t with UB(t) < K (v_t strictly below answer).
-        // analyt_hi = first t with LB(t) >= K (v_t at-or-above answer).
+        // Boundary samples may still be analytically resolvable (off-by-one of band edge).
         int analyt_lo = -1, analyt_hi = S;
         for (int t = 0; t < S; t++) {
             long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
@@ -112,7 +125,6 @@ int main() {
         }
         long long Lbound = (analyt_lo >= 0) ? samp[analyt_lo] + 1 : 1;
         long long Hbound = (analyt_hi < S) ? samp[analyt_hi] : (long long)2e18;
-        // Binary search within unknown band [analyt_lo+1 .. analyt_hi-1] using countLE.
         int ilo_s = analyt_lo;
         int ihi_s = analyt_hi;
         while (ihi_s - ilo_s > 1) {
@@ -127,7 +139,6 @@ int main() {
             }
         }
         if (Lbound > Hbound) Lbound = Hbound;
-        // Final value bisect in tightened range, with early-exit countLE.
         while (Lbound < Hbound) {
             long long mid = Lbound + (Hbound - Lbound) / 2;
             if (countLE(mid, K) >= K) Hbound = mid;
