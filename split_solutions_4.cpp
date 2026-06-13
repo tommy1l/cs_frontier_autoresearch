@@ -87,54 +87,37 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor + DOUBLE sandwich: S main-diag samples at (idxv[t], idxv[t])
-        // PLUS S-1 upper sandwich at (idxv[t], idxv[t+1]) AND S-1 lower (anti)
-        // sandwich at (idxv[t+1], idxv[t]). Both off-diag samples in each t-pair
-        // share the same per-sample LB/UB but typically have distinct values, so:
-        //   - smaller off-diag uses tightened UB from union(BR_upper, BR_lower)
-        //   - larger off-diag uses tightened LB from union(TL_upper, TL_lower)
-        // densifying the sample band AND tightening analytic-skip per pair.
+        // diag-anchor + two-diagonal sandwich: S main-diag samples at (idxv[t], idxv[t])
+        // PLUS S-1 inter-diagonal corner samples at (idxv[t], idxv[t+1]).
+        // Corner samples interleave between main-diag samples (sorted) and supply
+        // tighter LB/UB rectangles (idxv[t]*idxv[t+1] / (N-idxv[t]+1)*(N-idxv[t+1]+1))
+        // so the analytic-skip pathway resolves MORE samples in/near the ambig band.
         int S = max(4, (int)cbrt((double)N) + 1);
-        vector<long long> diag_v(S), upper_v(S - 1), lower_v(S - 1);
+        vector<long long> samp(S), samp_sand(S - 1);
         vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
             idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
-            diag_v[t] = query(idxv[t], idxv[t]);
+            samp[t] = query(idxv[t], idxv[t]);
         }
         for (int t = 0; t < S - 1; t++) {
-            upper_v[t] = query(idxv[t], idxv[t + 1]);
-            lower_v[t] = query(idxv[t + 1], idxv[t]);
+            samp_sand[t] = query(idxv[t], idxv[t + 1]);
         }
 
-        // Interleaved sorted layout per t: diag_v[t], min(off), max(off), diag_v[t+1], ...
-        // Sorted because diag_v[t] <= upper/lower[t] <= diag_v[t+1] (mono rows/cols).
-        int TS = 3 * S - 2;
+        // Interleaved sorted samples: samp[0], samp_sand[0], samp[1], samp_sand[1], ..., samp[S-1]
+        // (sorted because a[i][i] <= a[i][j+] <= a[i+][j+] = a[i+][i+]).
+        int TS = 2 * S - 1;
         vector<long long> vals(TS);
         vector<long long> lbcnt(TS), ubcnt(TS);
-        int pos = 0;
-        for (int t = 0; t < S; t++) {
-            vals[pos] = diag_v[t];
-            lbcnt[pos] = (long long)idxv[t] * idxv[t];
-            ubcnt[pos] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
-            pos++;
-            if (t < S - 1) {
-                long long it = idxv[t], it1 = idxv[t + 1];
-                long long lo = min(upper_v[t], lower_v[t]);
-                long long hi = max(upper_v[t], lower_v[t]);
-                long long lb_single = it * it1;
-                long long ub_single = M - (long long)(N - it + 1) * (N - it1 + 1) + 1;
-                long long lb_union = 2 * it * it1 - it * it;
-                long long bru = (long long)(N - it + 1) * (N - it1 + 1);
-                long long inter = (long long)(N - it1 + 1) * (N - it1 + 1);
-                long long ub_union = M - 2 * bru + inter + 1;
-                vals[pos] = lo;
-                lbcnt[pos] = lb_single;
-                ubcnt[pos] = ub_union;
-                pos++;
-                vals[pos] = hi;
-                lbcnt[pos] = lb_union;
-                ubcnt[pos] = ub_single;
-                pos++;
+        for (int k = 0; k < TS; k++) {
+            int t = k / 2;
+            if (k % 2 == 0) {
+                vals[k] = samp[t];
+                lbcnt[k] = (long long)idxv[t] * idxv[t];
+                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
+            } else {
+                vals[k] = samp_sand[t];
+                lbcnt[k] = (long long)idxv[t] * idxv[t + 1];
+                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t + 1] + 1) + 1;
             }
         }
 
