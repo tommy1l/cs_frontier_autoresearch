@@ -35,64 +35,16 @@ int main() {
 
     vector<int> p(n + 1, 0);
 
-    // ===== Phase 1: joint bit-split BS for pos(1), pos(2) =====
-    int log_n = 0;
-    while ((1 << log_n) < n) log_n++;
-
-    int kP1 = 0, kP2 = 0, kMask = 0, uMask = 0;
-    for (int b = 0; b < log_n; b++) {
-        vector<int> q(n, 1);
-        for (int j = 1; j <= n; j++) if ((j - 1) >> b & 1) q[j - 1] = 2;
-        int ans = do_query(q);
-        if (ans == 0) { kP1 |= (1 << b); kMask |= (1 << b); }
-        else if (ans == 2) { kP2 |= (1 << b); kMask |= (1 << b); }
-        else { uMask |= (1 << b); }
-    }
-    vector<int> ub;
-    for (int b = 0; b < log_n; b++) if (uMask >> b & 1) ub.push_back(b);
-
-    vector<int> candP1, candP2;
-    for (int mask = 0; mask < (1 << (int)ub.size()); mask++) {
-        int v = 0;
-        for (int i = 0; i < (int)ub.size(); i++) if (mask >> i & 1) v |= (1 << ub[i]);
-        int p1 = (kP1 | v) + 1, p2 = (kP2 | v) + 1;
-        if (p1 >= 1 && p1 <= n && p2 >= 1 && p2 <= n && p1 != p2) {
-            candP1.push_back(p1); candP2.push_back(p2);
-        }
-    }
-    int pos1, pos2;
-    if (candP1.size() == 1) { pos1 = candP1[0]; pos2 = candP2[0]; }
-    else {
-        vector<int> sortedP1 = candP1;
-        sort(sortedP1.begin(), sortedP1.end());
-        sortedP1.erase(unique(sortedP1.begin(), sortedP1.end()), sortedP1.end());
-
-        int lo = 0, hi = (int)sortedP1.size() - 1;
-        while (lo < hi) {
-            int mid = (lo + hi) / 2;
-            vector<bool> inS(n + 1, false);
-            for (int k = lo; k <= mid; k++) inS[sortedP1[k]] = true;
-            vector<int> q(n, 1);
-            for (int j = 1; j <= n; j++) if (inS[j]) q[j - 1] = 2;
-            int ans = do_query(q);
-            if (ans == 0) hi = mid;
-            else lo = mid + 1;
-        }
-        pos1 = sortedP1[lo];
-        int v_final = (pos1 - 1) & uMask;
-        pos2 = (kP2 | v_final) + 1;
-    }
-    p[pos1] = 1;
-    p[pos2] = 2;
-
     // ===== Phase 2: TRIO-JOINT (m >= 16) -> pair-BS -> tail-brute =====
+    // (Phase 1 BS removed: packed-multi-value quad-MIM below starts at value 1
+    //  and jointly recovers pos(1..4) in T_q queries, replacing log_n BS rounds.)
     vector<int> U;
-    for (int i = 1; i <= n; i++) if (p[i] == 0) U.push_back(i);
+    for (int i = 1; i <= n; i++) U.push_back(i);
 
     const int TAIL = 8;
     const int TRIO_MIN = 16;
     const int QUAD_MIN = 24;
-    int next_v = 3;
+    int next_v = 1;
 
     while (next_v <= n && !U.empty()) {
         int m = (int)U.size();
