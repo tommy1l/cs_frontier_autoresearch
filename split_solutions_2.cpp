@@ -85,15 +85,53 @@ int main() {
     p[pos1] = 1;
     p[pos2] = 2;
 
-    // ===== Phase 2: joint pair bit-split BS for (v1, v2) =====
+    // ===== Phase 2: joint pair bit-split BS for (v1, v2), with brute-force tail =====
     vector<int> U;
     for (int i = 1; i <= n; i++) if (p[i] == 0) U.push_back(i);
 
+    const int TAIL = 8;
     int next_v = 3;
-    while (next_v + 1 <= n) {
+    while (next_v <= n && !U.empty()) {
+        int m = (int)U.size();
+
+        if (m <= TAIL) {
+            // Brute-force tail: candidate-elimination over all m! permutations.
+            vector<int> V;
+            for (int i = 0; i < m; i++) V.push_back(next_v + i);
+
+            vector<int> perm(m);
+            iota(perm.begin(), perm.end(), 0);
+            vector<vector<int>> cands;
+            do {
+                vector<int> c(m);
+                for (int i = 0; i < m; i++) c[i] = V[perm[i]];
+                cands.push_back(c);
+            } while (next_permutation(perm.begin(), perm.end()));
+
+            while (cands.size() > 1) {
+                vector<int> q(n);
+                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : V[0];
+                for (int k = 0; k < m; k++) q[U[k] - 1] = cands[0][k];
+                int ans = do_query(q);
+                int delta = ans - (n - m);
+
+                vector<vector<int>> newC;
+                for (auto& c : cands) {
+                    int matches = 0;
+                    for (int k = 0; k < m; k++) if (c[k] == cands[0][k]) matches++;
+                    if (matches == delta) newC.push_back(c);
+                }
+                cands = move(newC);
+            }
+
+            for (int k = 0; k < m; k++) p[U[k]] = cands[0][k];
+            next_v += m;
+            U.clear();
+            break;
+        }
+
         int v1 = next_v, v2 = next_v + 1;
         next_v += 2;
-        int m = (int)U.size();
         if (m < 2) break;
 
         int constMatch = n - m;
