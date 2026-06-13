@@ -77,12 +77,20 @@ int main() {
         kSize[i] = (int)pieces[i].size();
     }
 
-    // Rotation-invariant sort: largest max dimension first, tiebreak by k.
+    // Rotation-invariant sort: largest max dimension first, then k, then chunkier (high min/max) first.
+    vector<int> aspectNum(n), aspectDen(n);
+    for (int i = 0; i < n; i++) {
+        int w = variants[i][0].w, h = variants[i][0].h;
+        aspectNum[i] = min(w, h);
+        aspectDen[i] = max(1, max(w, h));
+    }
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
         if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
-        return kSize[a] > kSize[b];
+        if (kSize[a] != kSize[b]) return kSize[a] > kSize[b];
+        // chunkier-first: aspectNum[a]/aspectDen[a] > aspectNum[b]/aspectDen[b]
+        return aspectNum[a] * aspectDen[b] > aspectNum[b] * aspectDen[a];
     });
 
     int bestSide = INT_MAX;
