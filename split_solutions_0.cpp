@@ -118,9 +118,18 @@ int main() {
                     int top = yMin + c.h;
                     int leftPieceTop = yMin + c.leftTopY + 1;
                     int rightPieceTop = yMin + c.rightTopY + 1;
-                    int leftExposed = (X > 0) ? max(0, leftPieceTop - col[X - 1]) : 0;
-                    int rightExposed = (X + c.w < W) ? max(0, rightPieceTop - col[X + c.w]) : 0;
-                    int metric = top + waste + leftExposed + rightExposed;
+                    int boundaryDelta = 0;
+                    if (X > 0) {
+                        int a = leftPieceTop - col[X - 1]; if (a < 0) a = -a;
+                        int b = col[X] - col[X - 1]; if (b < 0) b = -b;
+                        boundaryDelta += a - b;
+                    }
+                    if (X + c.w < W) {
+                        int a = rightPieceTop - col[X + c.w]; if (a < 0) a = -a;
+                        int b = col[X + c.w] - col[X + c.w - 1]; if (b < 0) b = -b;
+                        boundaryDelta += a - b;
+                    }
+                    int metric = top + waste + boundaryDelta;
                     if (metric < bestMetric) {
                         bestMetric = metric;
                         bestY = yMin;
