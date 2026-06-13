@@ -52,117 +52,136 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // NEW REGIME "naive-bsearch-walk":
-        // Closes end-to-end with bsearch chain walk: log_2(m) queries per step,
-        // each toggling half of unplaced in/out. Cost ~4m per step => O(n^2).
-        // Pollution from U-U internal adjacencies will likely flip top-level
-        // decisions (|L|=m/2 has many internal edges), degrading accuracy.
-        // Budget-capped at 2.5e8 ops; identity-fill on exhaustion.
-        // Goal: deliver a deterministic non-identity guess end-to-end so the
-        // advisor can score a real closure attempt (vs. partial skeletons).
+        // NEW REGIME "multi-anchor-batch":
+        // Honors DIRECTIVES.TRY "amortize many chain decisions into one query"
+        // and "exploit persistent-S so toggle cost is paid once and reused".
+        // Phase 0: ONE big query of ~K*2(n-1) ops identifies the 2 ring-neighbors
+        // of EACH anchor in {1..K=49}. Persistent-S {anchor} switched K-1 times
+        // (2 ops each switch), probing every other vertex with (v,v) per anchor.
+        // Phase 1: chain walk from anchor 1's segment, using anchor edges as
+        // shortcuts (free hops at anchors) plus budget-capped per-step probes.
 
-        long long opCap = 250000000LL;
+        const int K = 49;
+        const long long totalOpCap = 14000000LL;
         long long opsUsed = 0;
 
-        long long L0 = 1LL + 2LL * (n - 1);
+        vector<int> ops;
+        long long phase0Ops = 1LL + 2LL * (n - 1) + (long long)(K - 1) * (2LL + 2LL * (n - 1));
+        ops.reserve(phase0Ops);
+
+        ops.push_back(1);
+        for (int v = 2; v <= n; v++) {
+            ops.push_back(v);
+            ops.push_back(v);
+        }
+        for (int a = 2; a <= K; a++) {
+            ops.push_back(a - 1);
+            ops.push_back(a);
+            for (int v = 1; v <= n; v++) {
+                if (v == a) continue;
+                ops.push_back(v);
+                ops.push_back(v);
+            }
+        }
+
+        long long L0 = ops.size();
         cout << L0;
-        cout << ' ' << 1;
-        for (int v = 2; v <= n; v++) cout << ' ' << v << ' ' << v;
+        for (int x : ops) cout << ' ' << x;
         cout << '\n';
         cout.flush();
         opsUsed += L0;
 
-        vector<int> r0(L0);
-        for (long long k = 0; k < L0; k++) cin >> r0[k];
+        vector<int> resp(L0);
+        for (long long k = 0; k < L0; k++) cin >> resp[k];
 
-        int nbA = -1, nbB = -1;
-        for (int k = 0; k < n - 1; k++) {
-            int v = k + 2;
-            int bitOn = r0[1 + 2 * k];
-            if (bitOn == 1) {
-                if (nbA == -1) nbA = v;
-                else if (nbB == -1) nbB = v;
+        vector<vector<int>> nbrs(n + 1);
+        auto addEdge = [&](int u, int w) {
+            for (int x : nbrs[u]) if (x == w) return;
+            nbrs[u].push_back(w);
+            nbrs[w].push_back(u);
+        };
+        long long idx = 1;
+        for (int v = 2; v <= n; v++) {
+            if (resp[idx] == 1) addEdge(1, v);
+            idx += 2;
+        }
+        for (int a = 2; a <= K; a++) {
+            idx += 2;
+            for (int v = 1; v <= n; v++) {
+                if (v == a) continue;
+                if (resp[idx] == 1) addEdge(a, v);
+                idx += 2;
             }
         }
 
         vector<int> chain;
         vector<char> placed(n + 1, 0);
+        int curSetVertex = K;
 
-        if (nbA == -1 || nbB == -1) {
-            for (int v = 1; v <= n; v++) chain.push_back(v);
-            cout << -1;
-            for (int x : chain) cout << ' ' << x;
-            cout << '\n';
-            cout.flush();
-            return 0;
-        }
+        if (nbrs[1].size() >= 2) {
+            int a = nbrs[1][0], b = nbrs[1][1];
+            chain.push_back(a); placed[a] = 1;
+            chain.push_back(1); placed[1] = 1;
+            chain.push_back(b); placed[b] = 1;
 
-        chain.push_back(nbA);
-        chain.push_back(1);
-        chain.push_back(nbB);
-        placed[nbA] = placed[1] = placed[nbB] = 1;
+            while ((int)chain.size() < n) {
+                int prev = chain[chain.size() - 2];
+                int cur = chain.back();
+                int nxt = -1;
 
-        int prev = 1, cur = nbB;
-        int curS = 1; // currently S = {1} after round 0
+                for (int v : nbrs[cur]) {
+                    if (v != prev && !placed[v]) { nxt = v; break; }
+                }
 
-        while ((int)chain.size() < n) {
-            vector<int> U;
-            U.reserve(n);
-            for (int v = 1; v <= n; v++) if (!placed[v]) U.push_back(v);
-            int m = (int)U.size();
-            if (m == 0) break;
-            if (m == 1) {
-                chain.push_back(U[0]);
-                placed[U[0]] = 1;
-                break;
+                if (nxt == -1) {
+                    int remaining = n - (int)chain.size();
+                    long long opsNeeded = (curSetVertex != cur ? 2LL : 0LL) + 2LL * remaining;
+                    if (opsUsed + opsNeeded > totalOpCap) break;
+
+                    vector<int> q;
+                    q.reserve(opsNeeded);
+                    if (curSetVertex != cur) {
+                        q.push_back(curSetVertex);
+                        q.push_back(cur);
+                    }
+                    for (int v = 1; v <= n; v++) {
+                        if (placed[v] || v == cur) continue;
+                        q.push_back(v);
+                        q.push_back(v);
+                    }
+                    long long Lqq = q.size();
+                    cout << Lqq;
+                    for (int x : q) cout << ' ' << x;
+                    cout << '\n';
+                    cout.flush();
+                    opsUsed += Lqq;
+                    vector<int> rq(Lqq);
+                    for (long long k = 0; k < Lqq; k++) cin >> rq[k];
+
+                    long long pidx = (curSetVertex != cur) ? 2LL : 0LL;
+                    for (int v = 1; v <= n; v++) {
+                        if (placed[v] || v == cur) continue;
+                        if (rq[pidx] == 1) {
+                            bool already = false;
+                            for (int x : nbrs[cur]) if (x == v) { already = true; break; }
+                            if (!already) {
+                                nbrs[cur].push_back(v);
+                                nbrs[v].push_back(cur);
+                            }
+                        }
+                        pidx += 2;
+                    }
+                    curSetVertex = cur;
+
+                    for (int v : nbrs[cur]) {
+                        if (v != prev && !placed[v]) { nxt = v; break; }
+                    }
+                    if (nxt == -1) break;
+                }
+
+                chain.push_back(nxt);
+                placed[nxt] = 1;
             }
-
-            if (curS != cur) {
-                vector<int> tOps = {curS, cur};
-                long long Lt = tOps.size();
-                if (opsUsed + Lt > opCap) break;
-                cout << Lt;
-                for (int x : tOps) cout << ' ' << x;
-                cout << '\n';
-                cout.flush();
-                vector<int> rt(Lt);
-                for (long long k = 0; k < Lt; k++) cin >> rt[k];
-                opsUsed += Lt;
-                curS = cur;
-            }
-
-            int lo = 0, hi = m;
-            bool aborted = false;
-            while (hi - lo > 1) {
-                int mid = (lo + hi) / 2;
-                int sz = mid - lo;
-                vector<int> ops;
-                ops.reserve(2LL * sz);
-                for (int i = lo; i < mid; i++) ops.push_back(U[i]);
-                for (int i = mid - 1; i >= lo; i--) ops.push_back(U[i]);
-                long long Lq = ops.size();
-                if (opsUsed + Lq > opCap) { aborted = true; break; }
-                cout << Lq;
-                for (int x : ops) cout << ' ' << x;
-                cout << '\n';
-                cout.flush();
-                vector<int> r(Lq);
-                for (long long k = 0; k < Lq; k++) cin >> r[k];
-                opsUsed += Lq;
-
-                // POLLUTION assumption: bit after last "in" tells if cur adj to U[lo..mid).
-                int bitTest = r[sz - 1];
-                if (bitTest == 1) hi = mid;
-                else lo = mid;
-            }
-
-            if (aborted) break;
-
-            int nxt = U[lo];
-            chain.push_back(nxt);
-            placed[nxt] = 1;
-            prev = cur;
-            cur = nxt;
         }
 
         for (int v = 1; v <= n; v++) {
