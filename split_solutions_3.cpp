@@ -52,14 +52,14 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // Regime "naive-bsearch-walk", non-reverting persistent-prefix variant.
-        // Anchor (8cedb00) submitted [in...,out...] per bsearch level => ~2m ops/step.
-        // Here each level submits only the symmetric-diff toggle to move
-        // S = {cur} ∪ U[lit_lo..lit_hi) to the new test range U[lo..mid).
-        // Per-step worst case still O(m) (all-right path requires full revert),
-        // but expected closer to m vs 2m. Pollution behaviour unchanged
-        // (U[lo..mid) internal adj still flips top-level decisions).
-        // Goal: test whether shaving the toggle-out half changes the score wall.
+        // NEW REGIME "naive-bsearch-walk":
+        // Closes end-to-end with bsearch chain walk: log_2(m) queries per step,
+        // each toggling half of unplaced in/out. Cost ~4m per step => O(n^2).
+        // Pollution from U-U internal adjacencies will likely flip top-level
+        // decisions (|L|=m/2 has many internal edges), degrading accuracy.
+        // Budget-capped at 2.5e8 ops; identity-fill on exhaustion.
+        // Goal: deliver a deterministic non-identity guess end-to-end so the
+        // advisor can score a real closure attempt (vs. partial skeletons).
 
         long long opCap = 250000000LL;
         long long opsUsed = 0;
@@ -102,8 +102,8 @@ int main() {
         chain.push_back(nbB);
         placed[nbA] = placed[1] = placed[nbB] = 1;
 
-        int cur = nbB;
-        int curS = 1; // after round 0 toggles, S = {1}
+        int prev = 1, cur = nbB;
+        int curS = 1; // currently S = {1} after round 0
 
         while ((int)chain.size() < n) {
             vector<int> U;
@@ -117,10 +117,9 @@ int main() {
                 break;
             }
 
-            // Reset S to {cur}.
             if (curS != cur) {
                 vector<int> tOps = {curS, cur};
-                long long Lt = (long long)tOps.size();
+                long long Lt = tOps.size();
                 if (opsUsed + Lt > opCap) break;
                 cout << Lt;
                 for (int x : tOps) cout << ' ' << x;
@@ -132,36 +131,16 @@ int main() {
                 curS = cur;
             }
 
-            // Non-reverting bsearch.
-            // Invariant: S = {cur} ∪ U[lit_lo..lit_hi).
-            // Test by ensuring S has U[lo..mid). At end of each query, lit_lo/lit_hi = lo/mid.
             int lo = 0, hi = m;
-            int lit_lo = 0, lit_hi = 0;
             bool aborted = false;
-
             while (hi - lo > 1) {
                 int mid = (lo + hi) / 2;
-                // Symmetric difference of [lit_lo, lit_hi) and [lo, mid) as toggle ops.
+                int sz = mid - lo;
                 vector<int> ops;
-                int aL = lit_lo, aR = lit_hi, bL = lo, bR = mid;
-                if (aR <= bL || bR <= aL) {
-                    ops.reserve((aR - aL) + (bR - bL));
-                    for (int k = aL; k < aR; k++) ops.push_back(U[k]);
-                    for (int k = bL; k < bR; k++) ops.push_back(U[k]);
-                } else {
-                    int L_low = min(aL, bL), L_high = max(aL, bL);
-                    int R_low = min(aR, bR), R_high = max(aR, bR);
-                    ops.reserve((L_high - L_low) + (R_high - R_low));
-                    for (int k = L_low; k < L_high; k++) ops.push_back(U[k]);
-                    for (int k = R_low; k < R_high; k++) ops.push_back(U[k]);
-                }
-
-                if (ops.empty()) {
-                    // No diff; shouldn't happen for bsearch with mid != prev test ranges.
-                    break;
-                }
-
-                long long Lq = (long long)ops.size();
+                ops.reserve(2LL * sz);
+                for (int i = lo; i < mid; i++) ops.push_back(U[i]);
+                for (int i = mid - 1; i >= lo; i--) ops.push_back(U[i]);
+                long long Lq = ops.size();
                 if (opsUsed + Lq > opCap) { aborted = true; break; }
                 cout << Lq;
                 for (int x : ops) cout << ' ' << x;
@@ -171,50 +150,24 @@ int main() {
                 for (long long k = 0; k < Lq; k++) cin >> r[k];
                 opsUsed += Lq;
 
-                int bitTest = r[Lq - 1];
-                lit_lo = lo;
-                lit_hi = mid;
-
+                // POLLUTION assumption: bit after last "in" tells if cur adj to U[lo..mid).
+                int bitTest = r[sz - 1];
                 if (bitTest == 1) hi = mid;
                 else lo = mid;
             }
 
             if (aborted) break;
 
-            int nxt_idx = lo;
-            if (nxt_idx < 0 || nxt_idx >= m) break;
-            int nxt = U[nxt_idx];
+            int nxt = U[lo];
             chain.push_back(nxt);
             placed[nxt] = 1;
-
-            // Reset S = {nxt}: turn cur off, turn every lit U-element off (keep nxt if already lit, else turn on).
-            vector<int> resetOps;
-            resetOps.push_back(cur);
-            bool nxt_was_lit = (nxt_idx >= lit_lo && nxt_idx < lit_hi);
-            for (int k = lit_lo; k < lit_hi; k++) {
-                if (k == nxt_idx) continue;
-                resetOps.push_back(U[k]);
-            }
-            if (!nxt_was_lit) resetOps.push_back(nxt);
-
-            long long Lr = (long long)resetOps.size();
-            if (Lr > 0) {
-                if (opsUsed + Lr > opCap) { aborted = true; break; }
-                cout << Lr;
-                for (int x : resetOps) cout << ' ' << x;
-                cout << '\n';
-                cout.flush();
-                vector<int> rr(Lr);
-                for (long long k = 0; k < Lr; k++) cin >> rr[k];
-                opsUsed += Lr;
-            }
-
+            prev = cur;
             cur = nxt;
-            curS = nxt;
-            if (aborted) break;
         }
 
-        for (int v = 1; v <= n; v++) if (!placed[v]) chain.push_back(v);
+        for (int v = 1; v <= n; v++) {
+            if (!placed[v]) chain.push_back(v);
+        }
 
         cout << -1;
         for (int x : chain) cout << ' ' << x;
