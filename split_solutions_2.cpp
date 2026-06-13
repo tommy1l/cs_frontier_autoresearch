@@ -208,6 +208,53 @@ int main() {
             const long long ENUM_LIMIT = 5000000;
             long long total = (long long)C[0].size() * (long long)C[1].size() * (long long)C[2].size();
 
+            // Adaptive extension: if enum input too large, send more queries
+            // and tighten C[j] via decisive r=0/3 filter, avoiding the costly
+            // fall-through to pair-BS (which wastes the T_q queries spent here).
+            int T_max_ext = T_q + 6;
+            while (decode_ok && total > ENUM_LIMIT && T_q < T_max_ext) {
+                int t = T_q;
+                M.push_back(vector<int>(m));
+                unsigned int seed = (unsigned int)(t * 2654435761u) ^ 0xa5a5a5a5u;
+                for (int idx = 0; idx < m; idx++) {
+                    unsigned int h = (unsigned int)idx * 2246822519u + seed;
+                    h ^= (h >> 13);
+                    h *= 3266489917u;
+                    h ^= (h >> 16);
+                    M[t][idx] = (int)(h % 3u);
+                }
+
+                vector<int> q(n);
+                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : v0;
+                for (int idx = 0; idx < m; idx++) {
+                    int d = M[t][idx];
+                    int v = (d == 0) ? v0 : (d == 1) ? v1 : v2;
+                    q[U[idx] - 1] = v;
+                }
+                int ans = do_query(q);
+                int rt = ans - constMatch;
+                r.push_back(rt);
+
+                if (rt == 0) {
+                    for (int j = 0; j < 3; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] != j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                } else if (rt == 3) {
+                    for (int j = 0; j < 3; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] == j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                }
+
+                T_q++;
+                total = (long long)C[0].size() * (long long)C[1].size() * (long long)C[2].size();
+            }
+
             if (decode_ok && total > 0 && total <= ENUM_LIMIT) {
                 vector<tuple<int,int,int>> triples;
                 int trip_cap = 200000;
