@@ -23,7 +23,6 @@ int main() {
         vector<pair<int,int>> bottomCols; // (cx, min cellY at cx)
         int leftTopY;  // max cellY among cells with cx == 0
         int rightTopY; // max cellY among cells with cx == w-1
-        int topRough;  // max - min of per-column max cellY
     };
     vector<vector<Variant>> variants(n);
     vector<int> maxDim(n, 0), kSize(n, 0);
@@ -61,30 +60,16 @@ int main() {
                 // norm is sorted by (x asc, y asc), so first per-x is the bottom cell.
                 int curX = -1;
                 int leftTopY = -1, rightTopY = -1;
-                int curColMaxY = -1;
-                int topYMin = INT_MAX, topYMax = INT_MIN;
                 for (auto& cell : norm) {
                     if (cell.first != curX) {
-                        if (curX != -1) {
-                            if (curColMaxY < topYMin) topYMin = curColMaxY;
-                            if (curColMaxY > topYMax) topYMax = curColMaxY;
-                        }
                         v.bottomCols.push_back(cell);
                         curX = cell.first;
-                        curColMaxY = cell.second;
-                    } else {
-                        curColMaxY = cell.second;
                     }
                     if (cell.first == 0) leftTopY = cell.second;
                     if (cell.first == v.w - 1) rightTopY = cell.second;
                 }
-                if (curX != -1) {
-                    if (curColMaxY < topYMin) topYMin = curColMaxY;
-                    if (curColMaxY > topYMax) topYMax = curColMaxY;
-                }
                 v.leftTopY = leftTopY;
                 v.rightTopY = rightTopY;
-                v.topRough = (topYMax >= topYMin) ? (topYMax - topYMin) : 0;
                 variants[i].push_back(v);
             }
         }
@@ -135,7 +120,7 @@ int main() {
                     int rightPieceTop = yMin + c.rightTopY + 1;
                     int leftExposed = (X > 0) ? max(0, leftPieceTop - col[X - 1]) : 0;
                     int rightExposed = (X + c.w < W) ? max(0, rightPieceTop - col[X + c.w]) : 0;
-                    int metric = top + waste + leftExposed + rightExposed + c.topRough;
+                    int metric = top + waste + leftExposed + rightExposed;
                     if (metric < bestMetric) {
                         bestMetric = metric;
                         bestY = yMin;
