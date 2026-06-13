@@ -92,6 +92,7 @@ int main() {
     const int TAIL = 8;
     const int TRIO_MIN = 16;
     const int QUAD_MIN = 24;
+    const int QUINT_MIN = 64;
     int next_v = 3;
 
     while (next_v <= n && !U.empty()) {
@@ -135,8 +136,253 @@ int main() {
 
         bool placed = false;
 
+        // ===== Try QUINT-JOINT-MIM for m >= QUINT_MIN and >= 5 values left =====
+        if (m >= QUINT_MIN && next_v + 4 <= n) {
+            int v0 = next_v, v1 = next_v + 1, v2 = next_v + 2, v3 = next_v + 3, v4 = next_v + 4;
+            int v_arr[5] = {v0, v1, v2, v3, v4};
+
+            int log2m = 0;
+            while ((1 << log2m) < m) log2m++;
+            int T_q = log2m + 10;
+
+            int Qbase = 0;
+            { long long p5v = 1; while (p5v < m) { Qbase++; p5v *= 5; } }
+
+            vector<vector<int>> M(T_q, vector<int>(m));
+            long long pp5 = 1;
+            for (int t = 0; t < min(Qbase, T_q); t++) {
+                for (int idx = 0; idx < m; idx++) {
+                    M[t][idx] = (int)((idx / pp5) % 5);
+                }
+                pp5 *= 5;
+            }
+            for (int t = Qbase; t < T_q; t++) {
+                unsigned int seed = (unsigned int)(t * 2654435761u) ^ 0x5a5a5a5au;
+                for (int idx = 0; idx < m; idx++) {
+                    unsigned int h = (unsigned int)idx * 2246822519u + seed;
+                    h ^= (h >> 13);
+                    h *= 3266489917u;
+                    h ^= (h >> 16);
+                    M[t][idx] = (int)(h % 5u);
+                }
+            }
+
+            int constMatch = n - m;
+            vector<int> r(T_q);
+            for (int t = 0; t < T_q; t++) {
+                vector<int> q(n);
+                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : v0;
+                for (int idx = 0; idx < m; idx++) q[U[idx] - 1] = v_arr[M[t][idx]];
+                int ans = do_query(q);
+                r[t] = ans - constMatch;
+            }
+
+            vector<vector<int>> C(5);
+            for (int j = 0; j < 5; j++) {
+                C[j].reserve(m);
+                for (int idx = 0; idx < m; idx++) C[j].push_back(idx);
+            }
+            bool decode_ok = true;
+            for (int t = 0; t < T_q && decode_ok; t++) {
+                if (r[t] == 0) {
+                    for (int j = 0; j < 5; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] != j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                } else if (r[t] == 5) {
+                    for (int j = 0; j < 5; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] == j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                }
+            }
+
+            const long long PAIR_CAP_Q5 = 200000;
+            const long long TRIP_CAP_Q5 = 8000000;
+            int T_max_ext = T_q + 12;
+            long long pair01 = 0, trip234 = 0;
+            if (decode_ok) {
+                pair01 = (long long)C[0].size() * (long long)C[1].size();
+                trip234 = (long long)C[2].size() * (long long)C[3].size() * (long long)C[4].size();
+            }
+            while (decode_ok && (pair01 > PAIR_CAP_Q5 || trip234 > TRIP_CAP_Q5) && T_q < T_max_ext) {
+                int t = T_q;
+                M.push_back(vector<int>(m));
+                unsigned int seed = (unsigned int)(t * 2654435761u) ^ 0x5a5a5a5au;
+                for (int idx = 0; idx < m; idx++) {
+                    unsigned int h = (unsigned int)idx * 2246822519u + seed;
+                    h ^= (h >> 13);
+                    h *= 3266489917u;
+                    h ^= (h >> 16);
+                    M[t][idx] = (int)(h % 5u);
+                }
+                vector<int> q(n);
+                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : v0;
+                for (int idx = 0; idx < m; idx++) q[U[idx] - 1] = v_arr[M[t][idx]];
+                int ans = do_query(q);
+                int rt = ans - constMatch;
+                r.push_back(rt);
+                if (rt == 0) {
+                    for (int j = 0; j < 5; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] != j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                } else if (rt == 5) {
+                    for (int j = 0; j < 5; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] == j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                }
+                T_q++;
+                pair01 = (long long)C[0].size() * (long long)C[1].size();
+                trip234 = (long long)C[2].size() * (long long)C[3].size() * (long long)C[4].size();
+            }
+
+            // MIM 2-3 decoder: hash C[0]xC[1], iterate C[2]xC[3]xC[4]
+            if (decode_ok && !C[0].empty() && !C[1].empty() && !C[2].empty() && !C[3].empty() && !C[4].empty()
+                && pair01 <= PAIR_CAP_Q5 && trip234 <= TRIP_CAP_Q5) {
+                vector<int> ndT;
+                for (int t = 0; t < T_q; t++) if (r[t] != 0 && r[t] != 5) ndT.push_back(t);
+
+                if ((int)ndT.size() <= 30) {
+                    unordered_map<uint64_t, vector<pair<int,int>>> H;
+                    H.reserve((size_t)pair01 * 2 + 16);
+                    for (int i0 : C[0]) {
+                        for (int i1 : C[1]) {
+                            if (i1 == i0) continue;
+                            uint64_t key = 0;
+                            for (int it = 0; it < (int)ndT.size(); it++) {
+                                int t = ndT[it];
+                                uint64_t contrib = (M[t][i0] == 0) + (M[t][i1] == 1);
+                                key |= (contrib << (2 * it));
+                            }
+                            H[key].push_back({i0, i1});
+                        }
+                    }
+
+                    vector<tuple<int,int,int,int,int>> quints;
+                    long long quint_cap = 200000;
+                    bool overflow = false;
+                    for (int i2 : C[2]) {
+                        if (overflow) break;
+                        for (int i3 : C[3]) {
+                            if (i3 == i2) continue;
+                            if (overflow) break;
+                            for (int i4 : C[4]) {
+                                if (i4 == i2 || i4 == i3) continue;
+                                if (overflow) break;
+                                uint64_t partner_key = 0;
+                                bool valid = true;
+                                for (int it = 0; it < (int)ndT.size(); it++) {
+                                    int t = ndT[it];
+                                    int need = r[t] - (M[t][i2] == 2) - (M[t][i3] == 3) - (M[t][i4] == 4);
+                                    if (need < 0 || need > 2) { valid = false; break; }
+                                    partner_key |= ((uint64_t)need) << (2 * it);
+                                }
+                                if (!valid) continue;
+                                auto hit = H.find(partner_key);
+                                if (hit == H.end()) continue;
+                                for (auto& pr : hit->second) {
+                                    int i0 = pr.first, i1 = pr.second;
+                                    if (i0 == i2 || i0 == i3 || i0 == i4 || i1 == i2 || i1 == i3 || i1 == i4) continue;
+                                    quints.push_back({i0, i1, i2, i3, i4});
+                                    if ((long long)quints.size() > quint_cap) { overflow = true; break; }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!quints.empty() && !overflow) {
+                        while (quints.size() > 1) {
+                            auto [a, b, c, d, e] = quints[0];
+                            vector<int> q(n);
+                            for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
+                            q[U[a] - 1] = v0;
+                            q[U[b] - 1] = v1;
+                            q[U[c] - 1] = v2;
+                            q[U[d] - 1] = v3;
+                            q[U[e] - 1] = v4;
+                            int ans = do_query(q);
+                            int delta = ans - constMatch;
+                            vector<tuple<int,int,int,int,int>> newQ;
+                            for (auto& tup : quints) {
+                                auto [aa, bb, cc, dd, ee] = tup;
+                                int s = (aa == a) + (bb == b) + (cc == c) + (dd == d) + (ee == e);
+                                if (s == delta) newQ.push_back(tup);
+                            }
+                            quints = move(newQ);
+                            if (quints.empty()) break;
+                        }
+
+                        if (!quints.empty()) {
+                            auto [wa, wb, wc, wd, we] = quints[0];
+                            p[U[wa]] = v0; p[U[wb]] = v1; p[U[wc]] = v2; p[U[wd]] = v3; p[U[we]] = v4;
+                            vector<int> newU;
+                            for (int idx = 0; idx < m; idx++) {
+                                if (idx != wa && idx != wb && idx != wc && idx != wd && idx != we) newU.push_back(U[idx]);
+                            }
+                            U = move(newU);
+                            next_v += 5;
+                            placed = true;
+                        }
+                    }
+                }
+            }
+
+            // C-set BS fallback for quint
+            if (!placed && decode_ok && !C[0].empty() && !C[1].empty() && !C[2].empty() && !C[3].empty() && !C[4].empty()) {
+                int found_idx[5] = {-1, -1, -1, -1, -1};
+                bool cset_ok = true;
+                for (int j = 0; j < 5 && cset_ok; j++) {
+                    vector<int> cand_idx;
+                    cand_idx.reserve(C[j].size());
+                    for (int idx : C[j]) {
+                        bool skip = false;
+                        for (int k = 0; k < j; k++) if (idx == found_idx[k]) { skip = true; break; }
+                        if (!skip) cand_idx.push_back(idx);
+                    }
+                    if (cand_idx.empty()) { cset_ok = false; break; }
+                    sort(cand_idx.begin(), cand_idx.end());
+                    int lo = 0, hi = (int)cand_idx.size() - 1;
+                    while (lo < hi) {
+                        int mid = (lo + hi) / 2;
+                        vector<int> q(n);
+                        for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
+                        for (int k = lo; k <= mid; k++) {
+                            q[U[cand_idx[k]] - 1] = v_arr[j];
+                        }
+                        int ans = do_query(q);
+                        int delta = ans - constMatch;
+                        if (delta >= 1) hi = mid;
+                        else lo = mid + 1;
+                    }
+                    found_idx[j] = cand_idx[lo];
+                }
+                if (cset_ok) {
+                    for (int j = 0; j < 5; j++) p[U[found_idx[j]]] = v_arr[j];
+                    vector<int> newU;
+                    for (int idx = 0; idx < m; idx++) {
+                        bool keep = true;
+                        for (int j = 0; j < 5; j++) if (idx == found_idx[j]) { keep = false; break; }
+                        if (keep) newU.push_back(U[idx]);
+                    }
+                    U = move(newU);
+                    next_v += 5;
+                    placed = true;
+                }
+            }
+        }
+
         // ===== Try QUAD-JOINT-MIM for m >= QUAD_MIN and >= 4 values left =====
-        if (m >= QUAD_MIN && next_v + 3 <= n) {
+        if (!placed && m >= QUAD_MIN && next_v + 3 <= n) {
             int v0 = next_v, v1 = next_v + 1, v2 = next_v + 2, v3 = next_v + 3;
 
             int log2m = 0;
