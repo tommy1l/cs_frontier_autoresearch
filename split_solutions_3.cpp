@@ -52,106 +52,93 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // Regime "indep-bsearch-skel": close Phases A-B-C end-to-end.
-        // Phase A: build S={1..K}, K=40. Verify indep (K^2/n=0.016 expected adj).
-        // Phase B: 1 query (2(n-K) ops) tags v in V\S that are adj to some s in S.
-        //          Bit after [v add] = (v adj S) since S is indep.
-        // Phase C: 1 BIG query. For each tagged v, for each bit b in [0..BITS),
-        //          toggle out Aout[b]={s: bit_b(s)=0}, probe [v,v], toggle back.
-        //          Bit at "v add" = (v adj A_b). Decode 6 bits -> specific s in [1..K].
-        //          ~252 ops per v; up to 2K=80 tagged v's -> ~20k ops.
-        // Phase D: TODO. Output identity placeholder. Without ring reconstruction,
-        //          n=1e5 still scores 0; but Phase A-B-C structure is now real.
-        // Total t=3, Q ~ 2.2e5. If Phase D closed correctly, lambda -> ~1.
+        // Regime "chain-walk-quad": close end-to-end with chain reconstruction.
+        // Round 0: S={}->{1}; [v,v] scan v=2..n with S={1}. Find 1's nbrs A,B.
+        // Round k>=1: switch S from {prev} to {cur}, then [v,v] scan unplaced.
+        //   Unique v with bit=1 is cur's other neighbor (not prev).
+        // Total ops ~ n^2; this trial closes the regime, exposing the budget
+        // ceiling. Future trials must replace per-step linear scan.
 
-        const int K = 40;
-        const int BITS = 6;
+        vector<char> placed(n + 1, 0);
+        vector<int> chain;
+        chain.reserve(n);
 
-        cout << K;
-        for (int i = 1; i <= K; i++) cout << ' ' << i;
+        long long L0 = 1LL + 2LL * (n - 1);
+        cout << L0;
+        cout << ' ' << 1;
+        for (int v = 2; v <= n; v++) cout << ' ' << v << ' ' << v;
         cout << '\n';
         cout.flush();
 
-        vector<int> rA(K);
-        for (auto& x : rA) cin >> x;
+        vector<int> r0(L0);
+        for (long long k = 0; k < L0; k++) cin >> r0[k];
 
-        bool indep = true;
-        for (int i = 0; i < K; i++) if (rA[i] != 0) { indep = false; break; }
-
-        if (!indep) {
-            cout << -1;
-            for (int i = 1; i <= n; i++) cout << ' ' << i;
-            cout << '\n';
-            cout.flush();
-            return 0;
-        }
-
-        long long LB = 2LL * (n - K);
-        cout << LB;
-        for (int v = K + 1; v <= n; v++) cout << ' ' << v << ' ' << v;
-        cout << '\n';
-        cout.flush();
-
-        vector<int> rB(LB);
-        for (auto& x : rB) cin >> x;
-
-        vector<int> adjV;
-        for (int j = 0; j < n - K; j++) {
-            int v = K + 1 + j;
-            if (rB[2 * j] == 1) adjV.push_back(v);
-        }
-
-        vector<int> sForV(adjV.size(), -1);
-        if (!adjV.empty()) {
-            vector<vector<int>> Aout(BITS);
-            for (int b = 0; b < BITS; b++) {
-                for (int s = 1; s <= K; s++) {
-                    if (((s >> b) & 1) == 0) Aout[b].push_back(s);
-                }
+        int nbA = -1, nbB = -1;
+        for (int k = 0; k < n - 1; k++) {
+            int v = k + 2;
+            int bitOn = r0[1 + 2 * k];
+            if (bitOn == 1) {
+                if (nbA == -1) nbA = v;
+                else if (nbB == -1) nbB = v;
             }
+        }
 
-            vector<int> ops;
-            long long opCount = 0;
-            for (int b = 0; b < BITS; b++) opCount += (long long)adjV.size() * (2LL * Aout[b].size() + 2);
-            ops.reserve(opCount);
+        if (nbA != -1 && nbB != -1) {
+            chain.push_back(nbA);
+            chain.push_back(1);
+            chain.push_back(nbB);
+            placed[nbA] = placed[1] = placed[nbB] = 1;
 
-            for (int v : adjV) {
-                for (int b = 0; b < BITS; b++) {
-                    for (int s : Aout[b]) ops.push_back(s);
+            int prev = 1, cur = nbB;
+
+            while ((int)chain.size() < n) {
+                int remaining = n - (int)chain.size();
+                vector<int> ops;
+                ops.reserve(2 + 2 * remaining);
+                ops.push_back(prev);
+                ops.push_back(cur);
+                for (int v = 1; v <= n; v++) {
+                    if (placed[v]) continue;
                     ops.push_back(v);
                     ops.push_back(v);
-                    for (int s : Aout[b]) ops.push_back(s);
                 }
-            }
+                long long Lq = ops.size();
+                cout << Lq;
+                for (int x : ops) cout << ' ' << x;
+                cout << '\n';
+                cout.flush();
 
-            long long LC = ops.size();
-            cout << LC;
-            for (int x : ops) cout << ' ' << x;
-            cout << '\n';
-            cout.flush();
+                vector<int> rq(Lq);
+                for (long long k = 0; k < Lq; k++) cin >> rq[k];
 
-            vector<int> rC(LC);
-            for (auto& x : rC) cin >> x;
-
-            long long idx = 0;
-            for (size_t vi = 0; vi < adjV.size(); vi++) {
-                int sBits = 0;
-                for (int b = 0; b < BITS; b++) {
-                    int outSize = (int)Aout[b].size();
-                    idx += outSize;
-                    int bitAfterVAdd = rC[idx];
-                    idx++;
-                    idx++;
-                    idx += outSize;
-                    if (bitAfterVAdd == 1) sBits |= (1 << b);
+                int nxt = -1;
+                int idx = 2;
+                for (int v = 1; v <= n; v++) {
+                    if (placed[v]) continue;
+                    int bitOn = rq[idx];
+                    if (bitOn == 1) {
+                        nxt = v;
+                        break;
+                    }
+                    idx += 2;
                 }
-                if (sBits >= 1 && sBits <= K) sForV[vi] = sBits;
+
+                if (nxt == -1) break;
+                chain.push_back(nxt);
+                placed[nxt] = 1;
+                prev = cur;
+                cur = nxt;
             }
         }
-        (void)sForV;
+
+        if ((int)chain.size() != n) {
+            for (int v = 1; v <= n; v++) {
+                if (!placed[v]) chain.push_back(v);
+            }
+        }
 
         cout << -1;
-        for (int i = 1; i <= n; i++) cout << ' ' << i;
+        for (int x : chain) cout << ' ' << x;
         cout << '\n';
         cout.flush();
     }
