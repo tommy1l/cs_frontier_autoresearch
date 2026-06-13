@@ -21,8 +21,6 @@ static long long query(int x, int y) {
     return v;
 }
 
-// Saddleback countLE from (N, 1) with early-exit at K_target.
-// Returned value is only safe to compare against K_target.
 static long long countLE(long long v, long long K_target) {
     long long cnt = 0;
     int i = N, j = 1;
@@ -87,65 +85,59 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor + two-diagonal sandwich: S main-diag samples at (idxv[t], idxv[t])
-        // PLUS S-1 inter-diagonal corner samples at (idxv[t], idxv[t+1]).
-        // Corner samples interleave between main-diag samples (sorted) and supply
-        // tighter LB/UB rectangles (idxv[t]*idxv[t+1] / (N-idxv[t]+1)*(N-idxv[t+1]+1))
-        // so the analytic-skip pathway resolves MORE samples in/near the ambig band.
+        // level-set regime: sample on two non-diagonal analytic curves bracketing a_K.
+        // ABOVE curve: (i, j) with i*j >= K, so LB analytic >= K => a[i][j] >= a_K.
+        //   j_above(i) = ceil(K/i), valid when j_above <= N (i.e., i >= ceil(K/N)).
+        // BELOW curve: (i, j) with (N-i+1)*(N-j+1) > M-K, so UB analytic < K => a[i][j] <= a_K.
+        //   j_below(i) = N - floor((M-K)/(N-i+1)), valid when j_below >= 1.
+        // Each above-sample is an analytic upper bound; each below-sample a lower bound.
+        // Final bisect uses tight Lbound/Hbound from the sandwich.
         int S = max(4, (int)cbrt((double)N) + 1);
-        vector<long long> samp(S), samp_sand(S - 1);
-        vector<int> idxv(S);
-        for (int t = 0; t < S; t++) {
-            idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
-            samp[t] = query(idxv[t], idxv[t]);
-        }
-        for (int t = 0; t < S - 1; t++) {
-            samp_sand[t] = query(idxv[t], idxv[t + 1]);
-        }
+        long long Lbound = 1, Hbound = (long long)2e18;
 
-        // Interleaved sorted samples: samp[0], samp_sand[0], samp[1], samp_sand[1], ..., samp[S-1]
-        // (sorted because a[i][i] <= a[i][j+] <= a[i+][j+] = a[i+][i+]).
-        int TS = 2 * S - 1;
-        vector<long long> vals(TS);
-        vector<long long> lbcnt(TS), ubcnt(TS);
-        for (int k = 0; k < TS; k++) {
-            int t = k / 2;
-            if (k % 2 == 0) {
-                vals[k] = samp[t];
-                lbcnt[k] = (long long)idxv[t] * idxv[t];
-                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
-            } else {
-                vals[k] = samp_sand[t];
-                lbcnt[k] = (long long)idxv[t] * idxv[t + 1];
-                ubcnt[k] = M - (long long)(N - idxv[t] + 1) * (N - idxv[t + 1] + 1) + 1;
+        // ABOVE curve sampling: i in [i_lo, N].
+        long long i_above_lo = (K + N - 1) / N;
+        if (i_above_lo < 1) i_above_lo = 1;
+        long long i_above_hi = N;
+        if (i_above_lo <= i_above_hi) {
+            long long range_a = i_above_hi - i_above_lo;
+            long long cnt_a = min((long long)S, range_a + 1);
+            for (long long t = 0; t < cnt_a; t++) {
+                long long i;
+                if (cnt_a == 1) i = i_above_lo;
+                else i = i_above_lo + t * range_a / (cnt_a - 1);
+                long long j = (K + i - 1) / i;
+                if (j < 1) j = 1;
+                if (j > N) continue;
+                long long v = query((int)i, (int)j);
+                if (v < Hbound) Hbound = v;
             }
         }
 
-        int analyt_lo = -1, analyt_hi = TS;
-        for (int k = 0; k < TS; k++) {
-            if (ubcnt[k] < K) analyt_lo = k;
-        }
-        for (int k = TS - 1; k >= 0; k--) {
-            if (lbcnt[k] >= K) analyt_hi = k;
-        }
-        long long Lbound = (analyt_lo >= 0) ? vals[analyt_lo] + 1 : 1;
-        long long Hbound = (analyt_hi < TS) ? vals[analyt_hi] : (long long)2e18;
-        // Binary search within unknown band using countLE.
-        int ilo_s = analyt_lo;
-        int ihi_s = analyt_hi;
-        while (ihi_s - ilo_s > 1) {
-            int mid = (ilo_s + ihi_s) / 2;
-            long long c = countLE(vals[mid], K);
-            if (c >= K) {
-                ihi_s = mid;
-                if (vals[mid] < Hbound) Hbound = vals[mid];
-            } else {
-                ilo_s = mid;
-                if (vals[mid] + 1 > Lbound) Lbound = vals[mid] + 1;
+        // BELOW curve sampling: i in [1, i_hi].
+        long long denom = N - 1;
+        long long ceil_div = (denom > 0) ? ((M - K) + denom - 1) / denom : (M - K);
+        long long i_below_hi = N + 1 - ceil_div;
+        long long i_below_lo = 1;
+        if (i_below_hi > N) i_below_hi = N;
+        if (i_below_lo <= i_below_hi) {
+            long long range_b = i_below_hi - i_below_lo;
+            long long cnt_b = min((long long)S, range_b + 1);
+            for (long long t = 0; t < cnt_b; t++) {
+                long long i;
+                if (cnt_b == 1) i = i_below_lo;
+                else i = i_below_lo + t * range_b / (cnt_b - 1);
+                long long div = N - i + 1;
+                long long j = N - (M - K) / div;
+                if (j < 1) continue;
+                if (j > N) j = N;
+                long long v = query((int)i, (int)j);
+                if (v + 1 > Lbound) Lbound = v + 1;
             }
         }
+
         if (Lbound > Hbound) Lbound = Hbound;
-        // Final value bisect in tightened range, with early-exit countLE.
+        // Final value bisect with early-exit countLE.
         while (Lbound < Hbound) {
             long long mid = Lbound + (Hbound - Lbound) / 2;
             if (countLE(mid, K) >= K) Hbound = mid;
