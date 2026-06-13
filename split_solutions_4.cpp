@@ -87,40 +87,47 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor: sample sqrt(N) main-diagonal cells (monotone in i),
-        // sandwich K among them, then bisect inside the tightened range.
+        // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
+        // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
+        // samples already resolved analytically.
         int S = max(2, (int)sqrt((double)N) + 1);
-        vector<long long> samp;
-        samp.reserve(S);
+        vector<long long> samp(S);
+        vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
-            int idx = 1 + (int)((long long)t * (N - 1) / (S - 1));
-            samp.push_back(query(idx, idx));
+            idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
+            samp[t] = query(idxv[t], idxv[t]);
         }
-        sort(samp.begin(), samp.end());
-        samp.erase(unique(samp.begin(), samp.end()), samp.end());
-        // Find tightest pair (ilo, ihi) with countLE(samp[ilo])<K<=countLE(samp[ihi]).
-        int ilo_s = 0, ihi_s = (int)samp.size() - 1;
-        // Drive ihi_s down: smallest index with countLE >= K.
+        // samp[] is non-decreasing (main diagonal monotone). LB(t)=idxv[t]^2,
+        // UB(t)=M-(N-idxv[t]+1)^2+1. Both monotone in t.
+        // analyt_lo = last t with UB(t) < K (v_t strictly below answer).
+        // analyt_hi = first t with LB(t) >= K (v_t at-or-above answer).
+        int analyt_lo = -1, analyt_hi = S;
+        for (int t = 0; t < S; t++) {
+            long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
+            if (ubcount < K) analyt_lo = t;
+        }
+        for (int t = S - 1; t >= 0; t--) {
+            long long lbcount = (long long)idxv[t] * idxv[t];
+            if (lbcount >= K) analyt_hi = t;
+        }
+        long long Lbound = (analyt_lo >= 0) ? samp[analyt_lo] + 1 : 1;
+        long long Hbound = (analyt_hi < S) ? samp[analyt_hi] : (long long)2e18;
+        // Binary search within unknown band [analyt_lo+1 .. analyt_hi-1] using countLE.
+        int ilo_s = analyt_lo;
+        int ihi_s = analyt_hi;
         while (ihi_s - ilo_s > 1) {
             int mid = (ilo_s + ihi_s) / 2;
             long long c = countLE(samp[mid], K);
-            if (c >= K) ihi_s = mid;
-            else ilo_s = mid;
-        }
-        long long Lbound, Hbound;
-        // Verify countLE(samp[ilo_s]) status; if it's >= K, then ihi_s
-        // really is samp[ilo_s] and Lbound is matrix min.
-        long long cLo = countLE(samp[ilo_s], K);
-        if (cLo >= K) {
-            Hbound = samp[ilo_s];
-            // No lower diagonal anchor; fall back to 0.
-            Lbound = 0;
-        } else {
-            Lbound = samp[ilo_s] + 1;
-            Hbound = samp[ihi_s];
+            if (c >= K) {
+                ihi_s = mid;
+                if (samp[mid] < Hbound) Hbound = samp[mid];
+            } else {
+                ilo_s = mid;
+                if (samp[mid] + 1 > Lbound) Lbound = samp[mid] + 1;
+            }
         }
         if (Lbound > Hbound) Lbound = Hbound;
-        // Standard value bisect in tightened range, with early-exit countLE.
+        // Final value bisect in tightened range, with early-exit countLE.
         while (Lbound < Hbound) {
             long long mid = Lbound + (Hbound - Lbound) / 2;
             if (countLE(mid, K) >= K) Hbound = mid;
