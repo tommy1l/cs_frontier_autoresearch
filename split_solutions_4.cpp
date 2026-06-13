@@ -22,23 +22,13 @@ static long long query(int x, int y) {
 }
 
 // Saddleback countLE from (N, 1) with early-exit at K_target.
-// tl_size: cells (i<=tl_size AND j<=tl_size) guaranteed a[i][j] <= v (skip query).
-// br_size: cells (i>=br_size AND j>=br_size) guaranteed a[i][j] >  v (skip query).
 // Returned value is only safe to compare against K_target.
-static long long countLE(long long v, long long K_target, int tl_size = 0, int br_size = INT_MAX) {
+static long long countLE(long long v, long long K_target) {
     long long cnt = 0;
     int i = N, j = 1;
     while (i >= 1 && j <= N) {
-        bool a_le_v;
-        if (i <= tl_size && j <= tl_size) {
-            a_le_v = true;
-        } else if (i >= br_size && j >= br_size) {
-            a_le_v = false;
-        } else {
-            long long a = query(i, j);
-            a_le_v = (a <= v);
-        }
-        if (a_le_v) {
+        long long a = query(i, j);
+        if (a <= v) {
             cnt += (long long)i;
             if (cnt >= K_target) return cnt;
             j++;
@@ -127,12 +117,7 @@ int main() {
         int ihi_s = analyt_hi;
         while (ihi_s - ilo_s > 1) {
             int mid = (ilo_s + ihi_s) / 2;
-            // TL anchor: (idxv[mid],idxv[mid]) has value samp[mid] = v.
-            // BR anchor: smallest t' > mid with samp[t'] strictly > samp[mid].
-            int t_above = mid + 1;
-            while (t_above < S && samp[t_above] == samp[mid]) t_above++;
-            int br_for_diag = (t_above < S) ? idxv[t_above] : INT_MAX;
-            long long c = countLE(samp[mid], K, idxv[mid], br_for_diag);
+            long long c = countLE(samp[mid], K);
             if (c >= K) {
                 ihi_s = mid;
                 if (samp[mid] < Hbound) Hbound = samp[mid];
@@ -142,13 +127,10 @@ int main() {
             }
         }
         if (Lbound > Hbound) Lbound = Hbound;
-        // Final value bisect: TL from idxv[ilo_s] (samp[ilo_s] < mid_v),
-        // BR from idxv[ihi_s] (samp[ihi_s] = Hbound > mid_v strictly).
-        int tl_final = (ilo_s >= 0) ? idxv[ilo_s] : 0;
-        int br_final = (ihi_s < S) ? idxv[ihi_s] : INT_MAX;
+        // Final value bisect in tightened range, with early-exit countLE.
         while (Lbound < Hbound) {
             long long mid = Lbound + (Hbound - Lbound) / 2;
-            if (countLE(mid, K, tl_final, br_final) >= K) Hbound = mid;
+            if (countLE(mid, K) >= K) Hbound = mid;
             else Lbound = mid + 1;
         }
         ans = Lbound;
