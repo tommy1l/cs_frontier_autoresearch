@@ -21,25 +21,55 @@ static long long query(int x, int y) {
     return v;
 }
 
-// Saddleback countLE from (N, 1).
-static long long countLE(long long v) {
-    long long cnt = 0;
+// Persistent column boundary: colb[j] = max i with a[i][j] <= v_cur, 0 if a[1][j] > v_cur.
+static int colb[2010];
+static long long v_cur;
+static int v_cur_set = 0;
+
+static void initSaddleback(long long v) {
+    for (int j = 1; j <= N; j++) colb[j] = 0;
     int i = N, j = 1;
     while (i >= 1 && j <= N) {
         long long a = query(i, j);
         if (a <= v) {
-            cnt += (long long)i;
+            colb[j] = i;
             j++;
         } else {
             i--;
         }
     }
+    v_cur = v;
+    v_cur_set = 1;
+}
+
+static long long countLE(long long v) {
+    if (!v_cur_set) {
+        initSaddleback(v);
+    } else if (v > v_cur) {
+        for (int j = 1; j <= N; j++) {
+            while (colb[j] < N) {
+                long long a = query(colb[j] + 1, j);
+                if (a <= v) colb[j]++;
+                else break;
+            }
+        }
+        v_cur = v;
+    } else if (v < v_cur) {
+        for (int j = 1; j <= N; j++) {
+            while (colb[j] >= 1) {
+                long long a = query(colb[j], j);
+                if (a > v) colb[j]--;
+                else break;
+            }
+        }
+        v_cur = v;
+    }
+    long long cnt = 0;
+    for (int j = 1; j <= N; j++) cnt += colb[j];
     return cnt;
 }
 
-// Heap-based merge from (1,1). Returns kk-th smallest.
-// Push rule (each cell pushed exactly once):
-//   from popped (x,y): push (x, y+1) always; push (x+1, y) only if y==1.
+// Heap from (1,1) for kk-th smallest. Push rule: from (x,y) push (x,y+1) always; (x+1,y) only if y==1.
 static long long heapSelectMin(long long kk) {
     using P = tuple<long long, int, int>;
     priority_queue<P, vector<P>, greater<P>> pq;
@@ -64,8 +94,6 @@ static long long heapSelectMin(long long kk) {
     return last;
 }
 
-// Mirror: heap from (N,N) for kk-th largest.
-// Push rule: from popped (x,y): push (x, y-1) always; push (x-1, y) only if y==N.
 static long long heapSelectMax(long long kk) {
     using P = tuple<long long, int, int>;
     priority_queue<P, vector<P>, greater<P>> pq;
@@ -97,19 +125,24 @@ int main() {
     long long kFromBot = M - K + 1;
     long long minK = min(kFromTop, kFromBot);
     long long ans = 0;
-    // Heap-corner: queries ~ 2*minK + N. Use when comfortably under budget.
+
     if (minK <= 20000) {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        long long lo = 0, hi = (long long)2e18;
-        while (lo < hi) {
+        // Tighten initial bisect range via global min/max corners.
+        long long v00 = query(1, 1);
+        long long vNN = query(N, N);
+        long long lo = v00 - 1, hi = vNN;
+        while (lo + 1 < hi) {
             long long mid = lo + (hi - lo) / 2;
-            if (countLE(mid) >= K) hi = mid;
-            else lo = mid + 1;
+            long long cnt = countLE(mid);
+            if (cnt >= K) hi = mid;
+            else lo = mid;
         }
-        ans = lo;
+        ans = hi;
     }
+
     printf("DONE %lld\n", ans);
     fflush(stdout);
     return 0;
