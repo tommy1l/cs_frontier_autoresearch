@@ -208,13 +208,18 @@ int main() {
                 }
             }
 
-            // Adaptive extension if pair01 too big
+            // Adaptive extension if best 2-2 split max-pair still too big
             const long long PAIR_CAP = 200000;
             const int T_q_init = T_q;
             int T_max_ext = T_q + 12;
-            long long pair01 = (long long)C[0].size() * (long long)C[1].size();
-            long long pair23 = (long long)C[2].size() * (long long)C[3].size();
-            while (decode_ok && (pair01 > PAIR_CAP || pair23 > PAIR_CAP) && T_q < T_max_ext) {
+            auto compMax = [&]() -> long long {
+                long long ss[4] = {(long long)C[0].size(), (long long)C[1].size(), (long long)C[2].size(), (long long)C[3].size()};
+                long long m1 = max(ss[0]*ss[1], ss[2]*ss[3]);
+                long long m2 = max(ss[0]*ss[2], ss[1]*ss[3]);
+                long long m3 = max(ss[0]*ss[3], ss[1]*ss[2]);
+                return min({m1, m2, m3});
+            };
+            while (decode_ok && compMax() > PAIR_CAP && T_q < T_max_ext) {
                 int t = T_q;
                 M.push_back(vector<int>(m));
                 unsigned int seed = (unsigned int)(t * 2654435761u) ^ 0xa5a5a5a5u;
@@ -255,91 +260,107 @@ int main() {
                     }
                 }
                 T_q++;
-                pair01 = (long long)C[0].size() * (long long)C[1].size();
-                pair23 = (long long)C[2].size() * (long long)C[3].size();
             }
 
-            // Meet-in-the-middle decoder
-            if (decode_ok && !C[0].empty() && !C[1].empty() && !C[2].empty() && !C[3].empty()
-                && pair01 <= PAIR_CAP && pair23 <= PAIR_CAP) {
-                vector<int> ndT;
-                for (int t = 0; t < T_q; t++) if (r[t] != 0 && r[t] != 4) ndT.push_back(t);
+            // Meet-in-the-middle decoder with dynamic best 2-2 split
+            if (decode_ok && !C[0].empty() && !C[1].empty() && !C[2].empty() && !C[3].empty()) {
+                long long ss[4] = {(long long)C[0].size(), (long long)C[1].size(), (long long)C[2].size(), (long long)C[3].size()};
+                long long mvals[3] = {max(ss[0]*ss[1], ss[2]*ss[3]),
+                                      max(ss[0]*ss[2], ss[1]*ss[3]),
+                                      max(ss[0]*ss[3], ss[1]*ss[2])};
+                int splits_perm[3][4] = {{0,1,2,3}, {0,2,1,3}, {0,3,1,2}};
+                int best_o = 0;
+                for (int o = 1; o < 3; o++) if (mvals[o] < mvals[best_o]) best_o = o;
+                int la = splits_perm[best_o][0], lb = splits_perm[best_o][1];
+                int ra = splits_perm[best_o][2], rb = splits_perm[best_o][3];
+                long long pair_left = ss[la] * ss[lb];
+                long long pair_right = ss[ra] * ss[rb];
 
-                if ((int)ndT.size() <= 31) {
-                    unordered_map<uint64_t, vector<pair<int,int>>> H;
-                    H.reserve((size_t)pair01 * 2 + 16);
-                    for (int i0 : C[0]) {
-                        for (int i1 : C[1]) {
-                            if (i1 == i0) continue;
-                            uint64_t key = 0;
-                            for (int it = 0; it < (int)ndT.size(); it++) {
-                                int t = ndT[it];
-                                uint64_t contrib = (M[t][i0] == 0) + (M[t][i1] == 1);
-                                key |= (contrib << (2 * it));
+                if (pair_left <= PAIR_CAP && pair_right <= PAIR_CAP) {
+                    vector<int> ndT;
+                    for (int t = 0; t < T_q; t++) if (r[t] != 0 && r[t] != 4) ndT.push_back(t);
+
+                    if ((int)ndT.size() <= 31) {
+                        unordered_map<uint64_t, vector<pair<int,int>>> H;
+                        H.reserve((size_t)pair_left * 2 + 16);
+                        for (int i_la : C[la]) {
+                            for (int i_lb : C[lb]) {
+                                if (i_lb == i_la) continue;
+                                uint64_t key = 0;
+                                for (int it = 0; it < (int)ndT.size(); it++) {
+                                    int t = ndT[it];
+                                    uint64_t contrib = (M[t][i_la] == la) + (M[t][i_lb] == lb);
+                                    key |= (contrib << (2 * it));
+                                }
+                                H[key].push_back({i_la, i_lb});
                             }
-                            H[key].push_back({i0, i1});
                         }
-                    }
 
-                    vector<tuple<int,int,int,int>> quads;
-                    long long quad_cap = 200000;
-                    bool overflow = false;
-                    for (int i2 : C[2]) {
-                        if (overflow) break;
-                        for (int i3 : C[3]) {
-                            if (i3 == i2) continue;
+                        vector<tuple<int,int,int,int>> quads;
+                        long long quad_cap = 200000;
+                        bool overflow = false;
+                        for (int i_ra : C[ra]) {
                             if (overflow) break;
-                            uint64_t partner_key = 0;
-                            bool valid = true;
-                            for (int it = 0; it < (int)ndT.size(); it++) {
-                                int t = ndT[it];
-                                int need = r[t] - (M[t][i2] == 2) - (M[t][i3] == 3);
-                                if (need < 0 || need > 2) { valid = false; break; }
-                                partner_key |= ((uint64_t)need) << (2 * it);
-                            }
-                            if (!valid) continue;
-                            auto it = H.find(partner_key);
-                            if (it == H.end()) continue;
-                            for (auto& pr : it->second) {
-                                int i0 = pr.first, i1 = pr.second;
-                                if (i0 == i2 || i0 == i3 || i1 == i2 || i1 == i3) continue;
-                                quads.push_back({i0, i1, i2, i3});
-                                if ((long long)quads.size() > quad_cap) { overflow = true; break; }
+                            for (int i_rb : C[rb]) {
+                                if (i_rb == i_ra) continue;
+                                if (overflow) break;
+                                uint64_t partner_key = 0;
+                                bool valid = true;
+                                for (int it = 0; it < (int)ndT.size(); it++) {
+                                    int t = ndT[it];
+                                    int need = r[t] - (M[t][i_ra] == ra) - (M[t][i_rb] == rb);
+                                    if (need < 0 || need > 2) { valid = false; break; }
+                                    partner_key |= ((uint64_t)need) << (2 * it);
+                                }
+                                if (!valid) continue;
+                                auto it = H.find(partner_key);
+                                if (it == H.end()) continue;
+                                for (auto& pr : it->second) {
+                                    int i_la_ = pr.first, i_lb_ = pr.second;
+                                    if (i_la_ == i_ra || i_la_ == i_rb || i_lb_ == i_ra || i_lb_ == i_rb) continue;
+                                    int result[4];
+                                    result[la] = i_la_;
+                                    result[lb] = i_lb_;
+                                    result[ra] = i_ra;
+                                    result[rb] = i_rb;
+                                    quads.push_back({result[0], result[1], result[2], result[3]});
+                                    if ((long long)quads.size() > quad_cap) { overflow = true; break; }
+                                }
                             }
                         }
-                    }
 
-                    if (!quads.empty() && !overflow) {
-                        while (quads.size() > 1) {
-                            auto [a, b, c, d] = quads[0];
-                            vector<int> q(n);
-                            for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
-                            q[U[a] - 1] = v0;
-                            q[U[b] - 1] = v1;
-                            q[U[c] - 1] = v2;
-                            q[U[d] - 1] = v3;
-                            int ans = do_query(q);
-                            int delta = ans - constMatch;
-                            vector<tuple<int,int,int,int>> newQ;
-                            for (auto& tup : quads) {
-                                auto [aa, bb, cc, dd] = tup;
-                                int s = (aa == a) + (bb == b) + (cc == c) + (dd == d);
-                                if (s == delta) newQ.push_back(tup);
+                        if (!quads.empty() && !overflow) {
+                            while (quads.size() > 1) {
+                                auto [a, b, c, d] = quads[0];
+                                vector<int> q(n);
+                                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
+                                q[U[a] - 1] = v0;
+                                q[U[b] - 1] = v1;
+                                q[U[c] - 1] = v2;
+                                q[U[d] - 1] = v3;
+                                int ans = do_query(q);
+                                int delta = ans - constMatch;
+                                vector<tuple<int,int,int,int>> newQ;
+                                for (auto& tup : quads) {
+                                    auto [aa, bb, cc, dd] = tup;
+                                    int s2 = (aa == a) + (bb == b) + (cc == c) + (dd == d);
+                                    if (s2 == delta) newQ.push_back(tup);
+                                }
+                                quads = move(newQ);
+                                if (quads.empty()) break;
                             }
-                            quads = move(newQ);
-                            if (quads.empty()) break;
-                        }
 
-                        if (!quads.empty()) {
-                            auto [wa, wb, wc, wd] = quads[0];
-                            p[U[wa]] = v0; p[U[wb]] = v1; p[U[wc]] = v2; p[U[wd]] = v3;
-                            vector<int> newU;
-                            for (int idx = 0; idx < m; idx++) {
-                                if (idx != wa && idx != wb && idx != wc && idx != wd) newU.push_back(U[idx]);
+                            if (!quads.empty()) {
+                                auto [wa, wb, wc, wd] = quads[0];
+                                p[U[wa]] = v0; p[U[wb]] = v1; p[U[wc]] = v2; p[U[wd]] = v3;
+                                vector<int> newU;
+                                for (int idx = 0; idx < m; idx++) {
+                                    if (idx != wa && idx != wb && idx != wc && idx != wd) newU.push_back(U[idx]);
+                                }
+                                U = move(newU);
+                                next_v += 4;
+                                placed = true;
                             }
-                            U = move(newU);
-                            next_v += 4;
-                            placed = true;
                         }
                     }
                 }
