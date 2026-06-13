@@ -95,17 +95,8 @@ int main() {
         int S = max(4, (int)cbrt((double)N) + 1);
         vector<long long> samp(S), samp_sand(S - 1);
         vector<int> idxv(S);
-        // Chebyshev (cos-distributed) main-diag placement: dense at idx endpoints,
-        // sparse in middle. Endpoint samples are more easily analytic-skip-resolved
-        // (LB>=K or UB<K via (i^2) / (M-(N-i+1)^2+1) corner rectangles), so a higher
-        // fraction of samples lie OUTSIDE the ambig band [N+1-sqrt(M-K+1), sqrt(K)].
-        // Fewer ambig samples => fewer in-band countLE binary-search calls.
         for (int t = 0; t < S; t++) {
-            double theta = M_PI * (double)t / (double)(S - 1);
-            int idx = 1 + (int)round((1.0 - cos(theta)) * 0.5 * (double)(N - 1));
-            if (t > 0 && idx <= idxv[t - 1]) idx = idxv[t - 1] + 1;
-            if (idx > N) idx = N;
-            idxv[t] = idx;
+            idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
             samp[t] = query(idxv[t], idxv[t]);
         }
         for (int t = 0; t < S - 1; t++) {
