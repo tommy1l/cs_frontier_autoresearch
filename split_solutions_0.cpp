@@ -15,18 +15,17 @@ int main() {
         total += k;
     }
 
-    struct Choice {
+    struct Variant {
         int R, F;
         int w, h;
         int minx, miny;
-        vector<pair<int,int>> cells; // normalized to [0,w)x[0,h)
+        vector<pair<int,int>> cells; // normalized [0,w) x [0,h)
     };
-    vector<Choice> choices(n);
+    vector<vector<Variant>> variants(n);
+    vector<int> maxDim(n, 0), kSize(n, 0);
 
     for (int i = 0; i < n; i++) {
-        int bestH = INT_MAX, bestW = INT_MAX, bestR = 0, bestF = 0;
-        int bestMinX = 0, bestMinY = 0;
-        vector<pair<int,int>> bestCells;
+        set<vector<pair<int,int>>> seen;
         for (int F = 0; F < 2; F++) {
             for (int R = 0; R < 4; R++) {
                 int minx = INT_MAX, maxx = INT_MIN, miny = INT_MAX, maxy = INT_MIN;
@@ -44,56 +43,69 @@ int main() {
                 }
                 int w = maxx - minx + 1;
                 int h = maxy - miny + 1;
-                if (h < bestH || (h == bestH && w < bestW)) {
-                    bestH = h; bestW = w; bestR = R; bestF = F;
-                    bestMinX = minx; bestMinY = miny;
-                    bestCells.clear();
-                    for (auto& c : tcells) bestCells.push_back({c.first - minx, c.second - miny});
-                }
+                vector<pair<int,int>> norm;
+                norm.reserve(tcells.size());
+                for (auto& c : tcells) norm.push_back({c.first - minx, c.second - miny});
+                sort(norm.begin(), norm.end());
+                if (seen.count(norm)) continue;
+                seen.insert(norm);
+                Variant v;
+                v.R = R; v.F = F;
+                v.w = w; v.h = h;
+                v.minx = minx; v.miny = miny;
+                v.cells = norm;
+                variants[i].push_back(v);
             }
         }
-        choices[i].R = bestR;
-        choices[i].F = bestF;
-        choices[i].w = bestW;
-        choices[i].h = bestH;
-        choices[i].minx = bestMinX;
-        choices[i].miny = bestMinY;
-        choices[i].cells = bestCells;
+        maxDim[i] = max(variants[i][0].w, variants[i][0].h);
+        kSize[i] = (int)pieces[i].size();
     }
 
-    // Sort by descending h, then descending w (classic BFDH for BLF).
+    // Rotation-invariant sort: largest max dimension first, tiebreak by k.
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
-        if (choices[a].h != choices[b].h) return choices[a].h > choices[b].h;
-        return choices[a].w > choices[b].w;
+        if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
+        return kSize[a] > kSize[b];
     });
 
     int bestSide = INT_MAX;
     vector<tuple<int,int,int,int>> bestPlacement;
 
     double sqrtT = sqrt((double)total);
-    // BLF packs much tighter than shelf; sweep a narrow band around sqrt(T).
-    for (double f = 1.0; f <= 1.25 + 1e-9; f += 0.05) {
+    // Per-placement orientation is 5-8x heavier per X; keep sweep narrow.
+    for (double f = 1.00; f <= 1.15 + 1e-9; f += 0.05) {
         int W = max(10, (int)ceil(sqrtT * f));
-        vector<int> col(W, 0);                     // skyline: 1 + max y of occupied cell in column
+        vector<int> col(W, 0);
         vector<tuple<int,int,int,int>> placement(n);
         bool ok = true;
         int maxH = 0;
 
         for (int idx : order) {
-            const Choice& c = choices[idx];
-            if (c.w > W) { ok = false; break; }
-            int bestY = INT_MAX, bestX = -1;
-            int xMax = W - c.w;
-            for (int X = 0; X <= xMax; X++) {
-                int yMin = 0;
-                for (auto& cell : c.cells) {
-                    int need = col[X + cell.first] - cell.second;
-                    if (need > yMin) yMin = need;
+            int bestTop = INT_MAX;
+            int bestY = -1, bestX = -1, bestV = -1;
+            const auto& vs = variants[idx];
+            for (int vi = 0; vi < (int)vs.size(); vi++) {
+                const Variant& c = vs[vi];
+                if (c.w > W) continue;
+                int xMax = W - c.w;
+                for (int X = 0; X <= xMax; X++) {
+                    int yMin = 0;
+                    for (auto& cell : c.cells) {
+                        int need = col[X + cell.first] - cell.second;
+                        if (need > yMin) yMin = need;
+                    }
+                    int top = yMin + c.h;
+                    if (top < bestTop) {
+                        bestTop = top;
+                        bestY = yMin;
+                        bestX = X;
+                        bestV = vi;
+                    }
                 }
-                if (yMin < bestY) { bestY = yMin; bestX = X; }
             }
+            if (bestV < 0) { ok = false; break; }
+            const Variant& c = vs[bestV];
             int outX = bestX - c.minx;
             int outY = bestY - c.miny;
             placement[idx] = make_tuple(outX, outY, c.R, c.F);
@@ -103,7 +115,6 @@ int main() {
                 if (top > col[gx]) col[gx] = top;
                 if (top > maxH) maxH = top;
             }
-            // Prune: if already worse than best known square side.
             if (bestSide != INT_MAX && maxH >= bestSide) { ok = false; break; }
         }
         if (!ok) continue;
