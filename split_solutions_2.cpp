@@ -85,18 +85,19 @@ int main() {
     p[pos1] = 1;
     p[pos2] = 2;
 
-    // ===== Phase 2: TRIO joint BS (per-value cand filter, NO full mask enum), pair-BS fallback =====
+    // ===== Phase 2: TRIO-JOINT (m >= 16) -> pair-BS -> tail-brute =====
     vector<int> U;
     for (int i = 1; i <= n; i++) if (p[i] == 0) U.push_back(i);
 
     const int TAIL = 8;
+    const int TRIO_MIN = 16;
     int next_v = 3;
 
     while (next_v <= n && !U.empty()) {
         int m = (int)U.size();
 
         if (m <= TAIL) {
-            // Brute-force tail: candidate-elimination over all m! permutations.
+            // ===== Tail-brute (existing) =====
             vector<int> V;
             for (int i = 0; i < m; i++) V.push_back(next_v + i);
 
@@ -131,104 +132,153 @@ int main() {
             break;
         }
 
-        int constMatch = n - m;
-        bool try_trio = (next_v + 2 <= n);
+        // ===== Try TRIO-JOINT for m >= 16 and >= 3 values left =====
+        bool used_trio = false;
+        if (m >= TRIO_MIN && next_v + 2 <= n) {
+            int v0 = next_v, v1 = next_v + 1, v2 = next_v + 2;
 
-        bool trio_success = false;
-        int found_i1 = -1, found_i2 = -1, found_i3 = -1;
+            int log2m = 0;
+            while ((1 << log2m) < m) log2m++;
+            int T_q = (int)ceil(1.5 * (double)log2m) + 3;
 
-        if (try_trio) {
-            int v1 = next_v, v2 = next_v + 1, v3 = next_v + 2;
+            // Build trit matrix M[t][idx]
+            int Tbase = 0;
+            { long long p3v = 1; while (p3v < m) { Tbase++; p3v *= 3; } }
 
-            // T = ceil(log_3(m)), with cap
-            int T = 0; long long p3 = 1;
-            while (p3 < m) { T++; p3 *= 3; }
-
-            // precompute powers of 3
-            vector<long long> pow3(T + 1, 1);
-            for (int t = 1; t <= T; t++) pow3[t] = pow3[t - 1] * 3;
-
-            vector<int> tr_ans(T);
-            for (int t = 0; t < T; t++) {
-                vector<int> q(n);
-                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 0;
-                long long p3t = pow3[t];
-                for (int j = 0; j < m; j++) {
-                    int d = (int)((j / p3t) % 3);
-                    q[U[j] - 1] = (d == 0) ? v1 : (d == 1) ? v2 : v3;
-                }
-                int a = do_query(q);
-                tr_ans[t] = a - constMatch;
-            }
-
-            // Per-value cand filtering using DECISIVE trits (ans = 0 or 3)
-            vector<vector<int>> CAND(3);
-            for (int i = 0; i < 3; i++) {
+            vector<vector<int>> M(T_q, vector<int>(m));
+            long long pp3 = 1;
+            for (int t = 0; t < min(Tbase, T_q); t++) {
                 for (int idx = 0; idx < m; idx++) {
-                    bool ok = true;
-                    for (int t = 0; t < T; t++) {
-                        if (tr_ans[t] != 0 && tr_ans[t] != 3) continue;
-                        int d = (int)((idx / pow3[t]) % 3);
-                        if (tr_ans[t] == 0 && d == i) { ok = false; break; }
-                        if (tr_ans[t] == 3 && d != i) { ok = false; break; }
-                    }
-                    if (ok) CAND[i].push_back(idx);
+                    M[t][idx] = (int)((idx / pp3) % 3);
+                }
+                pp3 *= 3;
+            }
+            for (int t = Tbase; t < T_q; t++) {
+                unsigned int seed = (unsigned int)(t * 2654435761u) ^ 0xa5a5a5a5u;
+                for (int idx = 0; idx < m; idx++) {
+                    unsigned int h = (unsigned int)idx * 2246822519u + seed;
+                    h ^= (h >> 13);
+                    h *= 3266489917u;
+                    h ^= (h >> 16);
+                    M[t][idx] = (int)(h % 3u);
                 }
             }
 
-            long long joint_size = (long long)CAND[0].size() *
-                                   (long long)CAND[1].size() *
-                                   (long long)CAND[2].size();
+            // Send queries
+            int constMatch = n - m;
+            vector<int> r(T_q);
+            for (int t = 0; t < T_q; t++) {
+                vector<int> q(n);
+                for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : v0;
+                for (int idx = 0; idx < m; idx++) {
+                    int d = M[t][idx];
+                    int v = (d == 0) ? v0 : (d == 1) ? v1 : v2;
+                    q[U[idx] - 1] = v;
+                }
+                int ans = do_query(q);
+                r[t] = ans - constMatch;
+            }
 
-            if (joint_size > 0 && joint_size <= 300000) {
-                int sol_count = 0;
-                for (int i1 : CAND[0]) {
-                    if (sol_count > 1) break;
-                    for (int i2 : CAND[1]) {
-                        if (sol_count > 1) break;
-                        if (i2 == i1) continue;
-                        for (int i3 : CAND[2]) {
-                            if (i3 == i1 || i3 == i2) continue;
+            // Decode: decisive per-value filter, then joint enum
+            vector<vector<int>> C(3);
+            for (int j = 0; j < 3; j++) {
+                C[j].reserve(m);
+                for (int idx = 0; idx < m; idx++) C[j].push_back(idx);
+            }
+
+            bool decode_ok = true;
+            for (int t = 0; t < T_q && decode_ok; t++) {
+                if (r[t] == 0) {
+                    for (int j = 0; j < 3; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] != j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                } else if (r[t] == 3) {
+                    for (int j = 0; j < 3; j++) {
+                        vector<int> newC;
+                        for (int idx : C[j]) if (M[t][idx] == j) newC.push_back(idx);
+                        C[j] = move(newC);
+                        if (C[j].empty()) { decode_ok = false; break; }
+                    }
+                }
+            }
+
+            const long long ENUM_LIMIT = 5000000;
+            long long total = (long long)C[0].size() * (long long)C[1].size() * (long long)C[2].size();
+
+            if (decode_ok && total > 0 && total <= ENUM_LIMIT) {
+                vector<tuple<int,int,int>> triples;
+                int trip_cap = 200000;
+                bool overflow = false;
+                for (int i0 : C[0]) {
+                    if (overflow) break;
+                    for (int i1 : C[1]) {
+                        if (i1 == i0) continue;
+                        if (overflow) break;
+                        for (int i2 : C[2]) {
+                            if (i2 == i0 || i2 == i1) continue;
                             bool ok = true;
-                            for (int t = 0; t < T; t++) {
-                                int a = tr_ans[t];
-                                if (a == 0 || a == 3) continue;
-                                int d1 = (int)((i1 / pow3[t]) % 3);
-                                int d2 = (int)((i2 / pow3[t]) % 3);
-                                int d3 = (int)((i3 / pow3[t]) % 3);
-                                int s = (d1 == 0) + (d2 == 1) + (d3 == 2);
-                                if (s != a) { ok = false; break; }
+                            for (int t = 0; t < T_q; t++) {
+                                if (r[t] == 0 || r[t] == 3) continue;
+                                int s = (M[t][i0] == 0) + (M[t][i1] == 1) + (M[t][i2] == 2);
+                                if (s != r[t]) { ok = false; break; }
                             }
                             if (ok) {
-                                found_i1 = i1; found_i2 = i2; found_i3 = i3;
-                                sol_count++;
-                                if (sol_count > 1) break;
+                                triples.push_back({i0, i1, i2});
+                                if ((int)triples.size() > trip_cap) { overflow = true; break; }
                             }
                         }
                     }
                 }
-                if (sol_count == 1) trio_success = true;
-            }
 
-            if (trio_success) {
-                p[U[found_i1]] = v1;
-                p[U[found_i2]] = v2;
-                p[U[found_i3]] = v3;
-                vector<int> newU;
-                for (int k = 0; k < m; k++) {
-                    if (k != found_i1 && k != found_i2 && k != found_i3) newU.push_back(U[k]);
+                if (!triples.empty() && !overflow) {
+                    // Cand-elim if multiple
+                    while (triples.size() > 1) {
+                        auto [a, b, c] = triples[0];
+                        vector<int> q(n);
+                        for (int i = 1; i <= n; i++) q[i - 1] = (p[i] != 0) ? p[i] : 1;
+                        q[U[a] - 1] = v0;
+                        q[U[b] - 1] = v1;
+                        q[U[c] - 1] = v2;
+                        int ans = do_query(q);
+                        int delta = ans - constMatch;
+
+                        vector<tuple<int,int,int>> newT;
+                        for (auto& tup : triples) {
+                            auto [aa, bb, cc] = tup;
+                            int s = (aa == a) + (bb == b) + (cc == c);
+                            if (s == delta) newT.push_back(tup);
+                        }
+                        triples = move(newT);
+                        if (triples.empty()) break;
+                    }
+
+                    if (!triples.empty()) {
+                        auto [wa, wb, wc] = triples[0];
+                        p[U[wa]] = v0; p[U[wb]] = v1; p[U[wc]] = v2;
+
+                        vector<int> newU;
+                        for (int idx = 0; idx < m; idx++) {
+                            if (idx != wa && idx != wb && idx != wc) newU.push_back(U[idx]);
+                        }
+                        U = move(newU);
+                        next_v += 3;
+                        used_trio = true;
+                    }
                 }
-                U = newU;
-                next_v += 3;
-                continue;
             }
-            // else: fall through to pair-BS for (v1, v2); trio queries are "wasted"
         }
 
-        // ===== Pair-BS fallback for current next_v, next_v+1 =====
+        if (used_trio) continue;
+
+        // ===== Pair-BS fallback (from 29aacae) =====
         int v1 = next_v, v2 = next_v + 1;
         next_v += 2;
         if (m < 2) break;
+
+        int constMatch = n - m;
 
         if (m == 2) {
             vector<int> q(n);
