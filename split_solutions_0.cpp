@@ -55,6 +55,7 @@ int main() {
                 v.w = w; v.h = h;
                 v.minx = minx; v.miny = miny;
                 v.cells = norm;
+                // norm is sorted by (x asc, y asc), so first per-x is the bottom cell.
                 int curX = -1;
                 for (auto& cell : norm) {
                     if (cell.first != curX) {
@@ -69,6 +70,7 @@ int main() {
         kSize[i] = (int)pieces[i].size();
     }
 
+    // Rotation-invariant sort: largest max dimension first, tiebreak by k.
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
@@ -80,10 +82,10 @@ int main() {
     vector<tuple<int,int,int,int>> bestPlacement;
 
     double sqrtT = sqrt((double)total);
+    // Per-placement orientation is 5-8x heavier per X; keep sweep narrow.
     for (double f = 1.00; f <= 1.15 + 1e-9; f += 0.05) {
         int W = max(10, (int)ceil(sqrtT * f));
         vector<int> col(W, 0);
-        vector<tuple<int,int,int>> internalPlace(n); // (X, Y, vi)
         vector<tuple<int,int,int,int>> placement(n);
         bool ok = true;
         int maxH = 0;
@@ -118,7 +120,9 @@ int main() {
             }
             if (bestV < 0) { ok = false; break; }
             const Variant& c = vs[bestV];
-            internalPlace[idx] = make_tuple(bestX, bestY, bestV);
+            int outX = bestX - c.minx;
+            int outY = bestY - c.miny;
+            placement[idx] = make_tuple(outX, outY, c.R, c.F);
             for (auto& cell : c.cells) {
                 int gx = bestX + cell.first;
                 int top = bestY + cell.second + 1;
@@ -128,64 +132,7 @@ int main() {
             if (bestSide != INT_MAX && maxH >= bestSide) { ok = false; break; }
         }
         if (!ok) continue;
-
-        // Post-pass: gravity drop. Lets pieces fall into pockets/holes
-        // inside concave shapes that the column-skyline BLF cannot exploit.
-        int H = maxH;
-        vector<vector<int>> occ(W, vector<int>(H + 1, 0));
-        for (int i = 0; i < n; i++) {
-            int X = get<0>(internalPlace[i]);
-            int Y = get<1>(internalPlace[i]);
-            int vi = get<2>(internalPlace[i]);
-            const auto& cells = variants[i][vi].cells;
-            for (auto& cc : cells) occ[X + cc.first][Y + cc.second] = i + 1;
-        }
-        vector<int> dropOrd(n);
-        iota(dropOrd.begin(), dropOrd.end(), 0);
-        sort(dropOrd.begin(), dropOrd.end(), [&](int a, int b) {
-            return get<1>(internalPlace[a]) < get<1>(internalPlace[b]);
-        });
-        for (int it = 0; it < 2; it++) {
-            bool moved = false;
-            for (int p : dropOrd) {
-                int X = get<0>(internalPlace[p]);
-                int Y = get<1>(internalPlace[p]);
-                int vi = get<2>(internalPlace[p]);
-                const auto& cells = variants[p][vi].cells;
-                for (auto& cc : cells) occ[X + cc.first][Y + cc.second] = 0;
-                int newY = Y;
-                for (int yp = 0; yp <= Y; yp++) {
-                    bool good = true;
-                    for (auto& cc : cells) {
-                        if (occ[X + cc.first][yp + cc.second]) { good = false; break; }
-                    }
-                    if (good) { newY = yp; break; }
-                }
-                for (auto& cc : cells) occ[X + cc.first][newY + cc.second] = p + 1;
-                if (newY < Y) { internalPlace[p] = make_tuple(X, newY, vi); moved = true; }
-            }
-            if (!moved) break;
-            sort(dropOrd.begin(), dropOrd.end(), [&](int a, int b) {
-                return get<1>(internalPlace[a]) < get<1>(internalPlace[b]);
-            });
-        }
-        int newMaxH = 0;
-        for (int i = 0; i < n; i++) {
-            int Y = get<1>(internalPlace[i]);
-            int vi = get<2>(internalPlace[i]);
-            int top = Y + variants[i][vi].h;
-            if (top > newMaxH) newMaxH = top;
-        }
-
-        for (int i = 0; i < n; i++) {
-            int X = get<0>(internalPlace[i]);
-            int Y = get<1>(internalPlace[i]);
-            int vi = get<2>(internalPlace[i]);
-            const Variant& v = variants[i][vi];
-            placement[i] = make_tuple(X - v.minx, Y - v.miny, v.R, v.F);
-        }
-
-        int side = max(W, newMaxH);
+        int side = max(W, maxH);
         if (side < bestSide) {
             bestSide = side;
             bestPlacement = placement;
