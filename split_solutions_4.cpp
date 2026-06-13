@@ -21,7 +21,8 @@ static long long query(int x, int y) {
     return v;
 }
 
-// Saddleback countLE from (N, 1). If K_target > M, never early-exits → exact count.
+// Saddleback countLE from (N, 1) with early-exit at K_target.
+// Returned value is only safe to compare against K_target.
 static long long countLE(long long v, long long K_target) {
     long long cnt = 0;
     int i = N, j = 1;
@@ -86,9 +87,9 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor: sample sqrt(N) main-diagonal cells, classify via analytic
-        // submatrix LB/UB on count(<=v_i), narrow band via diag binary search,
-        // then regula-falsi interpolation in final value-bisect.
+        // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
+        // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
+        // samples already resolved analytically.
         int S = max(2, (int)sqrt((double)N) + 1);
         vector<long long> samp(S);
         vector<int> idxv(S);
@@ -96,6 +97,10 @@ int main() {
             idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
             samp[t] = query(idxv[t], idxv[t]);
         }
+        // samp[] is non-decreasing (main diagonal monotone). LB(t)=idxv[t]^2,
+        // UB(t)=M-(N-idxv[t]+1)^2+1. Both monotone in t.
+        // analyt_lo = last t with UB(t) < K (v_t strictly below answer).
+        // analyt_hi = first t with LB(t) >= K (v_t at-or-above answer).
         int analyt_lo = -1, analyt_hi = S;
         for (int t = 0; t < S; t++) {
             long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
@@ -107,6 +112,7 @@ int main() {
         }
         long long Lbound = (analyt_lo >= 0) ? samp[analyt_lo] + 1 : 1;
         long long Hbound = (analyt_hi < S) ? samp[analyt_hi] : (long long)2e18;
+        // Binary search within unknown band [analyt_lo+1 .. analyt_hi-1] using countLE.
         int ilo_s = analyt_lo;
         int ihi_s = analyt_hi;
         while (ihi_s - ilo_s > 1) {
@@ -121,34 +127,13 @@ int main() {
             }
         }
         if (Lbound > Hbound) Lbound = Hbound;
-
-        // Regula-falsi interpolation in final bisect.
-        // Use exact counts at both bracket endpoints to predict the K-rank
-        // crossing via linear interpolation. Expected O(log log delta) iters
-        // vs O(log delta) for plain binary, at the cost of one full countLE
-        // per iteration (no early-exit) instead of an early-exit countLE.
-        long long v_low = Lbound - 1;
-        long long v_high = Hbound;
-        long long c_low = (v_low >= 1) ? countLE(v_low, M + 1) : 0;
-        long long c_high = countLE(v_high, M + 1);
-        // Invariants: c_low < K <= c_high.
-        while (v_high - v_low > 1) {
-            long long denom = c_high - c_low;
-            long long mid;
-            if (denom > 1) {
-                __int128 off128 = (__int128)(K - c_low) * (__int128)(v_high - v_low) / (__int128)denom;
-                long long off = (long long)off128;
-                if (off < 1) off = 1;
-                if (off > v_high - v_low - 1) off = v_high - v_low - 1;
-                mid = v_low + off;
-            } else {
-                mid = v_low + (v_high - v_low) / 2;
-            }
-            long long c_mid = countLE(mid, M + 1);
-            if (c_mid >= K) { v_high = mid; c_high = c_mid; }
-            else { v_low = mid; c_low = c_mid; }
+        // Final value bisect in tightened range, with early-exit countLE.
+        while (Lbound < Hbound) {
+            long long mid = Lbound + (Hbound - Lbound) / 2;
+            if (countLE(mid, K) >= K) Hbound = mid;
+            else Lbound = mid + 1;
         }
-        ans = v_high;
+        ans = Lbound;
     }
     printf("DONE %lld\n", ans);
     fflush(stdout);
