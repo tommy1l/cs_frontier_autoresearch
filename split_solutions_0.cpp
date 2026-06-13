@@ -20,6 +20,7 @@ int main() {
         int w, h;
         int minx, miny;
         vector<pair<int,int>> cells; // normalized [0,w) x [0,h)
+        vector<pair<int,int>> bottomCols; // (cx, min cellY at cx)
     };
     vector<vector<Variant>> variants(n);
     vector<int> maxDim(n, 0), kSize(n, 0);
@@ -54,6 +55,14 @@ int main() {
                 v.w = w; v.h = h;
                 v.minx = minx; v.miny = miny;
                 v.cells = norm;
+                // norm is sorted by (x asc, y asc), so first per-x is the bottom cell.
+                int curX = -1;
+                for (auto& cell : norm) {
+                    if (cell.first != curX) {
+                        v.bottomCols.push_back(cell);
+                        curX = cell.first;
+                    }
+                }
                 variants[i].push_back(v);
             }
         }
@@ -82,7 +91,7 @@ int main() {
         int maxH = 0;
 
         for (int idx : order) {
-            int bestTop = INT_MAX;
+            int bestMetric = INT_MAX;
             int bestY = -1, bestX = -1, bestV = -1;
             const auto& vs = variants[idx];
             for (int vi = 0; vi < (int)vs.size(); vi++) {
@@ -95,9 +104,14 @@ int main() {
                         int need = col[X + cell.first] - cell.second;
                         if (need > yMin) yMin = need;
                     }
+                    int waste = 0;
+                    for (auto& bc : c.bottomCols) {
+                        waste += (yMin + bc.second) - col[X + bc.first];
+                    }
                     int top = yMin + c.h;
-                    if (top < bestTop) {
-                        bestTop = top;
+                    int metric = top + waste;
+                    if (metric < bestMetric) {
+                        bestMetric = metric;
                         bestY = yMin;
                         bestX = X;
                         bestV = vi;
