@@ -61,10 +61,13 @@ int main() {
         kSize[i] = (int)pieces[i].size();
     }
 
-    // Rotation-invariant sort: largest max dimension first, tiebreak by k.
+    // Rotation-invariant sort: largest bbox area first, then max-dim, then k.
+    vector<int> bboxArea(n);
+    for (int i = 0; i < n; i++) bboxArea[i] = variants[i][0].w * variants[i][0].h;
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
     sort(order.begin(), order.end(), [&](int a, int b) {
+        if (bboxArea[a] != bboxArea[b]) return bboxArea[a] > bboxArea[b];
         if (maxDim[a] != maxDim[b]) return maxDim[a] > maxDim[b];
         return kSize[a] > kSize[b];
     });
