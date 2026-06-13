@@ -69,6 +69,13 @@ int main() {
         return kSize[a] > kSize[b];
     });
 
+    // Split monominoes out of the BLF pass — they fill cavities post-hoc.
+    vector<int> order_big, order_mono;
+    for (int i : order) {
+        if (kSize[i] == 1) order_mono.push_back(i);
+        else order_big.push_back(i);
+    }
+
     int bestSide = INT_MAX;
     vector<tuple<int,int,int,int>> bestPlacement;
 
@@ -77,11 +84,12 @@ int main() {
     for (double f = 1.00; f <= 1.15 + 1e-9; f += 0.05) {
         int W = max(10, (int)ceil(sqrtT * f));
         vector<int> col(W, 0);
+        vector<vector<int>> occ(W); // occupied y values per column (for hole detection)
         vector<tuple<int,int,int,int>> placement(n);
         bool ok = true;
         int maxH = 0;
 
-        for (int idx : order) {
+        for (int idx : order_big) {
             int bestTop = INT_MAX;
             int bestY = -1, bestX = -1, bestV = -1;
             const auto& vs = variants[idx];
@@ -111,13 +119,57 @@ int main() {
             placement[idx] = make_tuple(outX, outY, c.R, c.F);
             for (auto& cell : c.cells) {
                 int gx = bestX + cell.first;
-                int top = bestY + cell.second + 1;
+                int gy = bestY + cell.second;
+                int top = gy + 1;
+                occ[gx].push_back(gy);
                 if (top > col[gx]) col[gx] = top;
                 if (top > maxH) maxH = top;
             }
             if (bestSide != INT_MAX && maxH >= bestSide) { ok = false; break; }
         }
         if (!ok) continue;
+
+        // Hole-filling for monominoes: enumerate cavity cells (below skyline, unoccupied),
+        // place monominoes there first; remaining monominoes go on the lowest column.
+        vector<pair<int,int>> holes; // (x, y) — cavity slots
+        for (int x = 0; x < W; x++) {
+            sort(occ[x].begin(), occ[x].end());
+            int idxOcc = 0;
+            for (int y = 0; y < col[x]; y++) {
+                if (idxOcc < (int)occ[x].size() && occ[x][idxOcc] == y) {
+                    idxOcc++;
+                } else {
+                    holes.push_back({x, y});
+                }
+            }
+        }
+        // Lowest holes first — keeps the upper rectangle clean.
+        sort(holes.begin(), holes.end(), [](const pair<int,int>& a, const pair<int,int>& b) {
+            if (a.second != b.second) return a.second < b.second;
+            return a.first < b.first;
+        });
+
+        int hi = 0;
+        for (int idx : order_mono) {
+            int gx, gy;
+            if (hi < (int)holes.size()) {
+                gx = holes[hi].first;
+                gy = holes[hi].second;
+                hi++;
+            } else {
+                int lo = 0;
+                for (int xi = 1; xi < W; xi++) if (col[xi] < col[lo]) lo = xi;
+                gx = lo;
+                gy = col[lo];
+                col[lo]++;
+                if (col[lo] > maxH) maxH = col[lo];
+                if (bestSide != INT_MAX && maxH >= bestSide) { ok = false; break; }
+            }
+            const Variant& c = variants[idx][0];
+            placement[idx] = make_tuple(gx - c.minx, gy - c.miny, c.R, c.F);
+        }
+        if (!ok) continue;
+
         int side = max(W, maxH);
         if (side < bestSide) {
             bestSide = side;
