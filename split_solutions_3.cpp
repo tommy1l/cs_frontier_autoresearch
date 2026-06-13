@@ -52,31 +52,86 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // Regime "indep-bsearch-skel": foundation for sub-quadratic n=1e5.
-        // Phase A: assume S={1..K} indep (P>0.97 for K=50 since K^2/n=0.025).
-        // Phase B: probe each u in V\S for adjacency to S in one batched query.
-        // Future trials: add parallel bsearch to identify which s, recurse on V\S.
-        int K = 50;
+        // Regime "indep-bsearch-skel": now with Phase A verify + Phase C binary-encoded bsearch.
+        // K small enough that {1..K} likely indep on cycle (P~exp(-K^2/n)).
+        // Phase A: toggle {1..K} in, verify all responses 0.
+        // Phase B: probe each u in K+1..n with (u,u), identify N(S).
+        // Phase C: for bit b in 0..ceil(log2(K))-1, set S to {i: bit b of (i-1) set},
+        //          probe each u in N(S), record bit b of u's S-neighbor index.
+        // Multi-round and cycle reconstruction not yet implemented -> emit identity.
+        int K = 200;
 
+        // Phase A
         cout << K;
         for (int i = 1; i <= K; i++) cout << ' ' << i;
         cout << '\n';
         cout.flush();
-
         vector<int> rA(K);
-        for (auto& x : rA) cin >> x;
+        for (int& r : rA) cin >> r;
 
-        int U = n - K;
-        long long L = 2LL * U;
-        cout << L;
+        bool indep = true;
+        for (int r : rA) if (r) { indep = false; break; }
+        if (!indep) {
+            cout << -1;
+            for (int i = 1; i <= n; i++) cout << ' ' << i;
+            cout << '\n';
+            cout.flush();
+            return 0;
+        }
+
+        // Phase B
+        long long U = n - K;
+        long long LB = 2LL * U;
+        cout << LB;
         for (int u = K + 1; u <= n; u++) cout << ' ' << u << ' ' << u;
         cout << '\n';
         cout.flush();
+        vector<int> rB(LB);
+        for (int& r : rB) cin >> r;
 
-        vector<int> rB(L);
-        for (auto& x : rB) cin >> x;
-        (void)rA; (void)rB;
+        vector<int> NS;
+        for (long long idx = 0; idx < U; idx++) {
+            if (rB[2*idx] == 1) NS.push_back(K + 1 + (int)idx);
+        }
 
+        // Phase C: binary-encoded parallel binary search
+        int B = 1;
+        while ((1 << B) < K) B++;
+        vector<int> cur_in(K + 1, 1);
+        vector<int> nbr_idx(NS.size(), 0);
+
+        for (int b = 0; b < B; b++) {
+            vector<int> target(K + 1, 0);
+            for (int i = 1; i <= K; i++) {
+                if (((i - 1) >> b) & 1) target[i] = 1;
+            }
+            vector<int> ops;
+            for (int i = 1; i <= K; i++) {
+                if (cur_in[i] != target[i]) {
+                    ops.push_back(i);
+                    cur_in[i] = target[i];
+                }
+            }
+            int probe_start = (int)ops.size();
+            for (int u : NS) { ops.push_back(u); ops.push_back(u); }
+
+            long long L = ops.size();
+            cout << L;
+            for (int op : ops) cout << ' ' << op;
+            cout << '\n';
+            cout.flush();
+            vector<int> r(L);
+            for (int& x : r) cin >> x;
+
+            for (size_t i = 0; i < NS.size(); i++) {
+                int first_r = r[probe_start + 2*(int)i];
+                if (first_r == 1) nbr_idx[i] |= (1 << b);
+            }
+        }
+
+        (void)nbr_idx;
+
+        // Emit identity (multi-round + reconstruction not implemented).
         cout << -1;
         for (int i = 1; i <= n; i++) cout << ' ' << i;
         cout << '\n';
