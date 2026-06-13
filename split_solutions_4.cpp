@@ -87,27 +87,27 @@ int main() {
         if (kFromTop <= kFromBot) ans = heapSelectMin(kFromTop);
         else                      ans = heapSelectMax(kFromBot);
     } else {
-        // diag-anchor + off-diagonal: sample S cells along (i, i+1) off-diagonal,
+        // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
         // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
         // samples already resolved analytically.
         int S = max(4, (int)cbrt((double)N) + 1);
         vector<long long> samp(S);
         vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
-            idxv[t] = 1 + (int)((long long)t * (N - 2) / (S - 1));
-            samp[t] = query(idxv[t], idxv[t] + 1);
+            idxv[t] = 1 + (int)((long long)t * (N - 1) / (S - 1));
+            samp[t] = query(idxv[t], idxv[t]);
         }
-        // samp[] is non-decreasing (both coords increase with t). For sample at
-        // (i, i+1): LB(t)=i*(i+1), UB(t)=M-(N-i+1)*(N-i)+1.
+        // samp[] is non-decreasing (main diagonal monotone). LB(t)=idxv[t]^2,
+        // UB(t)=M-(N-idxv[t]+1)^2+1. Both monotone in t.
         // analyt_lo = last t with UB(t) < K (v_t strictly below answer).
         // analyt_hi = first t with LB(t) >= K (v_t at-or-above answer).
         int analyt_lo = -1, analyt_hi = S;
         for (int t = 0; t < S; t++) {
-            long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t]) + 1;
+            long long ubcount = M - (long long)(N - idxv[t] + 1) * (N - idxv[t] + 1) + 1;
             if (ubcount < K) analyt_lo = t;
         }
         for (int t = S - 1; t >= 0; t--) {
-            long long lbcount = (long long)idxv[t] * (idxv[t] + 1);
+            long long lbcount = (long long)idxv[t] * idxv[t];
             if (lbcount >= K) analyt_hi = t;
         }
         long long Lbound = (analyt_lo >= 0) ? samp[analyt_lo] + 1 : 1;
