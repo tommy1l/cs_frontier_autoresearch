@@ -62,8 +62,8 @@ int main() {
         // Cost ~6 * 2n = 1.2e6 ops (vs 1e7 for old Phase 0). Then chain walk with
         // budget-capped per-step probe fallback.
 
-        const int K = 49;
-        const int BITS = 6;
+        const int K = 128;
+        const int BITS = 7;
         const long long opCap = 14000000LL;
         long long opsUsed = 0;
 
