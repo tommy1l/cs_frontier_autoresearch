@@ -8,13 +8,6 @@ int main() {
     int subtask, n;
     cin >> subtask >> n;
 
-    auto outputGuess = [&](const vector<int>& perm) {
-        cout << -1;
-        for (int x : perm) cout << ' ' << x;
-        cout << '\n';
-        cout.flush();
-    };
-
     if (n <= 1000) {
         long long L = 2LL * n * (n - 1);
         cout << L;
@@ -59,79 +52,57 @@ int main() {
         cout << '\n';
         cout.flush();
     } else {
-        // Regime "chain-walk-quad" new direction: K=sqrt(n) SEED skeleton.
-        // Replaces per-step linear scan with persistent-S amortization.
-        // Phase A: ONE query installs K seeds in S then probes each non-seed
-        //          [v,v]. bit_after_add reveals "v adj some seed".
-        // Phase B: For each adj-non-seed (~2K of them), binary search seeds
-        //          by toggling subset out of S to find which seed it is adj to.
-        // Phase C placeholder: identity guess; parallel chain walk pending.
-        int K = (int)max(2.0, ceil(sqrt((double)n)));
-        if (K > n / 4) K = n / 4;
+        // Regime "chain-walk-quad": close end-to-end with chain reconstruction.
+        // Round 0: S={}->{1}; [v,v] scan v=2..n with S={1}. Find 1's nbrs A,B.
+        // Round k>=1: switch S from {prev} to {cur}, then [v,v] scan unplaced.
+        //   Unique v with bit=1 is cur's other neighbor (not prev).
+        // Total ops ~ n^2; this trial closes the regime, exposing the budget
+        // ceiling. Future trials must replace per-step linear scan.
 
-        int stp = n / K;
-        if (stp < 2) stp = 2;
-        vector<int> seeds;
-        for (int i = 0; i < K; i++) {
-            int s = 1 + i * stp;
-            if (s > n) break;
-            seeds.push_back(s);
-        }
-        K = (int)seeds.size();
+        vector<char> placed(n + 1, 0);
+        vector<int> chain;
+        chain.reserve(n);
 
-        vector<char> isSeed(n + 1, 0);
-        for (int s : seeds) isSeed[s] = 1;
-
-        vector<int> nonSeeds;
-        nonSeeds.reserve(n - K);
-        for (int v = 1; v <= n; v++) if (!isSeed[v]) nonSeeds.push_back(v);
-
-        long long L1 = (long long)K + 2LL * (long long)nonSeeds.size();
-        cout << L1;
-        for (int s : seeds) cout << ' ' << s;
-        for (int v : nonSeeds) cout << ' ' << v << ' ' << v;
+        long long L0 = 1LL + 2LL * (n - 1);
+        cout << L0;
+        cout << ' ' << 1;
+        for (int v = 2; v <= n; v++) cout << ' ' << v << ' ' << v;
         cout << '\n';
         cout.flush();
 
-        vector<int> r1(L1);
-        for (long long k = 0; k < L1; k++) cin >> r1[k];
+        vector<int> r0(L0);
+        for (long long k = 0; k < L0; k++) cin >> r0[k];
 
-        int bitAfterSeeds = r1[K - 1];
-        if (bitAfterSeeds != 0) {
-            vector<int> perm(n);
-            for (int i = 0; i < n; i++) perm[i] = i + 1;
-            outputGuess(perm);
-            return 0;
+        int nbA = -1, nbB = -1;
+        for (int k = 0; k < n - 1; k++) {
+            int v = k + 2;
+            int bitOn = r0[1 + 2 * k];
+            if (bitOn == 1) {
+                if (nbA == -1) nbA = v;
+                else if (nbB == -1) nbB = v;
+            }
         }
 
-        vector<int> adjToSeeds;
-        for (size_t i = 0; i < nonSeeds.size(); i++) {
-            long long add_idx = (long long)K + 2LL * (long long)i;
-            if (r1[add_idx] == 1) adjToSeeds.push_back(nonSeeds[i]);
-        }
+        if (nbA != -1 && nbB != -1) {
+            chain.push_back(nbA);
+            chain.push_back(1);
+            chain.push_back(nbB);
+            placed[nbA] = placed[1] = placed[nbB] = 1;
 
-        if ((int)adjToSeeds.size() != 2 * K) {
-            vector<int> perm(n);
-            for (int i = 0; i < n; i++) perm[i] = i + 1;
-            outputGuess(perm);
-            return 0;
-        }
+            int prev = 1, cur = nbB;
 
-        vector<int> seedIdxOfV(adjToSeeds.size(), -1);
-
-        for (size_t idx = 0; idx < adjToSeeds.size(); idx++) {
-            int v = adjToSeeds[idx];
-            int lo = 0, hi = K - 1;
-            while (lo < hi) {
-                int mid = (lo + hi) / 2;
+            while ((int)chain.size() < n) {
+                int remaining = n - (int)chain.size();
                 vector<int> ops;
-                ops.reserve(2 * (mid - lo + 1) + 2);
-                for (int j = lo; j <= mid; j++) ops.push_back(seeds[j]);
-                ops.push_back(v);
-                ops.push_back(v);
-                for (int j = lo; j <= mid; j++) ops.push_back(seeds[j]);
-
-                long long Lq = (long long)ops.size();
+                ops.reserve(2 + 2 * remaining);
+                ops.push_back(prev);
+                ops.push_back(cur);
+                for (int v = 1; v <= n; v++) {
+                    if (placed[v]) continue;
+                    ops.push_back(v);
+                    ops.push_back(v);
+                }
+                long long Lq = ops.size();
                 cout << Lq;
                 for (int x : ops) cout << ' ' << x;
                 cout << '\n';
@@ -140,26 +111,36 @@ int main() {
                 vector<int> rq(Lq);
                 for (long long k = 0; k < Lq; k++) cin >> rq[k];
 
-                int removeCount = mid - lo + 1;
-                int bitAfterVAdd = rq[removeCount];
-
-                if (bitAfterVAdd == 1) {
-                    lo = mid + 1;
-                } else {
-                    hi = mid;
+                int nxt = -1;
+                int idx = 2;
+                for (int v = 1; v <= n; v++) {
+                    if (placed[v]) continue;
+                    int bitOn = rq[idx];
+                    if (bitOn == 1) {
+                        nxt = v;
+                        break;
+                    }
+                    idx += 2;
                 }
+
+                if (nxt == -1) break;
+                chain.push_back(nxt);
+                placed[nxt] = 1;
+                prev = cur;
+                cur = nxt;
             }
-            seedIdxOfV[idx] = lo;
         }
 
-        vector<vector<int>> seedNbrs(K);
-        for (size_t idx = 0; idx < adjToSeeds.size(); idx++) {
-            seedNbrs[seedIdxOfV[idx]].push_back(adjToSeeds[idx]);
+        if ((int)chain.size() != n) {
+            for (int v = 1; v <= n; v++) {
+                if (!placed[v]) chain.push_back(v);
+            }
         }
 
-        vector<int> perm(n);
-        for (int i = 0; i < n; i++) perm[i] = i + 1;
-        outputGuess(perm);
+        cout << -1;
+        for (int x : chain) cout << ' ' << x;
+        cout << '\n';
+        cout.flush();
     }
     return 0;
 }
