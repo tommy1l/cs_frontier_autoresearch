@@ -90,7 +90,7 @@ int main() {
         // diag-anchor + analytic-bounds: sample sqrt(N) main-diagonal cells,
         // classify each via submatrix LB/UB on count(<=v_i), skip countLE on
         // samples already resolved analytically.
-        int S = max(2, (int)sqrt((double)N) + 1);
+        int S = max(4, (int)cbrt((double)N) + 1);
         vector<long long> samp(S);
         vector<int> idxv(S);
         for (int t = 0; t < S; t++) {
