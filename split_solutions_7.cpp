@@ -8,61 +8,157 @@ int main() {
     long long L, R;
     cin >> L >> R;
 
-    int Kmin = 0; { long long t = L; while (t) { Kmin++; t >>= 1; } }
-    int Kmax = 0; { long long t = R; while (t) { Kmax++; t >>= 1; } }
+    int K_min = 0; { long long t = L; while (t > 0) { K_min++; t >>= 1; } }
+    int K_max = 0; { long long t = R; while (t > 0) { K_max++; t >>= 1; } }
+
+    const int MAXR = 25;
+    using Sig = array<pair<long long, long long>, MAXR>;
 
     int nodeCount = 0;
     vector<vector<pair<int,int>>> edges;
-    map<tuple<int, long long, long long>, int> atomNode;
+    map<Sig, int> stateId;
+    queue<pair<int, Sig>> bfs;
 
-    function<int(int, long long, long long)> getAtom = [&](int r, long long lo, long long hi) -> int {
-        if (lo > hi) return -1;
-        auto key = make_tuple(r, lo, hi);
-        auto it = atomNode.find(key);
-        if (it != atomNode.end()) return it->second;
+    int START = nodeCount++; edges.push_back({});
+    int END = nodeCount++; edges.push_back({});
 
-        int id = nodeCount++;
+    vector<int> WC(K_max + 2, -1);
+    WC[0] = END;
+    function<int(int)> getWC = [&](int r) -> int {
+        if (r == 0) return END;
+        if (WC[r] != -1) return WC[r];
+        int prev = getWC(r - 1);
+        WC[r] = nodeCount++;
         edges.push_back({});
-        atomNode[key] = id;
+        edges[WC[r]].push_back({prev, 0});
+        edges[WC[r]].push_back({prev, 1});
+        return WC[r];
+    };
 
-        if (r >= 1) {
-            long long shift = 1LL << (r - 1);
-            for (int b = 0; b < 2; b++) {
-                long long b_shift = (long long)b * shift;
-                long long nlo = max(0LL, lo - b_shift);
-                long long nhi = min(shift - 1, hi - b_shift);
-                int child = getAtom(r - 1, nlo, nhi);
-                if (child != -1) {
-                    edges[id].push_back({child, b});
+    auto sigEmpty = [&](const Sig& s) {
+        for (int r = 1; r < MAXR; r++) if (s[r].first <= s[r].second) return false;
+        return true;
+    };
+
+    auto sigMatchesWC = [&](const Sig& s) -> int {
+        int matched_r = -1;
+        for (int r = 1; r < MAXR; r++) {
+            if (s[r].first <= s[r].second) {
+                long long full_hi = (1LL << r) - 1;
+                if (s[r].first == 0 && s[r].second == full_hi && matched_r == -1) {
+                    matched_r = r;
+                } else {
+                    return -1;
                 }
             }
         }
+        return matched_r;
+    };
 
+    auto getOrAdd = [&](const Sig& s) -> int {
+        if (sigEmpty(s)) return END;
+        int wc_r = sigMatchesWC(s);
+        if (wc_r != -1) return getWC(wc_r);
+        auto it = stateId.find(s);
+        if (it != stateId.end()) return it->second;
+        int id = nodeCount++;
+        stateId[s] = id;
+        edges.push_back({});
+        bfs.push({id, s});
         return id;
     };
 
-    // END = atom (0, 0, 0), forced to be node 0.
-    getAtom(0, 0, 0);
+    auto computeChild = [&](const Sig& cur, int bit) -> Sig {
+        Sig child;
+        for (int r = 0; r < MAXR; r++) child[r] = {1, 0};
+        for (int r_new = 1; r_new + 1 < MAXR; r_new++) {
+            auto [lo, hi] = cur[r_new + 1];
+            if (lo > hi) continue;
+            long long shift = 1LL << r_new;
+            long long b_shift = (long long)bit * shift;
+            long long nlo = max(0LL, lo - b_shift);
+            long long nhi = min(shift - 1, hi - b_shift);
+            if (nlo <= nhi) child[r_new] = {nlo, nhi};
+        }
+        return child;
+    };
 
-    int START = nodeCount++;
-    edges.push_back({});
+    auto directAccept = [&](const Sig& cur, int bit) {
+        auto [lo, hi] = cur[1];
+        return lo <= (long long)bit && (long long)bit <= hi;
+    };
 
-    for (int k = Kmin; k <= Kmax; k++) {
-        long long L_k = max(L, 1LL << (k - 1));
-        long long R_k = min(R, (1LL << k) - 1);
-        if (L_k > R_k) continue;
-        long long nlo = L_k - (1LL << (k - 1));
-        long long nhi = R_k - (1LL << (k - 1));
-        int atom = getAtom(k - 1, nlo, nhi);
-        if (atom != -1) {
-            edges[START].push_back({atom, 1});
+    auto processState = [&](int u, const Sig& cur) {
+        for (int bit = 0; bit < 2; bit++) {
+            if (directAccept(cur, bit)) {
+                edges[u].push_back({END, bit});
+            }
+            Sig child = computeChild(cur, bit);
+            if (!sigEmpty(child)) {
+                int v = getOrAdd(child);
+                edges[u].push_back({v, bit});
+            }
+        }
+    };
+
+    Sig boundary_sig;
+    for (int r = 0; r < MAXR; r++) boundary_sig[r] = {1, 0};
+    bool has_boundary = false;
+
+    for (int K = K_min; K <= K_max; K++) {
+        long long a = max(L, 1LL << (K - 1));
+        long long b = min(R, (1LL << K) - 1);
+        if (a > b) continue;
+        long long resid_lo = a - (1LL << (K - 1));
+        long long resid_hi = b - (1LL << (K - 1));
+
+        if (K == 1) {
+            edges[START].push_back({END, 1});
+            continue;
+        }
+        long long full_hi = (1LL << (K - 1)) - 1;
+        bool is_full = (resid_lo == 0 && resid_hi == full_hi);
+
+        if (is_full) {
+            edges[START].push_back({getWC(K - 1), 1});
+        } else {
+            boundary_sig[K - 1] = {resid_lo, resid_hi};
+            has_boundary = true;
         }
     }
 
-    cout << nodeCount << "\n";
-    for (int i = 0; i < nodeCount; i++) {
-        cout << edges[i].size();
+    if (has_boundary) {
+        int bid = getOrAdd(boundary_sig);
+        edges[START].push_back({bid, 1});
+    }
+
+    while (!bfs.empty()) {
+        auto [u, sig] = bfs.front();
+        bfs.pop();
+        processState(u, sig);
+    }
+
+    int N = nodeCount;
+    vector<int> remap(N, -1);
+    remap[START] = 0;
+    remap[END] = N - 1;
+    int idx = 1;
+    for (int i = 0; i < N; i++) {
+        if (i == START || i == END) continue;
+        remap[i] = idx++;
+    }
+
+    vector<vector<pair<int,int>>> newEdges(N);
+    for (int i = 0; i < N; i++) {
         for (auto& [a, w] : edges[i]) {
+            newEdges[remap[i]].push_back({remap[a], w});
+        }
+    }
+
+    cout << N << "\n";
+    for (int i = 0; i < N; i++) {
+        cout << newEdges[i].size();
+        for (auto& [a, w] : newEdges[i]) {
             cout << " " << (a + 1) << " " << w;
         }
         cout << "\n";
