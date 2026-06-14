@@ -20,11 +20,9 @@ int main() {
         auto key = make_tuple(r, lo, hi);
         auto it = atomNode.find(key);
         if (it != atomNode.end()) return it->second;
-
         int id = nodeCount++;
         edges.push_back({});
         atomNode[key] = id;
-
         if (r >= 1) {
             long long shift = 1LL << (r - 1);
             for (int b = 0; b < 2; b++) {
@@ -37,13 +35,10 @@ int main() {
                 }
             }
         }
-
         return id;
     };
 
-    // END = atom (0, 0, 0), forced to be node 0.
     getAtom(0, 0, 0);
-
     int START = nodeCount++;
     edges.push_back({});
 
@@ -59,11 +54,51 @@ int main() {
         }
     }
 
-    cout << nodeCount << "\n";
-    for (int i = 0; i < nodeCount; i++) {
+    int N = nodeCount;
+    vector<int> rep(N);
+    iota(rep.begin(), rep.end(), 0);
+    function<int(int)> findRep = [&](int x) {
+        while (rep[x] != x) { rep[x] = rep[rep[x]]; x = rep[x]; }
+        return x;
+    };
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        map<vector<pair<int,int>>, int> sig;
+        for (int i = 0; i < N; i++) {
+            if (i == START) continue;
+            if (findRep(i) != i) continue;
+            vector<pair<int,int>> v;
+            for (auto& [a, w] : edges[i]) {
+                v.push_back({w, findRep(a)});
+            }
+            sort(v.begin(), v.end());
+            auto it = sig.find(v);
+            if (it == sig.end()) {
+                sig[v] = i;
+            } else {
+                rep[i] = it->second;
+                changed = true;
+            }
+        }
+    }
+
+    vector<int> compact(N, -1);
+    int newCount = 0;
+    for (int i = 0; i < N; i++) {
+        if (findRep(i) == i) {
+            compact[i] = newCount++;
+        }
+    }
+
+    cout << newCount << "\n";
+    for (int i = 0; i < N; i++) {
+        if (findRep(i) != i) continue;
         cout << edges[i].size();
         for (auto& [a, w] : edges[i]) {
-            cout << " " << (a + 1) << " " << w;
+            int target = findRep(a);
+            cout << " " << (compact[target] + 1) << " " << w;
         }
         cout << "\n";
     }
