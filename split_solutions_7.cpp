@@ -16,61 +16,60 @@ int main() {
     int nodeCount = 2;
     vector<vector<pair<int,int>>> edges(2);
 
-    // W chain: W(0) = END, W(j) -> W(j-1) via bit 0 and bit 1.
-    vector<int> wNode;
-    wNode.push_back(END);
+    // Multi-length DFA: state(v, d) keyed by future-language signature
+    // (list of (r, lo_r, hi_r) for r in [max(1, Kmin-d), Kmax-d]).
+    // Predecessor emits bit-b -> END for length-(d+1) acceptance AND
+    // bit-b -> state(2v+b, d+1) for extension. Same-bit multi-edges allowed
+    // because different total lengths => unique paths.
+    map<vector<tuple<int, long long, long long>>, int> stateMap;
 
-    function<int(int)> getW = [&](int j) -> int {
-        while ((int)wNode.size() <= j) {
-            int id = nodeCount++;
-            edges.push_back({});
-            int below = wNode.back();
-            edges[id].push_back({below, 0});
-            edges[id].push_back({below, 1});
-            wNode.push_back(id);
+    function<int(long long, int)> getState = [&](long long v, int d) -> int {
+        int rMin = max(1, Kmin - d);
+        int rMax = Kmax - d;
+        vector<tuple<int, long long, long long>> sig;
+        for (int r = rMin; r <= rMax; r++) {
+            long long mul = 1LL << r;
+            long long lo_r = max(0LL, L - v * mul);
+            long long hi_r = min(mul - 1, R - v * mul);
+            if (lo_r <= hi_r) {
+                sig.push_back({r, lo_r, hi_r});
+            }
         }
-        return wNode[j];
-    };
+        if (sig.empty()) return -1;
 
-    // length-atom (r, lo, hi): consume r more bits, value in [lo, hi].
-    // Full-range (lo=0, hi=2^r-1) short-circuits to W(r) — shared suffix.
-    map<tuple<int, long long, long long>, int> atomNode;
-
-    function<int(int, long long, long long)> getAtom = [&](int r, long long lo, long long hi) -> int {
-        if (lo > hi) return -1;
-        if (r == 0) return END;
-        if (lo == 0 && hi == (1LL << r) - 1) return getW(r);
-
-        auto key = make_tuple(r, lo, hi);
-        auto it = atomNode.find(key);
-        if (it != atomNode.end()) return it->second;
+        auto it = stateMap.find(sig);
+        if (it != stateMap.end()) return it->second;
 
         int id = nodeCount++;
         edges.push_back({});
-        atomNode[key] = id;
+        stateMap[sig] = id;
 
-        long long shift = 1LL << (r - 1);
         for (int b = 0; b < 2; b++) {
-            long long b_shift = (long long)b * shift;
-            long long nlo = max(0LL, lo - b_shift);
-            long long nhi = min(shift - 1, hi - b_shift);
-            int child = getAtom(r - 1, nlo, nhi);
-            if (child != -1) {
-                edges[id].push_back({child, b});
+            long long vp = 2 * v + b;
+            int dp = d + 1;
+            // length-(d+1) acceptance: emit bit-b -> END
+            if (L <= vp && vp <= R && Kmin <= dp && dp <= Kmax) {
+                edges[id].push_back({END, b});
+            }
+            // extend to deeper state for longer integers
+            if (dp < Kmax) {
+                int child = getState(vp, dp);
+                if (child != -1) {
+                    edges[id].push_back({child, b});
+                }
             }
         }
         return id;
     };
 
-    for (int k = Kmin; k <= Kmax; k++) {
-        long long L_k = max(L, 1LL << (k - 1));
-        long long R_k = min(R, (1LL << k) - 1);
-        if (L_k > R_k) continue;
-        long long nlo = L_k - (1LL << (k - 1));
-        long long nhi = R_k - (1LL << (k - 1));
-        int atom = getAtom(k - 1, nlo, nhi);
-        if (atom != -1) {
-            edges[START].push_back({atom, 1});
+    // START emits bit-1 -> END (length 1, integer 1) AND bit-1 -> state(1, 1).
+    if (L <= 1 && 1 <= R) {
+        edges[START].push_back({END, 1});
+    }
+    if (Kmax >= 2) {
+        int s = getState(1, 1);
+        if (s != -1) {
+            edges[START].push_back({s, 1});
         }
     }
 
