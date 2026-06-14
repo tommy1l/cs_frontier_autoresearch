@@ -76,10 +76,62 @@ int main() {
         }
     }
 
-    cout << nodeCount << "\n";
-    for (int i = 0; i < nodeCount; i++) {
-        cout << edges[i].size();
-        for (auto& [a, w] : edges[i]) {
+    int n = nodeCount;
+    int END = W(0);
+
+    // DFA minimization (Moore): collapse nodes with identical future-language.
+    vector<int> cls(n, 1);
+    cls[END] = 0;
+
+    while (true) {
+        map<tuple<int, vector<pair<int,int>>>, int> sigMap;
+        vector<int> ncls(n);
+        int newK = 0;
+        for (int u = 0; u < n; u++) {
+            vector<pair<int,int>> sig;
+            for (auto& [t, b] : edges[u]) {
+                sig.push_back({b, cls[t]});
+            }
+            sort(sig.begin(), sig.end());
+            auto key = make_tuple(cls[u], sig);
+            auto it = sigMap.find(key);
+            if (it == sigMap.end()) {
+                sigMap[key] = newK;
+                ncls[u] = newK;
+                newK++;
+            } else {
+                ncls[u] = it->second;
+            }
+        }
+        int oldK = *max_element(cls.begin(), cls.end()) + 1;
+        if (newK == oldK) break;
+        cls = ncls;
+    }
+
+    int newN = *max_element(cls.begin(), cls.end()) + 1;
+    vector<int> repr(newN, -1);
+    for (int u = 0; u < n; u++) if (repr[cls[u]] == -1) repr[cls[u]] = u;
+
+    int startCls = cls[START];
+    vector<int> remap(newN);
+    remap[startCls] = 0;
+    int idx = 1;
+    for (int c = 0; c < newN; c++) {
+        if (c != startCls) remap[c] = idx++;
+    }
+
+    vector<vector<pair<int,int>>> finalEdges(newN);
+    for (int u = 0; u < n; u++) {
+        if (repr[cls[u]] != u) continue;
+        for (auto& [t, b] : edges[u]) {
+            finalEdges[remap[cls[u]]].push_back({remap[cls[t]], b});
+        }
+    }
+
+    cout << newN << "\n";
+    for (int i = 0; i < newN; i++) {
+        cout << finalEdges[i].size();
+        for (auto& [a, w] : finalEdges[i]) {
             cout << " " << (a + 1) << " " << w;
         }
         cout << "\n";
