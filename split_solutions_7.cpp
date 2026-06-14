@@ -11,70 +11,75 @@ int main() {
     int Kmin = 0; { long long t = L; while (t) { Kmin++; t >>= 1; } }
     int Kmax = 0; { long long t = R; while (t) { Kmax++; t >>= 1; } }
 
-    int END = 0;
-    int START = 1;
-    int nodeCount = 2;
-    vector<vector<pair<int,int>>> edges(2);
+    // Canonical pieces: (prefix, prefixBits, wildcardCount).
+    vector<tuple<long long, int, int>> pieces;
 
-    // Multi-length DFA: state(v, d) keyed by future-language signature
-    // (list of (r, lo_r, hi_r) for r in [max(1, Kmin-d), Kmax-d]).
-    // Predecessor emits bit-b -> END for length-(d+1) acceptance AND
-    // bit-b -> state(2v+b, d+1) for extension. Same-bit multi-edges allowed
-    // because different total lengths => unique paths.
-    map<vector<tuple<int, long long, long long>>, int> stateMap;
-
-    function<int(long long, int)> getState = [&](long long v, int d) -> int {
-        int rMin = max(1, Kmin - d);
-        int rMax = Kmax - d;
-        vector<tuple<int, long long, long long>> sig;
-        for (int r = rMin; r <= rMax; r++) {
-            long long mul = 1LL << r;
-            long long lo_r = max(0LL, L - v * mul);
-            long long hi_r = min(mul - 1, R - v * mul);
-            if (lo_r <= hi_r) {
-                sig.push_back({r, lo_r, hi_r});
+    auto decomposeLen = [&](long long lo, long long hi, int totalBits) {
+        long long a = lo;
+        while (a <= hi) {
+            int j = 0;
+            while (true) {
+                long long m = (1LL << (j + 1)) - 1;
+                if ((a & m) != 0) break;
+                if (a + (1LL << (j + 1)) - 1 > hi) break;
+                j++;
             }
+            int pBits = totalBits - j;
+            long long p = a >> j;
+            pieces.push_back({p, pBits, j});
+            a += (1LL << j);
         }
-        if (sig.empty()) return -1;
+    };
 
-        auto it = stateMap.find(sig);
+    for (int k = Kmin; k <= Kmax; k++) {
+        long long lo = max(L, 1LL << (k - 1));
+        long long hi = min(R, (1LL << k) - 1);
+        if (lo <= hi) decomposeLen(lo, hi, k);
+    }
+
+    int maxK = 0;
+    for (auto& [p, pb, k] : pieces) maxK = max(maxK, k);
+
+    int START = 0;
+    auto W = [&](int k) { return 1 + k; };  // W(0)=1 (END), W(i)=1+i
+    int nextNode = 2 + maxK;
+    vector<vector<pair<int,int>>> edges(nextNode);
+
+    for (int i = 1; i <= maxK; i++) {
+        edges[W(i)].push_back({W(i-1), 0});
+        edges[W(i)].push_back({W(i-1), 1});
+    }
+
+    // Shared-suffix axis: each piece's prefix is emitted via states keyed by
+    // (suffix-of-prefix-to-emit, k_wildcards). Two pieces share state if same
+    // (suffix, k). Final state with empty suffix is W(k). Each state has ONE
+    // outgoing edge (the next bit is determined by the suffix).
+    map<tuple<int,long long,int>, int> stateMap;
+
+    function<int(int, long long, int)> getState = [&](int sBits, long long sVal, int k) -> int {
+        if (sBits == 0) return W(k);
+        auto key = make_tuple(sBits, sVal, k);
+        auto it = stateMap.find(key);
         if (it != stateMap.end()) return it->second;
-
-        int id = nodeCount++;
+        int id = nextNode++;
         edges.push_back({});
-        stateMap[sig] = id;
-
-        for (int b = 0; b < 2; b++) {
-            long long vp = 2 * v + b;
-            int dp = d + 1;
-            // length-(d+1) acceptance: emit bit-b -> END
-            if (L <= vp && vp <= R && Kmin <= dp && dp <= Kmax) {
-                edges[id].push_back({END, b});
-            }
-            // extend to deeper state for longer integers
-            if (dp < Kmax) {
-                int child = getState(vp, dp);
-                if (child != -1) {
-                    edges[id].push_back({child, b});
-                }
-            }
-        }
+        stateMap[key] = id;
+        int bit = (int)((sVal >> (sBits - 1)) & 1);
+        long long restVal = sVal & ((1LL << (sBits - 1)) - 1);
+        int child = getState(sBits - 1, restVal, k);
+        edges[id].push_back({child, bit});
         return id;
     };
 
-    // START emits bit-1 -> END (length 1, integer 1) AND bit-1 -> state(1, 1).
-    if (L <= 1 && 1 <= R) {
-        edges[START].push_back({END, 1});
-    }
-    if (Kmax >= 2) {
-        int s = getState(1, 1);
-        if (s != -1) {
-            edges[START].push_back({s, 1});
-        }
+    for (auto& [prefix, pBits, k] : pieces) {
+        int bit0 = (int)((prefix >> (pBits - 1)) & 1);
+        long long restVal = prefix & ((1LL << (pBits - 1)) - 1);
+        int child = getState(pBits - 1, restVal, k);
+        edges[START].push_back({child, bit0});
     }
 
-    cout << nodeCount << "\n";
-    for (int i = 0; i < nodeCount; i++) {
+    cout << nextNode << "\n";
+    for (int i = 0; i < nextNode; i++) {
         cout << edges[i].size();
         for (auto& [a, w] : edges[i]) {
             cout << " " << (a + 1) << " " << w;
