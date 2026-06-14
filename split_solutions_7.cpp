@@ -8,103 +8,76 @@ int main() {
     long long L, R;
     cin >> L >> R;
 
-    int K_min = 0; { long long t = L; while (t > 0) { K_min++; t >>= 1; } }
-    int K_max = 0; { long long t = R; while (t > 0) { K_max++; t >>= 1; } }
+    int Kmin = 0; { long long t = L; while (t) { Kmin++; t >>= 1; } }
+    int Kmax = 0; { long long t = R; while (t) { Kmax++; t >>= 1; } }
 
-    const int MAXR = 25;
-    using Sig = array<pair<long long, long long>, MAXR>;
+    // Canonical pieces: (prefix, prefixBits, wildcardCount).
+    vector<tuple<long long, int, int>> pieces;
 
-    auto sigEmpty = [&](const Sig& s) {
-        for (int r = 1; r < MAXR; r++) if (s[r].first <= s[r].second) return false;
-        return true;
+    auto decomposeLen = [&](long long lo, long long hi, int totalBits) {
+        long long a = lo;
+        while (a <= hi) {
+            int j = 0;
+            while (true) {
+                long long m = (1LL << (j + 1)) - 1;
+                if ((a & m) != 0) break;
+                if (a + (1LL << (j + 1)) - 1 > hi) break;
+                j++;
+            }
+            int pBits = totalBits - j;
+            long long p = a >> j;
+            pieces.push_back({p, pBits, j});
+            a += (1LL << j);
+        }
     };
 
-    // Start signature: for each r >= 1, valid r-bit integers in [L, R] (already >= 2^(r-1) by MSB).
-    Sig start_sig;
-    for (int r = 0; r < MAXR; r++) start_sig[r] = {1, 0};
-    for (int r = 1; r < MAXR; r++) {
-        if (r < K_min || r > K_max) continue;
-        long long a = max(L, 1LL << (r - 1));
-        long long b = min(R, (1LL << r) - 1);
-        if (a <= b) start_sig[r] = {a, b};
+    for (int k = Kmin; k <= Kmax; k++) {
+        long long lo = max(L, 1LL << (k - 1));
+        long long hi = min(R, (1LL << k) - 1);
+        if (lo <= hi) decomposeLen(lo, hi, k);
     }
 
-    // computeChild: child[r] = {s : bit * 2^r + s in cur[r+1]} clipped to [0, 2^r - 1].
-    auto computeChild = [&](const Sig& cur, int bit) -> Sig {
-        Sig child;
-        for (int r = 0; r < MAXR; r++) child[r] = {1, 0};
-        for (int r_new = 1; r_new + 1 < MAXR; r_new++) {
-            auto [lo, hi] = cur[r_new + 1];
-            if (lo > hi) continue;
-            long long shift = 1LL << r_new;
-            long long b_shift = (long long)bit * shift;
-            long long nlo = max(0LL, lo - b_shift);
-            long long nhi = min(shift - 1, hi - b_shift);
-            if (nlo <= nhi) child[r_new] = {nlo, nhi};
-        }
-        return child;
-    };
+    int maxK = 0;
+    for (auto& [p, pb, k] : pieces) maxK = max(maxK, k);
 
-    // directAccept: bit is itself a valid 1-bit suffix from current state.
-    auto directAccept = [&](const Sig& cur, int bit) {
-        auto [lo, hi] = cur[1];
-        return lo <= (long long)bit && (long long)bit <= hi;
-    };
+    int START = 0;
+    auto W = [&](int k) { return 1 + k; };
+    int firstTrie = 2 + maxK;
+    int nodeCount = firstTrie;
 
-    map<Sig, int> stateId;
-    vector<Sig> states;
-    vector<vector<pair<int,int>>> edges;
+    vector<vector<pair<int,int>>> edges(nodeCount);
 
-    int START = 0, END = 1;
+    for (int i = 1; i <= maxK; i++) {
+        edges[W(i)].push_back({W(i-1), 0});
+        edges[W(i)].push_back({W(i-1), 1});
+    }
 
-    states.push_back(start_sig);
-    stateId[start_sig] = 0;
-    edges.push_back({});
+    map<pair<int,int>, int> trieChild;
 
-    Sig end_sig; for (int r = 0; r < MAXR; r++) end_sig[r] = {1, 0};
-    states.push_back(end_sig);
-    stateId[end_sig] = 1;
-    edges.push_back({});
-
-    auto getOrAdd = [&](const Sig& s, bool& isNew) -> int {
-        isNew = false;
-        if (sigEmpty(s)) return END;
-        auto it = stateId.find(s);
-        if (it != stateId.end()) return it->second;
-        int id = states.size();
-        stateId[s] = id;
-        states.push_back(s);
-        edges.push_back({});
-        isNew = true;
-        return id;
-    };
-
-    queue<int> bfs;
-    bfs.push(START);
-
-    while (!bfs.empty()) {
-        int u = bfs.front(); bfs.pop();
-        if (u == END) continue;
-        Sig cur = states[u];
-        for (int bit = 0; bit < 2; bit++) {
-            if (directAccept(cur, bit)) {
-                edges[u].push_back({END, bit});
-            }
-            Sig child = computeChild(cur, bit);
-            if (!sigEmpty(child)) {
-                bool isNew = false;
-                int v = getOrAdd(child, isNew);
-                edges[u].push_back({v, bit});
-                if (isNew) {
-                    bfs.push(v);
+    for (auto& [prefix, pBits, k] : pieces) {
+        int cur = START;
+        for (int d = pBits - 1; d >= 0; d--) {
+            int bit = (int)((prefix >> d) & 1);
+            if (d == 0) {
+                edges[cur].push_back({W(k), bit});
+            } else {
+                auto it = trieChild.find({cur, bit});
+                int nxt;
+                if (it == trieChild.end()) {
+                    nxt = nodeCount++;
+                    edges.push_back({});
+                    trieChild[{cur, bit}] = nxt;
+                    edges[cur].push_back({nxt, bit});
+                } else {
+                    nxt = it->second;
                 }
+                cur = nxt;
             }
         }
     }
 
-    int N = states.size();
-    cout << N << "\n";
-    for (int i = 0; i < N; i++) {
+    cout << nodeCount << "\n";
+    for (int i = 0; i < nodeCount; i++) {
         cout << edges[i].size();
         for (auto& [a, w] : edges[i]) {
             cout << " " << (a + 1) << " " << w;
